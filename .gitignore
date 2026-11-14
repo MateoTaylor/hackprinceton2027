@@ -1,0 +1,35 @@
+# Secrets: matches .env in any folder
+.env
+.env.*
+!.env.example
+
+# Local agent and editor settings (each person keeps their own)
+.claude/
+CLAUDE.local.md
+.vscode/
+.idea/
+
+# Downloaded scans, panoramas, meshes and the CoStar data kit (large and licensed)
+data/
+kit/
+*.zip
+
+# Model weights (SAM, inpainting models, etc.)
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

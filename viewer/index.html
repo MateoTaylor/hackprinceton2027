@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan Alignment Viewer</title>
+<style>
+  :root { --bg: #101014; --panel: rgba(18, 18, 22, 0.9); --fg: #e9e9ee; --muted: #9b9ba6; --line: #34343c; --accent: #ff4fd8; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; overflow: hidden; }
+  canvas { display: block; touch-action: none; }
+  #panel { position: absolute; top: 10px; left: 10px; width: 300px; max-height: calc(100% - 20px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-sizing: border-box; }
+  h1 { font-size: 14px; margin: 0 0 4px; }
+  fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 8px 0; padding: 4px 8px 6px; }
+  legend { color: var(--muted); padding: 0 4px; }
+  label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
+  select, input[type=range] { width: 160px; }
+  select { background: #1d1d23; color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 2px; }
+  button { background: #26262e; color: var(--fg); border: 1px solid #45454f; border-radius: 5px; padding: 4px 8px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+  #status, #seam { color: var(--muted); white-space: pre-wrap; font-size: 12px; margin: 4px 0; }
+  textarea { width: 100%; height: 64px; background: #0b0b0e; color: #c8f7c8; border: 1px solid var(--line); border-radius: 4px; font: 11px ui-monospace, Consolas, monospace; box-sizing: border-box; resize: vertical; }
+  #hint { position: absolute; bottom: 10px; right: 12px; color: var(--muted); font-size: 12px; background: var(--panel); border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; }
+  @media (max-width: 640px) { #panel { left: 16px; right: 16px; width: auto; max-height: 45%; } #hint { display: none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="panel">
+  <h1>Scan alignment viewer</h1>
+  <div id="status">Loading…</div>
+  <fieldset><legend>Scene</legend>
+    <label>Model <select id="model"></select></label>
+    <label>Panorama <select id="pano"></select></label>
+    <label>Mesh <select id="meshSel"></select></label>
+    <label>View <select id="mode"><option value="pano">Inside panorama</option><option value="orbit">Orbit (dollhouse)</option></select></label>
+  </fieldset>
+  <fieldset><legend>Overlays</legend>
+    <label>Mesh opacity <input id="meshOpacity" type="range" min="0" max="1" step="0.05"></label>
+    <label>Pano projected on mesh <input id="projOpacity" type="range" min="0" max="1" step="0.05"></label>
+    <label>Mesh edges <input id="edges" type="checkbox"></label>
+    <label>Pano markers <input id="markers" type="checkbox" checked></label>
+  </fieldset>
+  <fieldset><legend>Conventions (undocumented by Matterport)</legend>
+    <label>Side faces 1→4 <select id="order"><option value="ccw">counter-clockwise</option><option value="cw">clockwise</option></select></label>
+    <label>Face 1 yaw <select id="yaw"></select></label>
+    <label>Top face (0) rotation <select id="topRot"></select></label>
+    <label>Bottom face (5) rotation <select id="botRot"></select></label>
+    <label>Invert quaternion <input id="invertQ" type="checkbox"></label>
+    <label>Mesh up axis <select id="meshUp"><option value="z">Z (MatterPak)</option><option value="y">Y</option></select></label>
+    <div class="row"><button id="autoFaces">Detect faces (seams)</button><button id="autoPose">Detect yaw (vs mesh)</button></div>
+    <div id="seam"></div>
+    <textarea id="convOut" readonly spellcheck="false"></textarea>
+  </fieldset>
+</div>
+<div id="hint">Drag to look · wheel to zoom · [ ] previous/next pano · M switches view · click a yellow dot to jump</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const V3 = THREE.Vector3;
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const status = (text) => { $('status').textContent = text; };
+
+// ---------------------------------------------------------------- conventions
+// Matterport doesn't document the skybox face layout or the pose convention. These defaults were
+// measured on model zzvymDx5ty7 (all 9 panos): seam matching picks the face layout, and NCC against
+// the MatterPak mesh picks yaw 0 with the API quaternion used as-is (pano-local -> world), with
+// no residual yaw offset. Re-check with the two Detect buttons on new models. The URL hash overrides.
+const DEFAULTS = { order: 'cw', yaw: 0, topRot: 180, botRot: 0, invertQ: false, meshUp: 'z' };
+let conv = { ...DEFAULTS };
+try { Object.assign(conv, JSON.parse(decodeURIComponent(location.hash.slice(1)) || '{}')); } catch { /* ignore bad hash */ }
+
+for (const id of ['yaw', 'topRot', 'botRot']) {
+  for (const deg of [0, 90, 180, 270]) $(id).add(new Option(`${deg}°`, deg));
+}
+
+function faceFrames(c) {
+  // Pano-local frame is Z-up. Faces 1-4 are horizontal, 0 looks up, 5 looks down.
+  // Each face k has forward F, image-up U and image-right R = F x U (seen from inside the cube).
+  const Z = new V3(0, 0, 1);
+  const rotZ = (v, deg) => v.clone().applyAxisAngle(Z, (deg * Math.PI) / 180);
+  const f1 = rotZ(new V3(1, 0, 0), +c.yaw);
+  const step = c.order === 'ccw' ? 90 : -90;
+  const F = [], U = [], R = [];
+  for (let k = 0; k < 4; k++) { F[k + 1] = rotZ(f1, step * k); U[k + 1] = Z.clone(); }
+  F[0] = Z.clone(); U[0] = rotZ(f1, +c.topRot);
+  F[5] = Z.clone().negate(); U[5] = rotZ(f1, +c.botRot);
+  for (let k = 0; k < 6; k++) R[k] = new V3().crossVectors(F[k], U[k]);
+  return { F, U, R };
+}
+
+// ---------------------------------------------------------------- renderer and scene
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101014);
+const world = new THREE.Group();          // scan data frame (Z-up) inside three.js (Y-up)
+world.rotation.x = -Math.PI / 2;
+scene.add(world);
+world.updateMatrixWorld();
+const dataToThree = (p) => new V3(p[0], p[1], p[2]).applyMatrix4(world.matrixWorld);
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.02, 500);
+camera.rotation.order = 'YXZ';
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enabled = false;
+
+// ---------------------------------------------------------------- panorama shader
+const VS = /* glsl */`
+  varying vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
+const PANO_GLSL = /* glsl */`
+  uniform sampler2D uFace0, uFace1, uFace2, uFace3, uFace4, uFace5;
+  uniform vec3 uF[6]; uniform vec3 uR[6]; uniform vec3 uU[6];
+  uniform mat3 uToLocal;   // three.js world direction -> pano-local direction
+  uniform vec3 uCenter;    // pano centre in three.js world
+  uniform float uOpacity;
+  varying vec3 vWorld;
+  vec3 panoColor(vec3 worldPos) {
+    vec3 d = uToLocal * normalize(worldPos - uCenter);
+    int k = 0; float best = -2.0; vec3 r = uR[0]; vec3 u = uU[0];
+    for (int i = 0; i < 6; i++) {
+      float s = dot(d, uF[i]);
+      if (s > best) { best = s; k = i; r = uR[i]; u = uU[i]; }
+    }
+    vec2 uv = vec2(0.5 + 0.5 * dot(d, r) / best, 0.5 - 0.5 * dot(d, u) / best);
+    if (k == 0) return texture2D(uFace0, uv).rgb;
+    if (k == 1) return texture2D(uFace1, uv).rgb;
+    if (k == 2) return texture2D(uFace2, uv).rgb;
+    if (k == 3) return texture2D(uFace3, uv).rgb;
+    if (k == 4) return texture2D(uFace4, uv).rgb;
+    return texture2D(uFace5, uv).rgb;
+  }`;
+
+const shared = {
+  uFace0: { value: null }, uFace1: { value: null }, uFace2: { value: null },
+  uFace3: { value: null }, uFace4: { value: null }, uFace5: { value: null },
+  uF: { value: [] }, uR: { value: [] }, uU: { value: [] },
+  uToLocal: { value: new THREE.Matrix3() }, uCenter: { value: new V3() },
+};
+const skyMat = new THREE.ShaderMaterial({
+  uniforms: { ...shared, uOpacity: { value: 1 } }, vertexShader: VS,
+  fragmentShader: PANO_GLSL + 'void main() { gl_FragColor = vec4(panoColor(vWorld), 1.0); }',
+  side: THREE.BackSide, depthWrite: false, depthTest: false,
+});
+const sky = new THREE.Mesh(new THREE.SphereGeometry(100, 64, 32), skyMat);
+sky.renderOrder = -1;
+sky.frustumCulled = false;
+scene.add(sky);
+
+const projMat = new THREE.ShaderMaterial({
+  uniforms: { ...shared, uOpacity: { value: 0 } }, vertexShader: VS,
+  fragmentShader: PANO_GLSL + 'void main() { gl_FragColor = vec4(panoColor(vWorld), uOpacity); }',
+  transparent: true, depthWrite: false, depthFunc: THREE.LessEqualDepth, side: THREE.DoubleSide,
+});
+
+function applyFaceFrames() {
+  const { F, R, U } = faceFrames(conv);
+  shared.uF.value = F; shared.uR.value = R; shared.uU.value = U;
+}
+applyFaceFrames();                        // the render loop starts before boot() finishes
+
+// ---------------------------------------------------------------- state
+let manifest = null, dataRoot = '', current = -1, mode = 'pano';
+let meshRoot = null, meshGen = 0;
+const markers = new THREE.Group();
+world.add(markers);
+const texCache = new Map();               // pano id -> Promise<Texture[6]>, small LRU
+const texLoader = new THREE.TextureLoader();
+
+function loadTexture(url) {
+  return new Promise((resolve, reject) => texLoader.load(url, (t) => {
+    t.flipY = false; t.generateMipmaps = false;
+    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.needsUpdate = true;
+    resolve(t);
+  }, undefined, reject));
+}
+function panoTextures(loc) {
+  if (!texCache.has(loc.id)) {
+    texCache.set(loc.id, Promise.all(loc.faces.map((f) => loadTexture(dataRoot + f))));
+    while (texCache.size > 3) {           // ~100 MB of GPU memory per 2k panorama
+      const [oldId, oldPromise] = texCache.entries().next().value;
+      if (oldId === manifest.locations[current]?.id) break;
+      texCache.delete(oldId);
+      oldPromise.then((ts) => ts.forEach((t) => t.dispose()));
+    }
+  }
+  return texCache.get(loc.id);
+}
+
+function updatePose(loc) {
+  const q = loc.rotation ? new THREE.Quaternion(...loc.rotation) : new THREE.Quaternion();
+  if (!conv.invertQ) q.invert();          // default assumption: q rotates pano-local -> world
+  const toData = new THREE.Matrix4().makeRotationFromQuaternion(world.quaternion).invert();
+  const m = new THREE.Matrix4().makeRotationFromQuaternion(q).multiply(toData);
+  shared.uToLocal.value.setFromMatrix4(m);
+  const c = dataToThree(loc.position);
+  shared.uCenter.value.copy(c);
+  sky.position.copy(c);
+}
+
+async function selectPano(i, { moveCamera = true } = {}) {
+  if (!manifest) return;
+  current = (i + manifest.locations.length) % manifest.locations.length;
+  const loc = manifest.locations[current];
+  $('pano').value = String(current);
+  markers.children.forEach((m, k) => {
+    m.material = k === current ? markerOn : markerOff;
+    m.visible = $('markers').checked && !(mode === 'pano' && k === current);
+  });
+  updatePose(loc);
+  if (mode === 'pano' && moveCamera) camera.position.copy(shared.uCenter.value);
+  status(`${manifest.name} · pano ${current + 1}/${manifest.locations.length} (label ${loc.label ?? '-'}) — loading faces…`);
+  const textures = await panoTextures(loc);
+  if (manifest.locations[current] !== loc) return;  // user moved on meanwhile
+  textures.forEach((t, k) => { shared['uFace' + k].value = t; });
+  status(describe());
+}
+
+function describe() {
+  const loc = manifest.locations[current];
+  const p = loc.position.map((v) => v.toFixed(2)).join(', ');
+  return `${manifest.name} (${manifest.model_id})\npano ${current + 1}/${manifest.locations.length} · label ${loc.label ?? '-'} · ${loc.floor ?? ''}\nposition (${p}) m` +
+    (meshRoot ? `\nmesh: ${meshRoot.userData.info}` : '\nmesh: none loaded');
+}
+
+// ---------------------------------------------------------------- markers
+const markerGeo = new THREE.SphereGeometry(0.07, 16, 12);
+const markerOff = new THREE.MeshBasicMaterial({ color: 0xffd400 });
+const markerOn = new THREE.MeshBasicMaterial({ color: 0xff3366 });
+function buildMarkers() {
+  markers.clear();
+  manifest.locations.forEach((loc, k) => {
+    const m = new THREE.Mesh(markerGeo, markerOff);
+    m.position.set(...loc.position);
+    m.position.z -= 1.55;                 // tripod head is ~1.6 m above the floor in this scan
+    m.userData.index = k;
+    markers.add(m);
+  });
+}
+
+// ---------------------------------------------------------------- mesh
+const edgeMat = new THREE.LineBasicMaterial({ color: 0xff4fd8, transparent: true, opacity: 0.9 });
+function unlit(m) {
+  const mat = m?.map
+    ? new THREE.MeshBasicMaterial({ map: m.map })
+    : new THREE.MeshNormalMaterial();
+  Object.assign(mat, { side: THREE.DoubleSide, transparent: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  return mat;
+}
+
+async function loadMesh(entry) {
+  const gen = ++meshGen;
+  if (meshRoot) { meshRoot.removeFromParent(); disposeTree(meshRoot); meshRoot = null; }
+  if (!entry) { status(describe()); return; }
+  const url = dataRoot + entry.path;
+  const progress = (e) => { if (e.total) status(`Loading mesh ${(100 * e.loaded / e.total).toFixed(0)}% of ${(e.total / 1e6).toFixed(1)} MB…`); };
+  let root;
+  if (entry.type === 'obj') {
+    const loader = new OBJLoader();
+    if (entry.mtl) {
+      const materials = await new MTLLoader().loadAsync(dataRoot + entry.mtl);
+      materials.preload();
+      loader.setMaterials(materials);
+    }
+    root = await loader.loadAsync(url, progress);
+  } else {
+    root = (await new GLTFLoader().loadAsync(url, progress)).scene;
+  }
+  if (gen !== meshGen) { disposeTree(root); return; }
+  let tris = 0;
+  const box = new THREE.Box3();
+  const meshes = [];
+  root.traverse((o) => { if (o.isMesh) meshes.push(o); });  // collect first: overlays are meshes too
+  meshes.forEach((o) => {
+    o.material = Array.isArray(o.material) ? o.material.map(unlit) : unlit(o.material);
+    const g = o.geometry;
+    tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+    g.computeBoundingBox(); box.union(g.boundingBox);
+    const overlay = new THREE.Mesh(g, projMat);
+    overlay.userData.overlay = true;
+    overlay.renderOrder = 2;
+    o.add(overlay);
+  });
+  const fmt = (v) => `(${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`;
+  root.userData.info = `${entry.path.split('/').pop()} · ${(tris / 1000).toFixed(0)}k tris\nbbox ${fmt(box.min)} → ${fmt(box.max)}`;
+  root.userData.box = box;
+  meshRoot = root;
+  attachMesh();
+  applyMeshOpacity();
+  if ($('edges').checked) toggleEdges(true);
+  status(describe());
+}
+
+function attachMesh() {
+  if (!meshRoot) return;
+  (conv.meshUp === 'z' ? world : scene).add(meshRoot);
+}
+
+function disposeTree(root) {
+  root.traverse((o) => {
+    if (o.userData.overlay) return;       // overlays share geometry and projMat
+    o.geometry?.dispose();
+    for (const m of [].concat(o.material || [])) { if (m !== edgeMat) { m.map?.dispose(); m.dispose(); } }
+  });
+}
+
+function applyMeshOpacity() {
+  const v = +$('meshOpacity').value;
+  // Matterport meshes face the room interior: culling back faces in orbit mode hides ceilings
+  // and near walls (a dollhouse view); inside a panorama, draw both sides.
+  const side = mode === 'orbit' ? THREE.FrontSide : THREE.DoubleSide;
+  meshRoot?.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of [].concat(o.material)) {
+      if (m.side !== side) { m.side = side; m.needsUpdate = true; }
+      if (!o.userData.overlay) m.opacity = v;
+    }
+  });
+  projMat.uniforms.uOpacity.value = +$('projOpacity').value;
+}
+
+function toggleEdges(on) {
+  if (!meshRoot) return;
+  meshRoot.traverse((o) => {
+    if (!o.isMesh || o.userData.overlay) return;
+    let lines = o.children.find((c) => c.userData.edges);
+    if (on && !lines) {
+      lines = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 35), edgeMat);
+      lines.userData.edges = true;
+      o.add(lines);
+    }
+    if (lines) lines.visible = on;
+  });
+}
+
+// ---------------------------------------------------------------- seam-based face detection
+async function faceImages(loc, size = 256) {
+  return Promise.all(loc.faces.map((f) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = c.height = size;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0, size, size);
+      resolve(g.getImageData(0, 0, size, size));
+    };
+    img.onerror = reject;
+    img.src = dataRoot + f;
+  })));
+}
+function seamError(imgs, frames) {
+  const { F, R, U } = frames;
+  const px = (img, d, k) => {
+    const fd = d.dot(F[k]);
+    const x = 0.5 + 0.5 * d.dot(R[k]) / fd, y = 0.5 - 0.5 * d.dot(U[k]) / fd;
+    const W = img.width;
+    const ix = Math.min(W - 1, Math.max(0, Math.round(x * (W - 1))));
+    const iy = Math.min(W - 1, Math.max(0, Math.round(y * (W - 1))));
+    const o = (iy * W + ix) * 4;
+    return [img.data[o], img.data[o + 1], img.data[o + 2]];
+  };
+  let total = 0, n = 0;
+  for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) {
+    if (Math.abs(F[a].dot(F[b])) > 1e-6) continue;          // opposite faces share no edge
+    const along = new V3().crossVectors(F[a], F[b]);
+    for (let i = 0; i < 64; i++) {
+      const t = -0.95 + (1.9 * i) / 63;
+      const d = F[a].clone().add(F[b]).addScaledVector(along, t);
+      const ca = px(imgs[a], d, a), cb = px(imgs[b], d, b);
+      total += Math.abs(ca[0] - cb[0]) + Math.abs(ca[1] - cb[1]) + Math.abs(ca[2] - cb[2]);
+      n += 3;
+    }
+  }
+  return total / n;
+}
+async function autoDetectFaces() {
+  const loc = manifest.locations[current];
+  $('seam').textContent = 'Scoring 32 face layouts…';
+  const imgs = await faceImages(loc);
+  const results = [];
+  for (const order of ['ccw', 'cw']) for (const topRot of [0, 90, 180, 270]) for (const botRot of [0, 90, 180, 270]) {
+    const c = { ...conv, order, topRot, botRot };
+    results.push({ order, topRot, botRot, err: seamError(imgs, faceFrames(c)) });
+  }
+  results.sort((a, b) => a.err - b.err);
+  const [best, next] = results;
+  Object.assign(conv, { order: best.order, topRot: best.topRot, botRot: best.botRot });
+  syncConv();
+  $('seam').textContent = `Best: ${best.order}, top ${best.topRot}°, bottom ${best.botRot}° — seam error ${best.err.toFixed(1)}` +
+    ` (runner-up ${next.err.toFixed(1)}, worst ${results.at(-1).err.toFixed(1)}; 0-255 per channel)`;
+  return results;
+}
+
+// ---------------------------------------------------------------- mesh-based pose check
+// Render the textured mesh and the panorama from the pano centre in several directions and
+// score their normalised cross-correlation (NCC). Only the right yaw / quaternion direction
+// makes them line up. NCC ignores exposure differences between mesh textures and panoramas.
+const probeRT = new THREE.WebGLRenderTarget(192, 192);
+const probeCam = new THREE.PerspectiveCamera(90, 1, 0.02, 500);
+probeCam.rotation.order = 'YXZ';
+const PROBE_VIEWS = [0, 60, 120, 180, 240, 300].map((yaw) => [yaw, -25]);
+const toSrgb = (l) => (l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055);
+
+function probeShot(linearToSrgb) {
+  renderer.setRenderTarget(probeRT);
+  renderer.clear();
+  renderer.render(scene, probeCam);
+  const { width: w, height: h } = probeRT;
+  const buf = new Uint8Array(w * h * 4);
+  renderer.readRenderTargetPixels(probeRT, 0, 0, w, h, buf);
+  const gray = new Float32Array(w * h), mask = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    let r = buf[4 * i] / 255, g = buf[4 * i + 1] / 255, b = buf[4 * i + 2] / 255;
+    if (linearToSrgb) { r = toSrgb(r); g = toSrgb(g); b = toSrgb(b); }
+    gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+    mask[i] = buf[4 * i + 3] > 0 ? 1 : 0;
+  }
+  return { gray, mask };
+}
+function ncc(a, b, mask) {
+  let n = 0, sa = 0, sb = 0;
+  for (let i = 0; i < a.length; i++) if (mask[i]) { n++; sa += a[i]; sb += b[i]; }
+  if (n < 100) return 0;
+  const ma = sa / n, mb = sb / n;
+  let cov = 0, va = 0, vb = 0;
+  for (let i = 0; i < a.length; i++) if (mask[i]) {
+    const da = a[i] - ma, db = b[i] - mb;
+    cov += da * db; va += da * da; vb += db * db;
+  }
+  return cov / Math.sqrt(va * vb + 1e-12);
+}
+
+async function autoDetectPose({ fine = true } = {}) {
+  if (!meshRoot) { $('seam').textContent += '\nLoad a mesh first.'; return null; }
+  const loc = manifest.locations[current];
+  await panoTextures(loc);
+  const saved = { ...conv };
+  const savedBg = scene.background, savedClear = renderer.getClearColor(new THREE.Color()), savedAlpha = renderer.getClearAlpha();
+  const edgesOn = $('edges').checked;
+  scene.background = null;
+  renderer.setClearColor(0x000000, 0);
+  if (edgesOn) toggleEdges(false);
+  markers.visible = false;
+  probeCam.position.copy(shared.uCenter.value);
+  const aim = ([yaw, pitch]) => probeCam.rotation.set((pitch * Math.PI) / 180, (yaw * Math.PI) / 180, 0);
+
+  // 1. mesh alone, fully opaque
+  sky.visible = false; meshRoot.visible = true;
+  meshRoot.traverse((o) => { if (o.isMesh && !o.userData.overlay) [].concat(o.material).forEach((m) => { m.opacity = 1; }); });
+  projMat.uniforms.uOpacity.value = 0;
+  const meshShots = PROBE_VIEWS.map((v) => { aim(v); return probeShot(true); });
+
+  // 2. panorama alone, under each candidate convention
+  sky.visible = true; meshRoot.visible = false;
+  const score = (c) => {
+    Object.assign(conv, c); applyFaceFrames(); updatePose(loc);
+    let s = 0;
+    PROBE_VIEWS.forEach((v, k) => { aim(v); s += ncc(probeShot(false).gray, meshShots[k].gray, meshShots[k].mask); });
+    return s / PROBE_VIEWS.length;
+  };
+  const results = [];
+  for (const invertQ of [false, true]) for (const yaw of [0, 90, 180, 270]) results.push({ invertQ, yaw, s: score({ invertQ, yaw }) });
+  results.sort((a, b) => b.s - a.s);
+  const best = results[0];
+  let fineText = '';
+  if (fine) {
+    let peak = { dy: 0, s: -2 };
+    for (let dy = -8; dy <= 8; dy++) {
+      const s = score({ invertQ: best.invertQ, yaw: best.yaw + dy });
+      if (s > peak.s) peak = { dy, s };
+    }
+    fineText = `\nFine search: peak at ${peak.dy >= 0 ? '+' : ''}${peak.dy}° (NCC ${peak.s.toFixed(3)})`;
+  }
+
+  // restore
+  renderer.setRenderTarget(null);
+  scene.background = savedBg;
+  renderer.setClearColor(savedClear, savedAlpha);
+  meshRoot.visible = true; markers.visible = true;
+  sky.visible = mode === 'pano';
+  if (edgesOn) toggleEdges(true);
+  Object.assign(conv, saved, { invertQ: best.invertQ, yaw: best.yaw });
+  syncConv();
+  applyMeshOpacity();
+  const fmt = (r) => `yaw ${r.yaw}°${r.invertQ ? ' inv' : ''} ${r.s.toFixed(3)}`;
+  $('seam').textContent = ($('seam').textContent.split('\nPose')[0] || '') +
+    `\nPose vs mesh (NCC, 1 = perfect): best ${fmt(best)}; next ${fmt(results[1])}; worst ${fmt(results.at(-1))}${fineText}`;
+  return { results, fineText };
+}
+
+// ---------------------------------------------------------------- UI wiring
+function syncConv() {
+  for (const k of ['order', 'yaw', 'topRot', 'botRot', 'meshUp']) $(k).value = String(conv[k]);
+  $('invertQ').checked = !!conv.invertQ;
+  $('convOut').value = JSON.stringify(conv);
+  history.replaceState(null, '', '#' + encodeURIComponent(JSON.stringify(conv)));
+  applyFaceFrames();
+  if (manifest && current >= 0) updatePose(manifest.locations[current]);
+  if (meshRoot) { meshRoot.removeFromParent(); attachMesh(); }
+}
+for (const k of ['order', 'yaw', 'topRot', 'botRot', 'meshUp']) {
+  $(k).addEventListener('change', () => { conv[k] = ['yaw', 'topRot', 'botRot'].includes(k) ? +$(k).value : $(k).value; syncConv(); });
+}
+$('invertQ').addEventListener('change', () => { conv.invertQ = $('invertQ').checked; syncConv(); });
+$('autoFaces').addEventListener('click', autoDetectFaces);
+$('autoPose').addEventListener('click', () => autoDetectPose());
+$('pano').addEventListener('change', () => selectPano(+$('pano').value));
+$('meshSel').addEventListener('change', () => loadMesh(manifest.meshes?.[+$('meshSel').value]));
+$('mode').addEventListener('change', () => setMode($('mode').value));
+$('meshOpacity').addEventListener('input', applyMeshOpacity);
+$('projOpacity').addEventListener('input', applyMeshOpacity);
+$('edges').addEventListener('change', () => toggleEdges($('edges').checked));
+$('markers').addEventListener('change', () => selectPano(current, { moveCamera: false }));
+$('model').addEventListener('change', () => { location.search = '?model=' + encodeURIComponent($('model').value) + location.hash; });
+
+function setMode(m) {
+  mode = m;
+  $('mode').value = m;
+  sky.visible = m === 'pano';
+  orbit.enabled = m === 'orbit';
+  if (m === 'pano') {
+    $('meshOpacity').value = 0.35; $('projOpacity').value = 0;
+    camera.position.copy(shared.uCenter.value);
+    camera.rotation.set(0, 0, 0);
+    look.yaw = 0; look.pitch = 0;
+  } else {
+    $('meshOpacity').value = 1; $('projOpacity').value = 0.6;
+    // Centre on the scanned area (mean pano position, near floor height): mesh bounding boxes
+    // often include stray fragments of exterior seen through windows.
+    const mean = [0, 1, 2].map((i) => manifest.locations.reduce((s, l) => s + l.position[i], 0) / manifest.locations.length);
+    mean[2] -= 1.2;
+    const center = dataToThree(mean);
+    const spread = new THREE.Box3().setFromPoints(manifest.locations.map((l) => dataToThree(l.position)));
+    const size = Math.max(6, spread.getSize(new V3()).length() * 1.6);
+    orbit.target.copy(center);
+    camera.position.copy(center).add(new V3(0.3, 0.9, 0.6).multiplyScalar(size * 0.8));
+    camera.fov = 50; camera.updateProjectionMatrix();
+    orbit.update();
+  }
+  applyMeshOpacity();
+  selectPano(current, { moveCamera: false });
+}
+
+// Look-around controls for "inside panorama" mode.
+const look = { yaw: 0, pitch: 0, dragging: false, moved: 0, x: 0, y: 0 };
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  look.dragging = true; look.moved = 0; look.x = e.clientX; look.y = e.clientY;
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!look.dragging) return;
+  const dx = e.clientX - look.x, dy = e.clientY - look.y;
+  look.x = e.clientX; look.y = e.clientY; look.moved += Math.abs(dx) + Math.abs(dy);
+  if (mode !== 'pano') return;
+  const k = 0.0045 * camera.fov / 75;
+  look.yaw += dx * k;
+  look.pitch = Math.max(-1.55, Math.min(1.55, look.pitch + dy * k));
+  camera.rotation.set(look.pitch, look.yaw, 0);
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  look.dragging = false;
+  if (look.moved < 5) pickMarker(e);
+});
+renderer.domElement.addEventListener('wheel', (e) => {
+  if (mode !== 'pano') return;
+  camera.fov = Math.max(20, Math.min(110, camera.fov + e.deltaY * 0.04));
+  camera.updateProjectionMatrix();
+}, { passive: true });
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if (e.key === ']') selectPano(current + 1);
+  if (e.key === '[') selectPano(current - 1);
+  if (e.key === 'm' || e.key === 'M') setMode(mode === 'pano' ? 'orbit' : 'pano');
+});
+const raycaster = new THREE.Raycaster();
+function pickMarker(e) {
+  const ndc = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects(markers.children.filter((m) => m.visible))[0];
+  if (hit) selectPano(hit.object.userData.index);
+}
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+renderer.setAnimationLoop(() => {
+  if (mode === 'orbit') orbit.update();
+  renderer.render(scene, camera);
+});
+
+// ---------------------------------------------------------------- boot
+async function boot() {
+  let index = { models: [] };
+  try { index = await (await fetch('../data/index.json')).json(); } catch { /* no index yet */ }
+  const modelId = params.get('model') || index.models[0]?.id;
+  for (const m of index.models) $('model').add(new Option(`${m.name ?? m.id} (${m.panos} panos)`, m.id));
+  if (!modelId) { status('No model yet. Run: py tools/fetch_matterport.py fetch <model_id>'); return; }
+  $('model').value = modelId;
+  dataRoot = `../data/${encodeURIComponent(modelId)}/`;
+  manifest = await (await fetch(dataRoot + 'manifest.json')).json();
+  manifest.locations = manifest.locations.filter((l) => l.faces?.every(Boolean));
+  manifest.locations.forEach((loc, k) => $('pano').add(new Option(`${k + 1} · label ${loc.label ?? '-'}`, k)));
+  (manifest.meshes || []).forEach((m, k) => $('meshSel').add(new Option(`${m.path.split('/').pop()} (${(m.bytes / 1e6).toFixed(1)} MB)`, k)));
+  $('meshSel').add(new Option('none', -1));
+  buildMarkers();
+  syncConv();
+  $('meshOpacity').value = 0.35; $('projOpacity').value = 0;
+  await selectPano(0);
+  setMode('pano');
+  if (manifest.mesh) await loadMesh(manifest.meshes?.[0] ?? manifest.mesh);
+  if (params.has('auto')) { await autoDetectFaces(); await autoDetectPose(); }
+}
+boot().catch((err) => { console.error(err); status('Error: ' + err.message); });
+// Console helpers, e.g. viewer.look(180, -10) to aim the inside view (degrees).
+window.viewer = {
+  conv, autoDetectFaces, autoDetectPose, selectPano, setMode, faceFrames, camera,
+  look(yawDeg, pitchDeg = 0) { look.yaw = (yawDeg * Math.PI) / 180; look.pitch = (pitchDeg * Math.PI) / 180; camera.rotation.set(look.pitch, look.yaw, 0); },
+  get manifest() { return manifest; },
+};
+</script>
+</body>
+</html>
