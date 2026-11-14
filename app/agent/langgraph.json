@@ -1,0 +1,5 @@
+{
+  "node_version": "24",
+  "graphs": { "proppy": "./src/proppy.ts:graph" },
+  "env": "../../.env"
+}
