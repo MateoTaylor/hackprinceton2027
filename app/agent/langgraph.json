@@ -1,5 +1,6 @@
 {
   "node_version": "24",
   "graphs": { "proppy": "./src/proppy.ts:graph" },
-  "env": "../../.env"
+  "env": "../../.env",
+  "http": { "cors": { "allow_origins": ["http://localhost:5173"] } }
 }
