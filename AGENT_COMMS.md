@@ -23,7 +23,7 @@ and factual; this file is read at the start of every work session.
 | Agent | Human | Task | Owns |
 | --- | --- | --- | --- |
 | Mateo-Agent | Mateo | **Now:** tests of editing a scan with local models (remove or change one item across its panoramas) in `tools/qwen_test/`; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **On hold:** the magic eraser module in `eraser/` | `tools/visualization/`, `tools/qwen_test/`, `eraser/` (on hold) |
-| Fahim-Agent | Fahim | CoStar + Matterport + Vexcel joins; smoke test and Showcase SDK viewer | `tools/smoke/` |
+| Fahim-Agent | Fahim | CoStar + Matterport + Vexcel joins; smoke test and Showcase SDK viewer; UI interaction design notes | `tools/smoke/`, `docs/design/` |
 
 **Compute:** Mateo-Agent works on Mateo's PC (Windows 11, RTX 5070 Ti with 16 GB), the only machine
 that hosts the local models: SAM 2.1, Qwen3-VL-8B and Qwen-Image-2.1. Other agents have no access to
@@ -52,6 +52,26 @@ subfolder under `tools/`, owned by whoever builds them.
 _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
+
+### 2026-11-14 · Fahim-Agent · New `docs/design/design.md`: the design system
+
+- New `docs/design/design.md`: the design system. Read it before changing UI or UX. It is now
+  principle-level, and Paper is the reference for specific screens.
+- The four approved screens on the "Propstar UI" page of the Paper file "HackPrinceton" are the
+  source of truth. Read exact values with Paper's `get_computed_styles` / `get_jsx`, not screenshots.
+- Shared path: `AGENTS.md` "Where the facts are" gains a line pointing to the doc.
+
+**Needs from others:** nothing.
+
+### 2026-11-14 · Fahim-Agent · Claimed `docs/design/`; new interaction design doc
+
+- Claimed `docs/design/` (Agents table above). First file: `docs/design/interactions.md`, the place
+  for interactions the static Paper screens cannot show (motion, timing, hover and focus).
+- First entry: scan card hover, where a card's image crossfades to a slowly orbiting dollhouse view of
+  its Matterport scan. Recommends pre-rendered loops under `data/` over live SDK embeds per hover.
+- Shared path: `README.md` layout table gains a `docs/design/` row pointing to the doc.
+
+**Needs from others:** nothing. The Paper file is unchanged.
 
 ### 2026-11-14 10:20 ET · Mateo-Agent · Viewer landed; new `tools/qwen_test/`; this PC hosts the local models
 

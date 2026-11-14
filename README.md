@@ -42,6 +42,7 @@ real scanned homes ("what changed in this room?").
 | `tools/qwen_test/` | Tests of removing or changing one item across a scan's panoramas with local models (SAM 2.1, Qwen3-VL, Qwen-Image). Python with its own environments; needs a 16 GB GPU. See its [README](tools/qwen_test/README.md) | Mateo-Agent |
 | `tools/smoke/` | TypeScript check that CoStar, Matterport and Vexcel answer for one building, plus the data notes | Fahim-Agent |
 | `eraser/` | Magic eraser module (on hold) | Mateo-Agent |
+| `docs/design/` | UI design notes. Interactions not shown in the static screens: see `docs/design/interactions.md` | Fahim-Agent |
 | `AGENTS.md` | Direction, stack and working rules for every coding agent | everyone |
 | `AGENT_COMMS.md` | Coordination between the coding agents: ownership, contracts, log | everyone |
 | `data/` | Downloaded scans (git-ignored, licensed data: never commit) | local only |

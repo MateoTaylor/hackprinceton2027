@@ -80,6 +80,7 @@ claude plugin install langchain-mcp@langchain-plugins --scope local
   one whole fills the context window.
 - `AGENT_COMMS.md` Shared contracts defines the scan manifest, the world frame and the panorama
   face layout.
+- `docs/design/design.md` is the design system. Read it before changing UI or UX.
 
 ## Working together
 
