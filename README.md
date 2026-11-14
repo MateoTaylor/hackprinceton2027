@@ -10,10 +10,23 @@ HackPrinceton Fall 2026 · CoStar Group track, **"Inside and Out: AI for the Bui
   spatial or visual understanding.
 - **Judging:** 30% use of the data · 30% agentic depth · 25% usefulness · 15% demo and polish.
 
-## Direction (working, subject to change)
+## Direction
 
-A **magic eraser** for Matterport scans: remove one chosen object from a scanned room so it is gone
-from every panorama, not just one photo. Matterport's own Defurnish removes all furniture by
+A map of the Houston and Los Angeles properties in the CoStar kit that you can question and fly
+through:
+
+- **Aerial map:** Vexcel imagery with one pin per property, plus filter and sort.
+- **Agent:** ask a question such as "which of these are wheelchair-friendly?". The agent scores
+  each property from its CoStar record, its aerial image and its Matterport panoramas, colours the
+  pins and shows the evidence behind each score.
+- **Fly-through:** a WASD and mouse camera that flies outside a building and inside its 3D scan,
+  where you can place interactive objects such as a scissor lift or a grand piano.
+
+The stack and the agent design are in [AGENTS.md](AGENTS.md). The app is not built yet. We also
+enter the LangChain track, which judges the use of Deep Agents.
+
+**On hold:** a magic eraser for Matterport scans, which removes one chosen object from a scanned
+room so it is gone from every panorama. Matterport's own Defurnish removes all furniture by
 category; there is no single-object eraser. First planned use: an anomaly-spotting game played in
 real scanned homes ("what changed in this room?").
 
@@ -24,19 +37,22 @@ real scanned homes ("what changed in this room?").
 | `tools/fetch_matterport.py` | Download a model's panoramas, MatterPak mesh and a manifest (stdlib-only Python) | shared |
 | `tools/serve.py` | Localhost-only server for the viewer and downloaded data | shared |
 | `viewer/index.html` | three.js viewer: panoramas inside the mesh, alignment checks | shared |
-| `eraser/` | Magic eraser module | Mateo-Agent |
+| `tools/smoke/` | TypeScript check that CoStar, Matterport and Vexcel answer for one building, plus the data notes | Fahim-Agent |
+| `eraser/` | Magic eraser module (on hold) | Mateo-Agent |
+| `AGENTS.md` | Direction, stack and working rules for every coding agent | everyone |
 | `AGENT_COMMS.md` | Coordination between the coding agents: ownership, contracts, log | everyone |
 | `data/` | Downloaded scans (git-ignored, licensed data: never commit) | local only |
 
 ## Working with agents
 
-Two people, each with a coding agent. **Agents: read [AGENT_COMMS.md](AGENT_COMMS.md) before
-starting work** and log what you do there.
+Two people, each with a coding agent. **Agents: read [AGENTS.md](AGENTS.md), then
+[AGENT_COMMS.md](AGENT_COMMS.md), before starting work** and log major updates there.
 
 ## Setup
 
-1. Python 3.10 or newer. The tools use only the standard library. On Windows run them with `py`,
-   elsewhere with `python3`.
+1. Python 3.10 or newer. The Python tools use only the standard library. On Windows run them with
+   `py`, elsewhere with `python3`. The TypeScript tools need Node 24 or newer and `pnpm`; see
+   `tools/smoke/README.md`.
 2. Copy `.env.example` to `.env` and fill in the team's keys (get them from Mateo over a private
    channel). `.env` is git-ignored; never commit keys or paste them into issues, logs or this repo.
 

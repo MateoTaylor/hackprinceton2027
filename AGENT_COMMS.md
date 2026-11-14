@@ -5,8 +5,8 @@ and factual; this file is read at the start of every work session.
 
 ## Protocol
 
-1. **Before you start:** `git pull`, then read Agents, Shared contracts, Open requests and the newest
-   few Log entries.
+1. **Before you start:** `git pull`, then read `AGENTS.md` (direction, stack, working rules), then
+   Agents, Shared contracts, Open requests and the newest few Log entries here.
 2. **Stay in your lane:** edit only the paths you own. If you need something changed elsewhere, add
    an Open request addressed to the owner.
 3. **Shared paths and contracts:** anyone may change them, but add a Log entry first saying what
@@ -23,7 +23,7 @@ and factual; this file is read at the start of every work session.
 | Agent | Human | Task | Owns |
 | --- | --- | --- | --- |
 | Mateo-Agent | Mateo | **Now:** visualization tools: a walk-through viewer to compare the 3D render with the panoramas. **On hold:** the magic eraser, until it has been planned with Mateo | `tools/visualization/`, `eraser/` (on hold) |
-| _teammate's agent: please fill in_ | | Separate task | |
+| Fahim-Agent | Fahim | CoStar + Matterport + Vexcel joins; smoke test and Showcase SDK viewer | `tools/smoke/` |
 
 Shared (announce changes in the Log): `tools/` outside the per-tool subfolders (including
 `tools/fetch_matterport.py`), `README.md`, `.gitignore`, `.env.example`. New tools get their own
@@ -47,6 +47,42 @@ subfolder under `tools/`, owned by whoever builds them.
 _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
+
+### 2026-11-14 10:00 ET · Fahim-Agent · New root `AGENTS.md`: product direction, stack and working rules
+
+**Changed (shared paths)**
+- New `AGENTS.md` at the repo root. Every agent reads it before working. It holds the decisions;
+  this file stays the log, the ownership table and the shared contracts.
+- Protocol step 1 above now points to `AGENTS.md`.
+- `README.md`: Direction now describes the new product and keeps the magic eraser text under "On
+  hold". Its heading drops "(working, subject to change)". The layout table gains `AGENTS.md` and
+  `tools/smoke/` and marks `eraser/` as on hold. Agents are sent to `AGENTS.md` first. Setup
+  mentions Node 24 and `pnpm`. The scan and viewer sections are untouched.
+
+**Decided with Fahim (details and reasons are in `AGENTS.md`)**
+- Product: an aerial map of the kit's properties, an agent that scores and colours them with
+  evidence, and a WASD fly-through outside and inside the scans with placeable 3D objects.
+- Stack: local-only on `localhost`. Vite + React, MapLibre GL, three.js, Hono, DuckDB, and a
+  `deepagents` (JS) agent on a local LangGraph server. Nothing is built yet.
+- LangSmith tracing stays off until a CoStar mentor approves it, because traces upload CoStar records.
+
+**Who is affected:** both agents. The three.js choice matches `tools/visualization/`. The Shared
+contracts do not change.
+
+**Coming (shared path, announced here first):** Fahim will add the model-provider key name to
+`.env.example` later. The app's folder is not claimed yet.
+
+**Needs from others:** Mateo, say here if any part of the stack conflicts with the visualization work.
+
+### 2026-11-14 09:27 ET · Fahim-Agent · Added `tools/smoke/`: all three data sources checked on one building
+
+- `tools/smoke/smoke.ts` (TypeScript, Node 24+) joins CoStar → Matterport → Vexcel for one property and writes `data/smoke/<propertyId>/`. Verified on property 23296.
+- `tools/smoke/showcase.ts` serves a Showcase SDK viewer. The SDK key only works on `localhost`.
+- The data notes (join keys, CoStar kit traps, Vexcel quirks) are in `tools/smoke/README.md`.
+- Local layout: the CoStar kit is in `kit/costar-hackathon-kit/` and the Vexcel guide is in `kit/vexcel/`. Both are git-ignored.
+- Filled in the Fahim-Agent row of the Agents table above. No other shared paths were changed. The scripts read the existing `MP_*` / `VEXCEL_API_KEY` names in `.env`.
+
+**Needs from others:** nothing.
 
 ### 2026-11-14 01:06 ET · Mateo-Agent · Task change: visualization first; `viewer/` and `tools/serve.py` are moving
 
