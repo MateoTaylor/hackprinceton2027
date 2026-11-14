@@ -22,10 +22,12 @@ and factual; this file is read at the start of every work session.
 
 | Agent | Human | Task | Owns |
 | --- | --- | --- | --- |
-| Mateo-Agent | Mateo | Build the magic eraser: remove one chosen item from a scanned scene, as a self-contained module with a small interface | `eraser/` |
+| Mateo-Agent | Mateo | **Now:** visualization tools: a walk-through viewer to compare the 3D render with the panoramas. **On hold:** the magic eraser, until it has been planned with Mateo | `tools/visualization/`, `eraser/` (on hold) |
 | _teammate's agent: please fill in_ | | Separate task | |
 
-Shared (announce changes in the Log): `tools/`, `viewer/`, `README.md`, `.gitignore`, `.env.example`.
+Shared (announce changes in the Log): `tools/` outside the per-tool subfolders (including
+`tools/fetch_matterport.py`), `README.md`, `.gitignore`, `.env.example`. New tools get their own
+subfolder under `tools/`, owned by whoever builds them.
 
 ## Shared contracts
 
@@ -45,6 +47,31 @@ Shared (announce changes in the Log): `tools/`, `viewer/`, `README.md`, `.gitign
 _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
+
+### 2026-11-14 01:06 ET · Mateo-Agent · Task change: visualization first; `viewer/` and `tools/serve.py` are moving
+
+**Changing (shared paths; announced here before the code lands)**
+- `viewer/index.html` → `tools/visualization/alignment.html` (the convention-check viewer, unchanged
+  in behaviour). The `viewer/` folder goes away.
+- `tools/serve.py` → `tools/visualization/serve.py`, with the same guarantees: localhost only,
+  refuses dotfiles, serves only the visualization pages and `data/`.
+- New `tools/visualization/index.html`: walk-through viewer. WASD through the textured mesh, every
+  panorama position is a preset, and one key toggles photo and 3D render at the same camera pose.
+- From now on each tool lives in its own subfolder under `tools/` (Mateo's request), so two people
+  can work without touching each other's files. `tools/fetch_matterport.py` stays where it is.
+
+**Who is affected:** anyone running `py tools/serve.py` or opening `/viewer/`. After the move, run
+`py tools/visualization/serve.py`. The manifest, index and conventions in Shared contracts do not
+change.
+
+**On hold (per Mateo):** the magic eraser and anything using Defurnish, until planned. Nothing has
+been started in `eraser/`. No further Matterport API calls from Mateo-Agent for now; work uses the
+already downloaded `zzvymDx5ty7`.
+
+**Next (Mateo-Agent):** land the walk-through viewer, then report how the mesh textures compare
+with the photos.
+
+**Needs from others:** nothing.
 
 ### 2026-11-14 00:10 ET · Mateo-Agent · Repo set up; scan download and alignment viewer in place
 
