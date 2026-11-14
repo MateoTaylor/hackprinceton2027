@@ -22,8 +22,13 @@ and factual; this file is read at the start of every work session.
 
 | Agent | Human | Task | Owns |
 | --- | --- | --- | --- |
-| Mateo-Agent | Mateo | **Now:** visualization tools: a walk-through viewer to compare the 3D render with the panoramas. **On hold:** the magic eraser, until it has been planned with Mateo | `tools/visualization/`, `eraser/` (on hold) |
+| Mateo-Agent | Mateo | **Now:** tests of editing a scan with local models (remove or change one item across its panoramas) in `tools/qwen_test/`; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **On hold:** the magic eraser module in `eraser/` | `tools/visualization/`, `tools/qwen_test/`, `eraser/` (on hold) |
 | Fahim-Agent | Fahim | CoStar + Matterport + Vexcel joins; smoke test and Showcase SDK viewer | `tools/smoke/` |
+
+**Compute:** Mateo-Agent works on Mateo's PC (Windows 11, RTX 5070 Ti with 16 GB), the only machine
+that hosts the local models: SAM 2.1, Qwen3-VL-8B and Qwen-Image-2.1. Other agents have no access to
+it. If you need one of these models run, add an Open request for Mateo-Agent. The weights, the runner
+binaries and everything the models produce are git-ignored and exist only on that PC.
 
 Shared (announce changes in the Log): `tools/` outside the per-tool subfolders (including
 `tools/fetch_matterport.py`), `README.md`, `.gitignore`, `.env.example`. New tools get their own
@@ -47,6 +52,56 @@ subfolder under `tools/`, owned by whoever builds them.
 _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
+
+### 2026-11-14 10:20 ET · Mateo-Agent · Viewer landed; new `tools/qwen_test/`; this PC hosts the local models
+
+**Compute (affects both agents)**
+- Mateo-Agent runs on Mateo's PC, the machine that hosts the local models (RTX 5070 Ti, 16 GB).
+  SAM 2.1 large, Qwen3-VL-8B (a chat model behind a llama.cpp server on `127.0.0.1:8081`) and
+  Qwen-Image-2.1 (stable-diffusion.cpp) run there one at a time, because they do not fit in 16 GB
+  together.
+- Other agents have no access to that machine. Work that needs these models goes through an Open
+  request to Mateo-Agent. This is now in the Agents section above.
+
+**Landed (shared paths)**
+- `tools/visualization/`, as announced at 01:06: walk-through viewer, alignment viewer and the
+  localhost-only server. `viewer/` and `tools/serve.py` are gone. Run
+  `py tools/visualization/serve.py`.
+- New `tools/qwen_test/`, owned by Mateo-Agent and added to the Agents table in this commit. It was
+  built before `AGENTS.md` asked for paths to be claimed first. Python with its own virtual
+  environments; setup is in its README.
+- `README.md` layout table: rows for both folders. Fahim's changes from 10:00 are kept as they were.
+
+**What works (model `zzvymDx5ty7`; numbers are in `tools/qwen_test/README.md`)**
+- A typed request ("remove the couch") and the view the user is looking at become an edit over
+  several panoramas. SAM segments the view, Qwen3-VL answers with a box and one shared instruction,
+  the mesh lifts the item to 3D voxels and finds it in the other panoramas without the VLM, and
+  Qwen-Image edits each view in 45-60 s.
+- Results are pasted into copies of the cube faces and written to `data/<model_id>/edits/` (local
+  only, not a shared contract yet). The walk-through viewer steps through them with `X`.
+
+**Findings others may need**
+- An image-edit model reuses every picture it is given. A second photo of the same room that already
+  showed the finished edit made the model return that photo instead of editing the current one.
+  Naming the pictures the way the model's prompt template does (`image1`, `image2`) fixed it.
+- The 8B VLM could not choose among numbered segments. Asking it for a bounding box and letting SAM
+  outline the object inside the box works.
+- The scan mesh has holes where the scanner could not see. Rays through a removed sofa reach a
+  surface for only 39% of its area, so the wall and floor behind it have to be completed as planes.
+
+**Where this stands against `AGENTS.md`**
+- `AGENTS.md` lists the magic eraser as on hold. This work is exploration that Mateo is directing in
+  `tools/qwen_test/`. Nothing is in `eraser/`, and Defurnish and the Matterport API are not used.
+  Whether it joins the product is for Mateo and Fahim to settle, so `AGENTS.md` is unchanged.
+- On Fahim's stack question at 10:00, facts only: `tools/visualization/` is three.js 0.170 from a CDN
+  with no build step and its own Python server, so it does not depend on the app stack. The local
+  models are Python and native binaries, not TypeScript. Mateo has not answered the question yet.
+
+**Next (per Mateo):** an iterative loop managed with LangChain. The VLM builds first images, inspects
+the outputs, decides what to fix (shadow removal and matching come next) and calls SAM, generation
+and image labelling as tools or subagents. Design not started.
+
+**Needs from others:** nothing.
 
 ### 2026-11-14 10:00 ET · Fahim-Agent · New root `AGENTS.md`: product direction, stack and working rules
 
