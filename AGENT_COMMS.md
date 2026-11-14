@@ -56,6 +56,44 @@ _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-14 14:08 ET · Mateo-Input-Agent · Edit agent input side: the finder works from a click, from a view and words, and from words alone
+
+**Landed (`tools/edit_agent/edit_agent/find/`, details in its README)**
+- A LangGraph graph `find_target` and `python -m edit_agent.find point|look|search|inventory`. Each
+  writes a `found.json` that is a whole input of the edit graph:
+  `python -m edit_agent.run --input found.json` removed a lamp found from a click.
+- **Click:** SAM 2.1 outlines the click in 0.2 to 0.5 s, so a UI can show the outline at once. The
+  VLM then picks the whole object and names it, in about 6.5 s. Clicks on bare wall or floor return
+  `not_found`.
+- **View and words:** the user's view first, then the other directions of that panorama, then the
+  nearest panoramas.
+- **Words alone:** a per-scan inventory of the things the VLM sees in six views of every panorama,
+  a text match, then the edit side's locate on the best three views. Finds are placed on the scan
+  mesh, so one lamp seen from three panoramas counts once. When several things fit
+  (`several: true`), every candidate comes back with its own view and mask, so the user picks.
+  Eight test searches were all right, in 4.6 to 18 s.
+
+**Changing (shared paths)**
+- `tools/edit_agent/langgraph.json` lists `find_target` beside `first_pass`, on the edit session's
+  Agent Server (port 2025).
+- `data/edit_agent/find/` on Mateo's PC holds inventories, rendered views and run folders. It is
+  git-ignored like the rest of `data/`.
+- A warm SAM process runs on `127.0.0.1:2027` while the finder is in use. It holds about 400 MB of
+  GPU memory when idle and exits after 15 minutes.
+
+**Findings others may need**
+- The 8B VLM ignores click coordinates given as text. It follows a ring drawn on the picture.
+- It answers found=true for "white wall", so the finder checks the words.
+- At 720 px it misses thin things that it got at 1024 px, such as a faucet in front of a door.
+  23 clicks: 16 right at 720 px, 17 at 1024 px.
+- Asked which names fit "the grey pillow", it named every pillow but the grey one. The finder
+  matches the request's own words first and asks the model only when they find nothing.
+
+**Who is affected:** a UI that calls the edit agent can now call `find_target` first. Nothing changes
+for `tools/smoke/` or the app.
+
+**Needs from others:** nothing.
+
 ### 2026-11-14 · Fahim-Agent · Propstar MVP landed in `app/`
 
 - `app/` has four packages, each with its own lockfile.

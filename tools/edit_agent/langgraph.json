@@ -2,7 +2,8 @@
   "python_version": "3.12",
   "dependencies": ["."],
   "graphs": {
-    "first_pass": "./edit_agent/graph.py:graph"
+    "first_pass": "./edit_agent/graph.py:graph",
+    "find_target": "./edit_agent/find/graph.py:graph"
   },
   "env": {
     "LANGSMITH_TRACING": "false"

@@ -289,7 +289,8 @@ def _searched(run, hit, tried, hits, found, nothing):
     for i, f in enumerate(found):
         path = common.save_mask(f["mask_array"], run / f"candidate_{i}.png")
         cands.append({"scan": f["scan"], "item": f["target"]["item"], "labels": [b["label"] for b in f["target"]["boxes"]],
-                      "share": round(float(f["mask_array"].mean()), 4), "mask": str(path), "reason": f["reason"]})
+                      "share": round(float(f["mask_array"].mean()), 4), "mask": str(path), "reason": f["reason"],
+                      "also": f.get("also", [])})       # other views of the same thing (merged on the mesh)
     detail = {"views_asked": len(tried), "hits": hits}
     if hit is None:
         return {"status": "not_found", "reason": nothing, "tried": tried, "hits": hits, "candidates": cands,

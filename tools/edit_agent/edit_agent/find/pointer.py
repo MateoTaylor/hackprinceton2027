@@ -42,11 +42,23 @@ def about_ring(answer):
     return any(_RING.search(w) for w in _words(answer))
 
 
+_HEAD = re.compile(r"\s*(?:[,;]|\b(?:with|on|in|at|behind|near|next to|under|above|below|beside)\b)", re.I)
+_AND = re.compile(r"\s+and\s+", re.I)
+
+
+def heads(words):
+    """The thing a description is about: the words before "with", "on", a comma and the like, with and
+    without cutting at "and" ("white wall and door" -> "white wall"; "white and grey wall" stays)."""
+    first = _HEAD.split(words.strip(" ."), maxsplit=1)[0]
+    return {first, _AND.split(first, maxsplit=1)[0]}
+
+
 def surface(answer):
     """True when a removal click is on bare wall, floor or ceiling. The 8B model answers found=true for
-    "white wall"; the words give it away. "wall art" or "floor lamp" do not end in the surface word."""
+    "white wall"; the words give it away. Only the head counts: "white wall with abstract painting" is
+    a wall, "painting on white wall" is not, and "wall art" or "floor lamp" do not end in the word."""
     return (answer.get("kind", "remove") == "remove" and not about_ring(answer)
-            and any(_SURFACE.search(w.strip(" .")) for w in _words(answer)))
+            and any(_SURFACE.search(h) for w in _words(answer) for h in heads(w)))
 
 
 def highlight(view, point, run, lock=True):

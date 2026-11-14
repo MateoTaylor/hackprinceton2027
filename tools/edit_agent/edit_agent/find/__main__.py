@@ -104,6 +104,8 @@ def run(state, args):
                   flush=True)
         elif chunk["step"] == "search" and chunk["status"] == "matched":
             print(f"  inventory matches: {chunk['hits']}", flush=True)
+        elif chunk["step"] == "search" and chunk["status"] == "merged":
+            print(f"  merged: {chunk['views']} views show {chunk['things']} thing(s)", flush=True)
         elif chunk["status"] == "done":
             extra = {k: v for k, v in chunk.items() if k not in ("step", "status", "seconds")}
             print(f"{chunk['step']:9s} {chunk['seconds']:6.1f} s  {json.dumps(extra) if extra else ''}", flush=True)

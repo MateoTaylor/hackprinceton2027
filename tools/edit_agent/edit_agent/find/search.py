@@ -14,6 +14,7 @@
 Views overlap (75 degrees of view every 60), so a thing cut by one view's edge is whole in the next.
 """
 import json
+import re
 import shutil
 import time
 from pathlib import Path
@@ -39,8 +40,9 @@ RECENTER_MAX_SHARE = 0.35
 ZOOM_BELOW = 0.01           # a thing under 1 % of the view gets a narrower camera...
 ZOOM_TO = 0.04              # ...aimed at about 4 % of it...
 ZOOM_MIN_FOV = 30.0         # ...but no narrower than this
+SAME_MARGIN = 0.1           # metres: finds from two views are one thing if a centre lies this close to the other's spread
 
-_scans = {}
+_scans, _meshes = {}, {}
 
 
 def _scan(model):
@@ -48,6 +50,58 @@ def _scan(model):
     if model not in _scans:
         _scans[model] = Scan(model)
     return _scans[model]
+
+
+def _mesh(model):
+    """The scan's mesh with its ray caster, or None (an exterior scan has no mesh)."""
+    if model not in _meshes:
+        try:
+            _meshes[model] = _scan(model).mesh()
+        except (KeyError, OSError):
+            _meshes[model] = None
+    return _meshes[model]
+
+
+def where(cam, mask, samples=60):
+    """A find in the world: the mesh points seen through its mask, as their median and their spread
+    (10th to 90th percentile per axis). None without a mesh. About 0.1 s."""
+    from pano import Camera
+    mesh = _mesh(cam["model"])
+    ys, xs = np.nonzero(mask)
+    if mesh is None or not len(xs):
+        return None
+    pick = np.linspace(0, len(xs) - 1, min(samples, len(xs))).astype(int)
+    c = Camera.from_angles(_scan(cam["model"]).position(cam["pano"]), cam["yaw"], cam["pitch"], cam["fov"],
+                           mask.shape[1], mask.shape[0])
+    rays = c.rays()[ys[pick], xs[pick]]
+    t = mesh.cast(c.pos, rays)
+    ok = np.isfinite(t)
+    if ok.sum() < 5:
+        return None
+    pts = c.pos + rays[ok] * t[ok, None]
+    return {"centre": np.median(pts, axis=0), "low": np.percentile(pts, 10, axis=0), "high": np.percentile(pts, 90, axis=0)}
+
+
+def same_thing(a, b):
+    """True when two finds are one thing seen from two places: the centre of either lies inside the
+    other's spread, widened by SAME_MARGIN. A fixed distance would merge two pillows on one sofa."""
+    def inside(p, box):
+        return bool(np.all(p >= box["low"] - SAME_MARGIN) and np.all(p <= box["high"] + SAME_MARGIN))
+    return a is not None and b is not None and (inside(a["centre"], b) or inside(b["centre"], a))
+
+
+def distinct(found):
+    """The finds with repeats of one thing dropped, the first of each kept. Each kept find lists the
+    views of its repeats under `also`."""
+    kept = []
+    for f in found:
+        f["where"] = where(f["scan"], f["mask_array"])
+        twin = next((k for k in kept if same_thing(k["where"], f["where"])), None)
+        if twin is None:
+            kept.append({**f, "also": []})
+        else:
+            twin["also"].append(f["scan"])
+    return kept
 
 
 def render(scan, preset, run=None):
@@ -154,13 +208,37 @@ def build_inventory(model, say=None, preset_name=INVENTORY_PRESET):
     return inv
 
 
+_FILLER = {"the", "a", "an", "this", "that", "these", "those", "it", "them", "my", "all", "please", "of", "to",
+           "into", "from", "in", "on", "remove", "delete", "erase", "take", "get", "rid", "out", "away", "make",
+           "change", "paint", "turn", "replace", "recolor", "recolour", "color", "colour"}
+
+
+def _stems(text):
+    """Lower-case words, "gray" as "grey", a plural s dropped ("pillows" -> "pillow")."""
+    words = re.findall(r"[a-z]+", text.lower().replace("gray", "grey"))
+    return {w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w for w in words}
+
+
+def literal(request, names):
+    """The names that hold every word of the request but the filler: "the grey pillow" ->
+    "grey throw pillow". Empty when the request uses another word (couch for sofa) or names a new
+    colour ("make the fridge black"); the VLM matches those."""
+    want = _stems(request) - _FILLER
+    return [n for n in names if want and want <= _stems(n)]
+
+
 def matches(server, preset, request, inv):
-    """Which names in the inventory fit the request: one text question, no picture."""
+    """Which names in the inventory fit the request: the names that hold the request's words, else one
+    text question to the VLM, no picture. The 8B model matches loosely: for "the grey pillow" it
+    returned every pillow but the grey one, so the words go first."""
     names = sorted({n for v in inv["views"] for n in v["names"]})
     if not names:
         return [], {}
+    exact = literal(request, names)
+    if exact:
+        return exact, {"by": "words"}
     ans, info = steps.look(server, preset, [], match_prompt(request, names), match_schema(names), max_tokens=600)
-    return ans["matches"], info
+    return ans["matches"], {**info, "by": "vlm"}
 
 
 def ranked(inv, hits, order):
@@ -277,5 +355,9 @@ def search(model, request, preset, run, say, near=None):
             return None, tried, hits, []
         if near is None:        # nearest first when the user's position is known; else the largest
             found.sort(key=lambda f: -float(f["mask_array"].mean()))
-        found[0] = _recentre(server, preset, found[0], request, run, tried, say)
+        seen_from = len(found)
+        found = distinct(found)  # the same lamp seen from three panoramas is one candidate
+        if len(found) < seen_from:
+            say({"step": "search", "status": "merged", "views": seen_from, "things": len(found)})
+        found[0] = {**_recentre(server, preset, found[0], request, run, tried, say), "also": found[0]["also"]}
     return found[0], tried, hits, found

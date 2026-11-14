@@ -85,6 +85,45 @@ after the click, before the VLM has answered, so a UI can draw the outline at on
 The mask is the whole object and nothing else: no shadow, no margin. The edit side's paste finds
 the shadow itself.
 
+## How a view and words become a target (`look`)
+
+1. **Here.** The edit side's locate question on the user's view. If it finds the thing, SAM outlines
+   it in each box and the finder is done.
+2. **Elsewhere, with an inventory.** One text question picks the inventory names that fit the request
+   (below). The views that name one are tried nearest panorama first, at most three, with locate.
+3. **Elsewhere, without an inventory.** A yes/no question per view ("can the thing be seen?"): the
+   other five directions of this panorama (60 degrees left and right first, behind last), then six
+   directions of each of the two nearest panoramas. The first yes gets a locate. Each panorama is one
+   hold of the GPU lock.
+4. **Recentre or zoom.** When the found thing touches the view's edge, the camera turns onto it. When
+   it is under 1 % of the view, the camera narrows (no tighter than 30 degrees) so that the edit has
+   pixels to work with. The new view is kept if the thing is whole in it, or at least as large.
+
+The `found.json` then holds the view where the thing is, not the user's view, so the UI can turn
+there.
+
+## How words alone become a target (`search`)
+
+1. **Inventory.** Once per scan the VLM lists the removable or restyleable things in six views of
+   every panorama ("blue velvet stool", "white table lamp"; no walls, floors, doors or windows). It is
+   saved in `data/edit_agent/find/<model>/inventory.json` and reused. Scan `zzvymDx5ty7` (9
+   panoramas, 54 views) took 61.5 s at preset `fast`, in three holds of the GPU lock of about 20 s.
+   The first search on a scan builds it; `python -m edit_agent.find inventory` builds it ahead.
+2. **Match.** The inventory names that hold every word of the request ("grey pillow" gives "grey
+   throw pillow"). When none do (the request says "couch", or a new colour), one text question to
+   the VLM, no picture, whose answer is limited to the inventory's names.
+3. **Rank.** One view per panorama, the one naming the most matches. With `near` (the user's
+   panorama) the nearest come first; without it, the panoramas that name the match most often.
+4. **Locate.** The edit side's locate on the top three views. Every view where it finds the thing is
+   a candidate. Without `near` they are sorted largest first.
+5. **Merge.** The same lamp seen from three panoramas is one candidate. Each find is placed on the
+   scan's mesh; finds in the same place merge, and the other views go in its `also` list.
+6. **Recentre or zoom** the first, as in `look`.
+
+When more than one thing fits (two lamps in different places, or one view with three pillows),
+`several: true` and the reason ends "N things fit, ask the user". The finder never picks silently:
+the UI shows the candidates and the user picks one.
+
 ## The SAM process
 
 SAM runs in its own venv (`tools/qwen_test/.venv-sam`, torch with CUDA), so the finder keeps a warm
@@ -100,38 +139,71 @@ and it exits after 15 minutes without a request.
 
 ## Results
 
-Scan `zzvymDx5ty7`, preset `quality` (1024 px), field of view 75. One graph run per click, the VLM
-loaded each time. ✓ right, ~ partly right, ✗ wrong.
+### Clicks
 
-| View | Click on | Got | | Seconds |
+Scan `zzvymDx5ty7`, field of view 75, at preset `quality` (1024 px) and at the default `720`. One
+graph run per click, the VLM loaded each time. ✓ right, ~ partly right, ✗ wrong.
+
+| View | Click on | 1024 px | 720 px |
+| --- | --- | --- | --- |
+| pano 1, yaw 213, pitch -17 | grey pillow | ✓ the pillow | ✓ the pillow |
+| | grey pillow, "make this pillow blue" | ✓ the pillow, kind `change` | ✓ the pillow, kind `change` |
+| | sofa seat | ✗ part of the sofa (back and one seat) | ✗ the same part |
+| | coffee table's mirror shelf | ~ the table, without the tray and vase on it | ~ the same |
+| | plant | ✓ the plant | ✓ the plant |
+| | painting | ✓ the painting | ✗ not found: the VLM saw "white wall" |
+| | rug | ✓ the rug, after recentring | ✓ the rug, after recentring |
+| | wall | ✓ not found | ✓ not found |
+| | floor | ✓ not found | ✓ not found |
+| pano 1, yaw 172, pitch -12 | lamp's glass base | ✓ the whole lamp | ✓ the whole lamp |
+| | lamp shade | ✓ the whole lamp | ✓ the whole lamp |
+| | side table under the lamp | ✓ the table and the lamp | ✓ the table and the lamp |
+| pano 4, yaw 38, pitch -12 | right decor ball | ✓ the ball | ✓ the ball |
+| | left decor ball | ✓ the ball | ✓ the ball |
+| | faucet | ✓ the faucet | ✗ the cabinet door behind it |
+| | countertop, "make this countertop black marble" | ~ with the sink and balls in it | ~ the same |
+| | wall | ✓ not found | ✓ not found |
+| pano 7, yaw 260, pitch -10 | left green jar | ✓ the jar | ✓ the jar |
+| | right green jar | ✓ the jar | ✓ the jar |
+| | far sofa (small, across the room) | ✗ one cushion | ✗ one cushion |
+| | far coffee table | ~ the right outline, named "metal frame chair" | ✓ the table and the plant on it |
+| | track light | ✗ a wrong outline | ✗ a piece of the track |
+| | floor | ✓ not found | ✓ not found |
+
+At 1024 px: 17 right, 3 partly right, 3 wrong. At 720 px: 16 right, 2 partly right, 5 wrong. The
+720 px run lost the thin faucet and the painting, where the VLM's view of the ring is coarser.
+
+Seconds per click at 720 px: highlight 0.2 to 0.5; a whole click 5.9 to 6.8, of which loading the
+VLM is 3.1; not found 4.9 to 5.8; with a recentre 12.2 to 12.3. At 1024 px each is about 0.5 s
+more. The first click after the SAM process starts adds 4 s.
+
+### Searches
+
+Same scan, preset `720`, the inventory already built. `look` starts from pano 1, yaw 213, pitch -17
+(the sofa view), where none of these things is in view.
+
+| Command | Request | Got | Asks the user | Seconds |
 | --- | --- | --- | --- | --- |
-| pano 1, yaw 213, pitch -17 | grey pillow | the pillow | ✓ | 7.6 |
-| | grey pillow, "make this pillow blue" | the pillow, kind `change` | ✓ | 6.6 |
-| | sofa seat | part of the sofa (back and one seat) | ✗ | 6.7 |
-| | coffee table's mirror shelf | the table, without the tray and vase on it | ~ | 6.6 |
-| | plant | the plant | ✓ | 6.7 |
-| | painting | the painting | ✓ | 7.5 |
-| | rug | the rug, after recentring | ✓ | 13.4 |
-| | wall | not found | ✓ | 5.2 |
-| | floor | not found | ✓ | 5.3 |
-| pano 1, yaw 172, pitch -12 | lamp's glass base | the whole lamp | ✓ | 6.7 |
-| | lamp shade | the whole lamp | ✓ | 6.6 |
-| | side table under the lamp | the table and the lamp | ✓ | 6.7 |
-| pano 4, yaw 38, pitch -12 | right decor ball | the ball | ✓ | 6.7 |
-| | left decor ball | the ball | ✓ | 6.6 |
-| | faucet | the faucet | ✓ | 6.6 |
-| | countertop, "make this countertop black marble" | the countertop with the sink and balls in it | ~ | 13.4 |
-| | wall | not found | ✓ | 6.5 |
-| pano 7, yaw 260, pitch -10 | left green jar | the jar | ✓ | 6.7 |
-| | right green jar | the jar | ✓ | 6.6 |
-| | far sofa (small, across the room) | one cushion | ✗ | 6.6 |
-| | far coffee table | the right outline, named "metal frame chair" | ~ | 6.7 |
-| | track light | a wrong outline | ✗ | 6.6 |
-| | floor | not found | ✓ | 5.2 |
+| `look`, no inventory | remove the table lamp | ✓ a lamp on this panorama, after 4 questions | no | 12.9 |
+| `look` | remove the blue stool | ✓ the stool on this panorama, zoomed in from 0.3 % to 2.8 % of the view | no | 8.3 |
+| `search` | remove the table lamp | ✓ both lamps in the flat: the ceramic one (two views merged) and the glass one | yes, 2 | 11.4 |
+| `search` | make the refrigerator black | ✓ the refrigerator, whole after recentring | no (1) | 9.8 |
+| `search` | remove the blue stool | ✓ the stool | no (1) | 18.1 |
+| `search` | remove the grey pillow | ✓ three grey pillows on one sofa | yes, 3 | 10.9 |
+| `search` | remove the couch | ✓ the living-room sofa; the teal armchair second | yes, 2 | 12.5 |
+| `search` | remove the piano | ✓ not found (there is none) | no | 4.6 |
 
-17 right, 3 partly right, 3 wrong out of 23. Seconds per click: highlight 0.2 to 0.5; a whole
-click 6.6 to 7.6, of which loading the VLM is 3.1; not found 5.2; with a recentre 13 to 14. The
-first click after the SAM process starts adds 4 s.
+(1) These two ran before the merge and said "3 things fit". On their saved candidates the merge
+gives one each. So did the table lamp's first run, whose three views all showed the ceramic lamp.
+
+Before the merge every search that found its thing said "3 things fit": one object seen from
+three panoramas. The merge casts 60 rays through each find's mask onto the scan mesh (0.1 s per
+find). Two finds are one thing when the centre of either lies within 10 cm of the other's extent.
+A scan without a mesh skips the merge.
+
+The text match: names that hold every word of the request ("grey pillow" gives "grey throw
+pillow") are taken as they are. Only otherwise does the VLM match: "couch" gives the sofas. The 8B
+model alone, asked for "the grey pillow", returned every pillow but the grey one.
 
 Hand-off: the lamp-base click at preset `720` went to `python -m edit_agent.run --input found.json`.
 `first_pass` used the given target and mask, removed the lamp in 29.8 s and kept the side table.
