@@ -1,6 +1,6 @@
 import { useChannelEffect, useStream } from '@langchain/react'
 import { ArrowUp, ChevronDown, ChevronUp } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import mascot from './assets/proppy-mascot.png'
 import { applyPin, NO_PINS, parsePinEvent, settlePins, type Pins } from './pins'
 
@@ -27,8 +27,9 @@ function classify(error: unknown): Trouble {
 
 const RING = 2 * Math.PI * 22
 
-// Pin events come from the score-property subagents one namespace below the root. A root
-// subscription reaches them because the SDK subscribes one level deep by default.
+// Pin events come from the score-property subagents, one namespace below the root. The server
+// streams subgraphs on every protocol run and a root `custom` subscription reaches one level
+// down, so submit needs no extra option.
 const PIN_CHANNELS = ['custom'] as const
 
 type Props = { open: boolean; onOpen: () => void; onClose: () => void; onPins: (update: (pins: Pins) => Pins) => void }
@@ -36,11 +37,13 @@ type Props = { open: boolean; onOpen: () => void; onClose: () => void; onPins: (
 // Proppy stays mounted while collapsed so a run keeps streaming behind the pill. It reports pin
 // colours through `onPins`, and clears them when the user asks a new question.
 export function Proppy({ open, onOpen, onClose, onPins }: Props) {
-  const stream = useStream({ apiUrl: AGENT_URL, assistantId: 'proppy' })
+  // Without the optimistic echo, a send that never reaches the server leaves no question behind
+  // to show twice when the user asks again.
+  const stream = useStream({ apiUrl: AGENT_URL, assistantId: 'proppy', optimistic: false })
   const [online, setOnline] = useState<boolean | null>(null)
   const [healthCheck, setHealthCheck] = useState(0)
-  const [submitError, setSubmitError] = useState<unknown>(undefined)
   const [draft, setDraft] = useState('')
+  const lastAsk = useRef('')
   const thread = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -70,23 +73,42 @@ export function Proppy({ open, onOpen, onClose, onPins }: Props) {
     },
   })
 
-  const error = stream.error ?? submitError
+  const error = stream.error
+  const errorTrouble = error === undefined ? null : classify(error)
 
   useEffect(() => {
     if (!stream.isLoading || error !== undefined) onPins(settlePins)
   }, [stream.isLoading, error, onPins])
-  const trouble: Trouble | null = error !== undefined ? classify(error) : online === false ? 'offline' : null
+
+  // Once the server echoes the question into the thread, a later error must not put it back in the
+  // draft. Sends wait for the previous run, so a new last human turn is always the latest ask.
+  const lastHuman = turns.findLast((t) => t.human)?.key
+  useLayoutEffect(() => {
+    lastAsk.current = ''
+  }, [lastHuman])
+
+  // A network failure counts as a failed health check, so `online` alone decides "offline" and a
+  // passing Check again ends it. The SDK reports it through `stream.error` rather than rejecting
+  // submit, so the unsent question goes back to the draft here, before the browser paints "Ready".
+  useLayoutEffect(() => {
+    if (errorTrouble !== 'offline') return
+    setOnline(false)
+    setDraft((d) => d || lastAsk.current)
+  }, [error, errorTrouble])
+
+  const trouble = online === false ? 'offline' : errorTrouble === 'offline' ? null : errorTrouble
+  const canSend = online === true && !stream.isLoading
   const subagents = [...stream.subagents.values()]
   const running = subagents.filter((s) => s.status === 'running').length
   const done = subagents.length - running
 
   const ask = (text: string) => {
     const content = text.trim()
-    if (!content || stream.isLoading) return
+    if (!content || !canSend) return
+    lastAsk.current = content
     setDraft('')
-    setSubmitError(undefined)
     onPins(() => NO_PINS)
-    stream.submit({ messages: [{ type: 'human', content }] }).catch((e: unknown) => setSubmitError(() => e))
+    void stream.submit({ messages: [{ type: 'human', content }] })
   }
 
   if (!open && stream.isLoading) {
@@ -193,7 +215,7 @@ export function Proppy({ open, onOpen, onClose, onPins }: Props) {
               <span className="stop-square" />
             </button>
           ) : (
-            <button type="submit" className="circle accent" aria-label="Send" disabled={!draft.trim()}>
+            <button type="submit" className="circle accent" aria-label="Send" disabled={!draft.trim() || !canSend}>
               <ArrowUp size={16} />
             </button>
           )}
@@ -201,7 +223,7 @@ export function Proppy({ open, onOpen, onClose, onPins }: Props) {
         {turns.length === 0 && (
           <div className="chip-row">
             {SUGGESTIONS.map((s) => (
-              <button key={s} type="button" className="chip" disabled={stream.isLoading} onClick={() => ask(s)}>
+              <button key={s} type="button" className="chip" disabled={!canSend} onClick={() => ask(s)}>
                 {s}
               </button>
             ))}

@@ -31,7 +31,7 @@ PROPPY_MODEL=anthropic:claude-sonnet-5-5
 
 The coordinator narrows the candidates with `query_properties`, a read-only SQL tool over DuckDB. It then sends one parallel `task` call per property to the `score-property` subagent. Each subagent reads the record with `get_property`, looks at the ortho with `view_aerial`, and returns a `PropertyScore`. Both agents read the `accessibility-audit` skill from `skills/`.
 
-The client receives pin updates as custom stream events. A pin goes from `scoring` to `scored`, or to `failed` if its scorer errors. `src/contract.ts` defines `PinEvent` and `PropertyScore`. Import them as types from the web client. Pin events come from inside the subagents, so the client must stream subgraphs (`streamSubgraphs: true` on submit) to see them.
+The client receives pin updates as custom stream events. A pin goes from `scoring` to `scored`, or to `failed` if its scorer errors. `src/contract.ts` defines `PinEvent` and `PropertyScore`. Import them as types from the web client. Pin events come from inside the subagents and carry a one-segment `["tools:<id>"]` namespace. The LangGraph server streams subgraphs on every run, and `useChannelEffect(stream, ['custom'], ...)` from `@langchain/react` delivers events up to one level below the root, so the client needs no extra submit option.
 
 `place_object` pauses the run for an approve or reject decision. Resume with `{ decisions: [{ type: 'approve' }] }` or `{ type: 'reject' }`.
 
