@@ -1,0 +1,22 @@
+{
+  "name": "propstar-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=../../.env --watch src/main.ts",
+    "start": "node --env-file=../../.env src/main.ts",
+    "test": "node --test src/*.test.ts",
+    "build:data": "node --env-file=../../.env pipeline/build.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.4.5-r.1",
+    "@hono/node-server": "^2.1.8",
+    "hono": "^4.13.18",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}
