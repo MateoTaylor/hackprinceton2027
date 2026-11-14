@@ -22,7 +22,9 @@ The magic eraser in `README.md` is on hold.
 
 ## Stack
 
-Nothing below has been built yet. `tools/smoke/` is the only running TypeScript.
+The MVP in `app/` runs everything below except the 3D row. Its fly-through is the plain Matterport
+embed in an iframe. The `AGENT_COMMS.md` Log entry "Propstar MVP landed in `app/`" says how to run
+it.
 
 | Part | Choice | Why, and what to watch |
 | --- | --- | --- |

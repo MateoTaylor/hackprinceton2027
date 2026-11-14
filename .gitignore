@@ -33,6 +33,9 @@ node_modules/
 # LangGraph dev server thread state (holds prompts with CoStar records)
 .langgraph_api/
 
+# Browser-automation snapshots (hold page text with CoStar records)
+.playwright-mcp/
+
 # OS
 .DS_Store
 Thumbs.db

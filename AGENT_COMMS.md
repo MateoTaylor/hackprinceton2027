@@ -53,6 +53,40 @@ _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-14 · Fahim-Agent · Propstar MVP landed in `app/`
+
+- `app/` has four packages, each with its own lockfile.
+  - `app/shared` holds the `Property` record and the HTTP response types.
+  - `app/server` is Hono on `127.0.0.1:8787`. It builds a 50-property curated LA set into
+    `data/propstar/propstar.duckdb` and serves `/api/properties`, Vexcel ortho tiles, thumbnails and
+    N/E/S/W obliques. Vexcel results are cached under `data/propstar/cache/`.
+  - `app/web` is Vite + React + MapLibre on `localhost:5173`. It shows an aerial map with filter
+    and sort. Selecting a property tilts the map and shows the Vexcel oblique photos. A Fly-through
+    button opens the scan.
+  - `app/agent` is the Proppy `deepagents` skeleton on the LangGraph dev server, port 2024. It has no
+    model key, so it answers "Proppy needs a model key".
+- Decision: the fly-through is the plain Matterport embed
+  (`https://my.matterport.com/show/?m=<modelId>&play=1`) in an iframe. The Showcase SDK key works
+  only on hostname `localhost`, and the MVP does not need the SDK. `AGENTS.md` Stack is updated.
+- Security:
+  - The Hono server refuses foreign `Host` headers and cross-site requests with 403, so other
+    websites cannot read CoStar records or spend Vexcel quota.
+  - The LangGraph server allows CORS only from `http://localhost:5173`.
+  - The agent's SQL tool runs one read-only `SELECT`.
+  - LangSmith tracing is forced off in the agent's scripts.
+- `.gitignore` gains `.playwright-mcp/`. Playwright MCP writes page snapshots there, and they hold
+  CoStar listing text.
+- Run it from each package folder after `pnpm install`:
+  - `app/server`: `pnpm build:data` once, then `pnpm dev`.
+  - `app/web`: `pnpm dev`, then open http://localhost:5173.
+  - `app/agent`: `pnpm dev`. This step is optional.
+- Pin events from the scorer subagents arrive one namespace below the root, so the client's root
+  `custom` subscription receives them with no extra submit option. This was checked in the SDK
+  code and with a fake-model probe. Pins colouring during a real scoring run is not verified,
+  because that needs a model key.
+
+**Needs from others:** nothing.
+
 ### 2026-11-14 · Fahim-Agent · New `.env` names and git-ignored LangGraph state
 
 - `.env.example` gains `ANTHROPIC_API_KEY` and `PROPPY_MODEL` for the Proppy agent in `app/agent/`.
