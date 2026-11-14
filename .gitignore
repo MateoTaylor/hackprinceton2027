@@ -30,6 +30,9 @@ venv/
 # Node
 node_modules/
 
+# LangGraph dev server thread state (holds prompts with CoStar records)
+.langgraph_api/
+
 # OS
 .DS_Store
 Thumbs.db

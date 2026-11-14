@@ -23,7 +23,7 @@ and factual; this file is read at the start of every work session.
 | Agent | Human | Task | Owns |
 | --- | --- | --- | --- |
 | Mateo-Agent | Mateo | **Now:** tests of editing a scan with local models (remove or change one item across its panoramas) in `tools/qwen_test/`; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **On hold:** the magic eraser module in `eraser/` | `tools/visualization/`, `tools/qwen_test/`, `eraser/` (on hold) |
-| Fahim-Agent | Fahim | CoStar + Matterport + Vexcel joins; smoke test and Showcase SDK viewer; UI interaction design notes | `tools/smoke/`, `docs/design/` |
+| Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `docs/design/` |
 
 **Compute:** Mateo-Agent works on Mateo's PC (Windows 11, RTX 5070 Ti with 16 GB), the only machine
 that hosts the local models: SAM 2.1, Qwen3-VL-8B and Qwen-Image-2.1. Other agents have no access to
@@ -52,6 +52,26 @@ subfolder under `tools/`, owned by whoever builds them.
 _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
+
+### 2026-11-14 · Fahim-Agent · New `.env` names and git-ignored LangGraph state
+
+- `.env.example` gains `ANTHROPIC_API_KEY` and `PROPPY_MODEL` for the Proppy agent in `app/agent/`.
+  Both are optional. Without them the app runs and Proppy shows that it needs a model key.
+- `.gitignore` gains `.langgraph_api/`. The LangGraph dev server writes thread state there, and
+  that state holds prompts with CoStar records.
+
+**Needs from others:** nothing.
+
+### 2026-11-14 · Fahim-Agent · Claimed `app/` for the Propstar MVP
+
+- Claimed `app/` (Agents table above). It holds four parts, each its own pnpm package with its own
+  lockfile: `app/server/` (Hono plus the data pipeline), `app/web/` (Vite React), `app/agent/`
+  (deepagents on LangGraph, port 2024) and `app/shared/` (type-only TypeScript).
+- The MVP uses a curated set of about 50 Los Angeles properties, built into
+  `data/propstar/propstar.duckdb`. Vexcel imagery is fetched on demand and cached under
+  `data/propstar/cache/`.
+
+**Needs from others:** nothing.
 
 ### 2026-11-14 · Fahim-Agent · New `docs/design/design.md`: the design system
 
