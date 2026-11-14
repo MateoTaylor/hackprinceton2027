@@ -24,7 +24,7 @@ and factual; this file is read at the start of every work session.
 | --- | --- | --- | --- |
 | Mateo-Agent | Mateo | **Now:** the scan edit agent in `tools/edit_agent/` (Python, LangGraph): a typed request removes an object from a view and reports what a second pass should fix. `tools/qwen_test/` stays as the benchmark; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **Not used:** `eraser/`, Defurnish, new Matterport API calls | `tools/visualization/`, `tools/qwen_test/`, `tools/edit_agent/` except `edit_agent/find/`, `eraser/` (empty) |
 | Mateo-Input-Agent | Mateo | The input side of the scan edit agent: find the thing to edit from a click, from the current view and a request, or from a request alone, and hand it to the edit graph. A second session on Mateo's PC; shares its GPU with Mateo-Agent through a file lock | `tools/edit_agent/edit_agent/find/` |
-| Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `docs/design/` |
+| Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `tools/world/`, `docs/design/` |
 
 **Compute:** Mateo-Agent works on Mateo's PC (Windows 11, RTX 5070 Ti with 16 GB), the only machine
 that hosts the local models: SAM 2.1, Qwen3-VL-8B and Qwen-Image-2.1. Other agents have no access to
@@ -55,6 +55,29 @@ subfolder under `tools/`, owned by whoever builds them.
 _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
+
+### 2026-11-14 14:15 ET · Fahim-Agent · Drivable-world prototype in `tools/world/` (throwaway)
+
+- `tools/world/` is a throwaway prototype, not app code. It shows a Matterport scan working as a
+  game level: you drive a scissor lift through the warehouse scan `JEaAkySdA5X`, place crates and
+  your own `.glb` models, and the building stays solid.
+- Run it with `pnpm install` then `pnpm dev` in `tools/world/`, and open `http://localhost:5183/`.
+  `SCAN_DIR=<scan folder>` picks another scan. The scan needs `bundles/mesh-assets/out_res_50k.obj`,
+  which `tools/fetch_matterport.py bundles --download` saves.
+- The dev server binds to `localhost` and may read only `tools/world/` plus that scan's
+  `manifest.json` and `bundles/`. Requests for `.env`, `kit/`, the rest of `data/` and the scan's
+  `raw_locations.json` returned 403. That file holds signed Matterport URLs, so keep it off any
+  server.
+- Vite's defaults let any page on `localhost` read the dev server's files, and its
+  `/__open-in-editor` route opens any file in the editor. This config sets `cors: false` and refuses
+  that route. `app/web` runs on the same Vite defaults and is untouched here.
+- Physics is Rapier (`@dimforge/rapier3d-compat`), inside this package only. The `AGENTS.md` stack
+  row "Collision and picking use the BVH" is unchanged until Fahim picks a direction.
+- Keys 1 and 2 switch between two ways of moving the lift: a physics vehicle and a scripted mover.
+- `pnpm bench:drive` runs the same drive without a browser and prints the numbers.
+- Only this one scan is tested.
+
+**Needs from others:** nothing.
 
 ### 2026-11-14 14:08 ET · Mateo-Input-Agent · Edit agent input side: the finder works from a click, from a view and words, and from words alone
 
@@ -125,6 +148,18 @@ for `tools/smoke/` or the app.
   `custom` subscription receives them with no extra submit option. This was checked in the SDK
   code and with a fake-model probe. Pins colouring during a real scoring run is not verified,
   because that needs a model key.
+
+**Needs from others:** nothing.
+
+### 2026-11-14 13:01 ET · Fahim-Agent · Claimed `tools/world/`; warehouse scan `JEaAkySdA5X` downloaded
+
+- Claimed `tools/world/` (Agents table above) for the drivable scan world: the scan mesh as static
+  collision, plus objects the user places and drives, such as a scissor lift. It is a standalone
+  package. It does not touch `app/` or `tools/visualization/`.
+- Downloaded the Los Angeles scan `JEaAkySdA5X` "Warehouse" into `data/JEaAkySdA5X/` with `fetch`
+  and `bundles --download`. Its MatterPak was already unlocked, so nothing was bought.
+- `bundles --download` also saves the model's mesh assets under `bundles/mesh-assets/`. For this
+  scan that includes `out_res_50k.obj`, a 50k-triangle version of the whole mesh with no textures.
 
 **Needs from others:** nothing.
 

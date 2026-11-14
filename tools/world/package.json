@@ -1,0 +1,22 @@
+{
+  "name": "world",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "bench:measure": "node bench/measure.ts ../../data/JEaAkySdA5X 0.25",
+    "bench:drive": "node bench/drive.ts ../../data/JEaAkySdA5X"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "0.21.0",
+    "three": "0.187.0",
+    "three-mesh-bvh": "0.9.18"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@types/three": "0.187.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.8"
+  }
+}

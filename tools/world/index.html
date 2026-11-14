@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>World prototype</title>
+    <style>
+      :root {
+        --bg: #0e0f11;
+        --border: #2a2d32;
+        --text: #f2f3f5;
+        --text-muted: #a1a7ae;
+        --accent-bright: #3d8bdb;
+        --overlay: #0e0f11b8;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.5 system-ui, sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      .panel {
+        position: fixed;
+        left: 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--overlay);
+        backdrop-filter: blur(8px);
+      }
+      #hud {
+        top: 12px;
+        width: 300px;
+        font-variant-numeric: tabular-nums;
+      }
+      #help {
+        bottom: 12px;
+        color: var(--text-muted);
+      }
+      dl {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 2px 12px;
+        margin: 0;
+      }
+      dt {
+        color: var(--text-muted);
+      }
+      dd {
+        margin: 0;
+        white-space: pre;
+      }
+      #hud-status {
+        margin: 8px 0 0;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+      }
+      kbd {
+        color: var(--text);
+        font: inherit;
+        font-weight: 600;
+      }
+      label {
+        color: var(--accent-bright);
+        cursor: pointer;
+      }
+      input[type='file'] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="panel" id="hud">
+      <dl>
+        <dt>Motion model</dt>
+        <dd id="hud-model"></dd>
+        <dt>Speed</dt>
+        <dd id="hud-speed"></dd>
+        <dt>Deck height</dt>
+        <dd id="hud-deck"></dd>
+        <dt>Position</dt>
+        <dd id="hud-position"></dd>
+        <dt>Props</dt>
+        <dd id="hud-props"></dd>
+        <dt>Camera</dt>
+        <dd id="hud-camera"></dd>
+        <dt>Physics step</dt>
+        <dd id="hud-step"></dd>
+        <dt>Frames per second</dt>
+        <dd id="hud-fps"></dd>
+      </dl>
+      <p id="hud-status"></p>
+    </section>
+    <section class="panel" id="help">
+      <div><kbd>W S</kbd> drive. <kbd>A D</kbd> steer. <kbd>R F</kbd> raise and lower the deck.</div>
+      <div><kbd>1 2</kbd> switch the motion model. <kbd>H</kbd> back to the start.</div>
+      <div><kbd>B</kbd> add a crate. <label>Add a .glb model<input type="file" id="model-file" accept=".glb" /></label>, or drag one in.</div>
+      <div>Click a prop to pick it up, click again to set it down. <kbd>Q E</kbd> turn it. <kbd>Delete</kbd> removes it.</div>
+      <div>Drag to orbit. Scroll to zoom. <kbd>C</kbd> chase camera. <kbd>G</kbd> show colliders.</div>
+    </section>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
