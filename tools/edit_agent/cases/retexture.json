@@ -1,0 +1,36 @@
+{
+  "about": "Retexture (change) test cases. Each view is rendered from a downloaded scan under data/ (git-ignored), so this file holds no pictures. `find` is the finder command that makes the case's found.json; then `python -m edit_agent.change one --input found.json` edits that view and `pans` edits every panorama that sees the thing. Results go to data/edit_agent/change/runs/<time>-<name>/.",
+  "preset": "720",
+  "cases": [
+    {
+      "name": "pillows-recolor",
+      "style": "recolor",
+      "scan": "zzvymDx5ty7",
+      "request": "change the blue pillows to red",
+      "find": "look --scan zzvymDx5ty7 --pano 1 --yaw 213.1 --pitch -16.5 --request \"change the blue pillows to red\"",
+      "want": "Every teal-green part of the patterned pillows turns red; their grey pattern and piping stay grey; the plain cream sofa, the painting and the wall do not change. The user says blue, the photo's pillows are teal-green: the colour rule must find the pillows' own hue.",
+      "panoramas": "1 (sofa, the found view), 4 and 7 also see the pillows (qwen_test sofa_pillows).",
+      "notes": "Plural: `look` returns all four patterned pillows in one view, as one mask. Some are mostly grey; their grey stays."
+    },
+    {
+      "name": "countertop-wood",
+      "style": "restyle",
+      "scan": "zzvymDx5ty7",
+      "request": "change this countertop from granite to wood",
+      "find": "point --scan zzvymDx5ty7 --pano 4 --yaw 37.6 --pitch -11.8 --at 625,612 --request \"change this countertop from granite to wood\"",
+      "want": "The island's white speckled granite becomes wood, with the same edges; the sink, the faucet and the two woven balls on it stay as they are; the cabinets and the floor do not change.",
+      "panoramas": "4 (the found view), 1 and 0 also see the island (qwen_test island_decor).",
+      "notes": "SAM's outline of the countertop already leaves out the sink basins and the balls. Whether the image model keeps them without that help is a question for a view where the outline holds them."
+    },
+    {
+      "name": "lamp-modern",
+      "style": "restyle",
+      "scan": "zzvymDx5ty7",
+      "request": "make this lamp more modern",
+      "find": "point --scan zzvymDx5ty7 --pano 1 --yaw 172.2 --pitch -11.9 --at 517,380 --request \"make this lamp more modern\"",
+      "want": "A more modern table lamp of about the same size on the same gold side table, still lit; the glow on the wall stays the photo's own; the side table, the wall and the baseboard do not change. A new outline that overlaps the old one by less than 0.8 is flagged form_changed.",
+      "panoramas": "1 (the found view).",
+      "notes": "The lit lamp is the case closest to a lighting change. If the image model changes the glow on the wall, the check reports it (shadow_left or light_left) and the photo's glow is kept."
+    }
+  ]
+}

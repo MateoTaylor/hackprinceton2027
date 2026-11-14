@@ -13,8 +13,12 @@ and factual; this file is read at the start of every work session.
    changes and who is affected.
 4. **Log as you work:** after each meaningful step (new interface, finished feature, blocker, finding
    others should know), add an entry at the top of the Log, signed with your agent name.
-5. **Commits:** prefix messages with your agent name, e.g. `[Mateo-Agent] add mask voting`. Pull
-   with rebase before pushing. On a merge conflict in this file, keep both sides' entries.
+5. **Pull requests:** changes reach `main` only through a pull request. Work on a branch named
+   `<agent-name>/<topic>`, e.g. `mateo-agent/second-pass`, and open the PR to `main`. Prefix commit
+   messages and PR titles with your agent name, e.g. `[Mateo-Agent] add mask voting`. Sessions that
+   share a checkout build their branch in a `git worktree` and leave the shared checkout on `main`.
+   Commit, push and open a PR only when your human asks. On a merge conflict in this file, keep both
+   sides' entries.
 6. **Secrets:** never put keys, tokens or passwords in this file or in code. They live in `.env`.
 7. Times are Eastern (America/New_York).
 
@@ -22,8 +26,8 @@ and factual; this file is read at the start of every work session.
 
 | Agent | Human | Task | Owns |
 | --- | --- | --- | --- |
-| Mateo-Agent | Mateo | **Now:** the scan edit agent in `tools/edit_agent/` (Python, LangGraph): a typed request removes an object from a view and reports what a second pass should fix. `tools/qwen_test/` stays as the benchmark; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **Not used:** `eraser/`, Defurnish, new Matterport API calls | `tools/visualization/`, `tools/qwen_test/`, `tools/edit_agent/` except `edit_agent/find/`, `eraser/` (empty) |
-| Mateo-Input-Agent | Mateo | The input side of the scan edit agent: find the thing to edit from a click, from the current view and a request, or from a request alone, and hand it to the edit graph. A second session on Mateo's PC; shares its GPU with Mateo-Agent through a file lock | `tools/edit_agent/edit_agent/find/` |
+| Mateo-Agent | Mateo | **Now:** the scan edit agent in `tools/edit_agent/` (Python, LangGraph): a typed request removes an object from a view and reports what a second pass should fix. `tools/qwen_test/` stays as the benchmark; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **Not used:** `eraser/`, Defurnish, new Matterport API calls | `tools/visualization/`, `tools/qwen_test/`, `tools/edit_agent/` except `edit_agent/find/`, `edit_agent/change/` and `cases/retexture.json`, `eraser/` (empty) |
+| Mateo-Retexture-Agent (was Mateo-Input-Agent) | Mateo | **Now:** retexturing in the scan edit agent, a `change` request such as a new countertop, floor or pillow colour: the instruction's wording, the paste rule and the checks for a change. Also the input side: find the thing to edit from a click, from the current view and a request, or from a request alone. A second session on Mateo's PC; shares its GPU with Mateo-Agent through a file lock | `tools/edit_agent/edit_agent/find/`, `tools/edit_agent/edit_agent/change/`, `tools/edit_agent/cases/retexture.json` |
 | Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `tools/world/`, `docs/design/` |
 
 **Compute:** Mateo-Agent works on Mateo's PC (Windows 11, RTX 5070 Ti with 16 GB), the only machine
@@ -55,6 +59,113 @@ subfolder under `tools/`, owned by whoever builds them.
 _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
+
+### 2026-11-14 16:20 ET · Mateo-Retexture-Agent · Changes now reach `main` through pull requests; Protocol 5 and `AGENTS.md` changed
+
+Mateo decided on 2026-11-14 to move from local commits on `main` to pull requests.
+
+- Protocol 5 now says: work on a branch named `<agent-name>/<topic>` and open a PR to `main`. Commit
+  messages and PR titles keep the `[Agent-Name]` prefix.
+- Sessions that share one checkout, like Mateo-Agent and Mateo-Retexture-Agent on Mateo's PC, build
+  their branch in a `git worktree`. Switching branches in the shared checkout would pull the other
+  session's files out from under it.
+- The working rule in `AGENTS.md` points to Protocol 5.
+
+**Affected:** everyone. Fahim-Agent's `464a2e4` went to `main` before this changed.
+
+**Needs from others:** open a PR from your next change on.
+
+### 2026-11-14 16:10 ET · Mateo-Retexture-Agent · Retexture first pass built and tested in `edit_agent/change/`; not wired into the edit graph
+
+**What landed** (all in `tools/edit_agent/edit_agent/change/`, details in its README):
+
+- `python -m edit_agent.change one|pans --input found.json` edits a found view, or every panorama
+  that sees the thing.
+- The `change` block from the 15:11 entry is filled by the VLM. A recolour pastes only the named
+  colour, using a CIELAB colour mask. A restyle pastes the whole thing.
+- The checks are a change's own: `not_applied`, `shading_changed`, `shadow_left` / `light_left`
+  (warning only) and `form_changed`. The VLM asks one close-up question per changed part.
+
+**Results at 720 px:**
+
+- Pillows teal to red: clean, with the grey pattern kept.
+- Countertop granite to wood: clean, with the sink and balls kept.
+- Lamp "more modern": still fails (the reach case). The model draws an opaque shade and relights the
+  wall, and the checks flag it.
+- Across panoramas, conditioning on an earlier view's result did not beat editing each view alone,
+  for either case. A recolour keeps the photo's pattern, and "wood" comes out the same every time. A
+  distinctive invented pattern is not tested yet.
+- **The VLM cannot judge "is the grey pattern kept?"** (wrong on 5 of 10 labelled pictures), or
+  choose between colour masks. It reliably spots a leftover old colour.
+
+**Affected:** Mateo-Agent, later. Nothing in the graph calls this yet; the call-site request will
+come in `notes/from-input.md`. A change pastes only inside the thing, so the scout only matters for
+`form: small`.
+
+**Needs from others:** nothing now.
+
+### 2026-11-14 15:11 ET · Mateo-Retexture-Agent · Retexture design decided; a new `change` block on the edit target; `AGENTS.md` changed
+
+**Decided by Mateo**
+- A change is pasted inside the object only. The photo's own shadows and glows stay as they are.
+  Where the image model changed them, that is a warning for the second pass, not something to
+  paste. The object's own light (the light falling on it, the light it gives) should match the
+  photo. A lamp whose light changes is left for later.
+- Small changes of shape are allowed. The new outline must overlap the old one by at least 80%
+  (IoU) and stay inside the old box grown by 10%.
+- Everything goes through the image model, even a pure colour change.
+- A recolour ("the blue pillows to red") also keeps the parts that are not the named colour, such
+  as a grey pattern or piping: only pixels of the named colour are pasted. Other changes have no
+  colour rule.
+- A plural means every match.
+- Every panorama that sees the thing is edited. Each later view is given an earlier view's result,
+  so the new texture or pattern stays the same across panoramas. This is the main experiment.
+- Furniture and small things come first. Floors and walls come after.
+
+**Changing (shared contract)**
+- A target with `kind: "change"` gets a `change` block:
+  `{"style": "recolor", "from": "blue", "to": "red", "keep": "grey pattern and piping", "form": "none"}`.
+  `style` is `recolor` (colour only) or `restyle` (material, finish or a small change of shape).
+  `form` is `none` or `small`. `keep` may be empty. Mateo-Retexture-Agent fills it in
+  `edit_agent/change/` from the request and the view.
+- `instruction` stays what and where only (Mateo-Agent's 14:50 note). The image model's prompt for
+  a change is built from the `change` block, not from the VLM's sentence.
+- `AGENTS.md`, Scan edit agent, Retexture bullet: holds the decisions above.
+
+**State:** being built in `edit_agent/change/`. It is tested from its own command line before the
+edit graph calls it.
+
+**Who is affected:** Mateo-Agent. `schemas.Target` drops keys it does not know, so a `change` block
+is lost in `steps.adopt` until `Target` has the field.
+
+**Needs from others:** Mateo-Agent, later: a few call sites switched on `target.kind`. A heads-up
+is in `tools/edit_agent/notes/from-input.md` at 15:11; the exact names follow once they are tested.
+
+### 2026-11-14 14:30 ET · Mateo-Retexture-Agent · Renamed from Mateo-Input-Agent; claiming retexturing in `tools/edit_agent/edit_agent/change/`; `AGENTS.md` changed
+
+**Decided by Mateo**
+- Mateo-Input-Agent is now **Mateo-Retexture-Agent**. It builds retexturing: a `change` request
+  such as a new countertop, floor or pillow colour. It keeps the finder in `edit_agent/find/`.
+- Mateo-Agent takes the second pass, which repairs the issues the edit report lists.
+- One writer per file. Mateo-Agent keeps `graph.py`, `steps.py`, `schemas.py`, `metrics.py`,
+  `report.py`, `suite.py` and `config.py` in `tools/edit_agent/edit_agent/`. Where those must call the
+  change code, Mateo-Retexture-Agent asks in `tools/edit_agent/notes/from-input.md` and Mateo-Agent
+  adds the call, switched on `target.kind`.
+
+**Changing (shared paths)**
+- New paths claimed by Mateo-Retexture-Agent: `tools/edit_agent/edit_agent/change/` (the
+  instruction's wording, the paste rule and the checks for a change) and
+  `tools/edit_agent/cases/retexture.json`. Mateo-Agent's row in the Agents table now excludes them.
+- `AGENTS.md`, Scan edit agent: the input-side bullet has the new name, and a new Retexture bullet
+  holds the decision above.
+
+**State:** nothing is written yet. Mateo gives his ideas for retexturing first; they are compared
+with the current plan before any code.
+
+**Who is affected:** Mateo-Agent (file boundaries above). Nothing changes for `app/` or
+`tools/smoke/`.
+
+**Needs from others:** nothing.
 
 ### 2026-11-14 14:15 ET · Fahim-Agent · Drivable-world prototype in `tools/world/` (throwaway)
 
