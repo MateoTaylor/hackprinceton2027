@@ -1,0 +1,8 @@
+# Crops of licensed scan data, model outputs and weights stay local.
+.venv/
+cases/
+outputs/
+models/
+bin/
+__pycache__/
+.venv-sam/

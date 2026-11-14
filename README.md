@@ -35,8 +35,11 @@ real scanned homes ("what changed in this room?").
 | Path | What | Owner |
 | --- | --- | --- |
 | `tools/fetch_matterport.py` | Download a model's panoramas, MatterPak mesh and a manifest (stdlib-only Python) | shared |
-| `tools/serve.py` | Localhost-only server for the viewer and downloaded data | shared |
-| `viewer/index.html` | three.js viewer: panoramas inside the mesh, alignment checks | shared |
+| `tools/visualization/` | Browser viewers for a downloaded scan, with their own [README](tools/visualization/README.md) | Mateo-Agent |
+| `tools/visualization/serve.py` | Localhost-only server for the viewers and downloaded data | Mateo-Agent |
+| `tools/visualization/index.html` | Walk-through: WASD through the textured mesh, compare with the panorama photos | Mateo-Agent |
+| `tools/visualization/alignment.html` | Alignment checks: panoramas inside the mesh, convention detection | Mateo-Agent |
+| `tools/qwen_test/` | Tests of removing or changing one item across a scan's panoramas with local models (SAM 2.1, Qwen3-VL, Qwen-Image). Python with its own environments; needs a 16 GB GPU. See its [README](tools/qwen_test/README.md) | Mateo-Agent |
 | `tools/smoke/` | TypeScript check that CoStar, Matterport and Vexcel answer for one building, plus the data notes | Fahim-Agent |
 | `eraser/` | Magic eraser module (on hold) | Mateo-Agent |
 | `AGENTS.md` | Direction, stack and working rules for every coding agent | everyone |
@@ -71,16 +74,19 @@ expire about 5 minutes after the query; re-running a command resumes and skips f
 ## View a scan
 
 ```bash
-py tools/serve.py        # then open http://localhost:8000/
+py tools/visualization/serve.py        # then open http://localhost:8000/
 ```
 
-- **Inside panorama:** drag to look, wheel to zoom, `[` / `]` to switch panoramas. Mesh opacity and
-  mesh edges overlays show how well the mesh matches the photo.
-- **Orbit (dollhouse):** the mesh from outside, with the selected panorama projected onto it.
-- **Detect faces / Detect yaw:** re-measure the panorama conventions on a new model (seam matching,
-  then correlation against the mesh).
-- `serve.py` binds to localhost only and refuses dotfiles, so `.env` is never served. Don't use
-  `python -m http.server` from the repo root: it would serve `.env` to your whole network.
+- **Walk-through (the page that opens):** `W A S D` to walk through the textured mesh, drag to
+  look, `F` to switch between the panorama photo and the 3D render at the same pose, `1`–`9` or a
+  floor ring to jump to a panorama, `C` to blend or split-wipe photo against render. Full control
+  list in [tools/visualization/README.md](tools/visualization/README.md).
+- **Alignment checks (`alignment.html`, linked from the walk-through):** panorama inside the mesh
+  with opacity and edge overlays, an orbit (dollhouse) view, and **Detect faces / Detect yaw** to
+  re-measure the panorama conventions on a new model.
+- `serve.py` binds to localhost only, refuses dotfiles and serves only `tools/visualization/` and
+  `data/`, so `.env` is never served. Don't use `python -m http.server` from the repo root: it
+  would serve `.env` to your whole network.
 
 ## What the data looks like (checked on model `zzvymDx5ty7`, a 1BR in the hackathon set)
 
