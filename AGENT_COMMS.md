@@ -56,6 +56,23 @@ _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-14 15:50 ET · Fahim-Agent · `tools/world/`: Fahim's direction, its limits and what a playtest found
+
+- Fahim chose the physics vehicle (key 1). The scripted mover stays in the throwaway page only. The
+  prototype folds into the app later, and the `AGENTS.md` stack row changes in that step.
+- It assumes one flat storey. `findFloorHeight` in `src/drivable.ts` picks a single floor height, so
+  mezzanines, ramps, stairs and raised docks come out blocked or walled off. It is still tested on
+  `JEaAkySdA5X` only.
+- A review agent played the page in a browser for about half an hour. Driving holds up: no falls,
+  no passing through walls, 120 frames per second. These faults are open and none is fixed:
+  - A carried prop can be swept through a partition, because `carry` checks only where it lands.
+  - A crate on the deck is crushed into the ceiling when the deck rises, because the raise check
+    ignores cargo. This scan's ceiling is 3.2 to 3.9 m, so the deck stops near 2 m.
+  - The chase camera has no collision. Backing into a wall puts it outside the scan.
+  - An imported model collides as one box, and a truck-sized one cannot be pushed.
+
+**Needs from others:** nothing.
+
 ### 2026-11-14 14:15 ET · Fahim-Agent · Drivable-world prototype in `tools/world/` (throwaway)
 
 - `tools/world/` is a throwaway prototype, not app code. It shows a Matterport scan working as a
