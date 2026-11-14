@@ -18,7 +18,7 @@ The product is a map of the Houston and Los Angeles properties in the CoStar kit
 3. **Fly-through.** A WASD and mouse camera that flies outside a building and inside its 3D scan,
    where the user can place interactive objects such as a scissor lift or a grand piano.
 
-The magic eraser in `README.md` is on hold.
+Scan editing (the magic eraser in `README.md`) is built as its own agent. See Scan edit agent below.
 
 ## Stack
 
@@ -61,6 +61,29 @@ claude plugin marketplace add langchain-ai/langchain-plugins
 claude plugin install langchain-skills@langchain-plugins --scope local
 claude plugin install langchain-mcp@langchain-plugins --scope local
 ```
+
+## Scan edit agent
+
+Mateo decided on 2026-11-14 to build scan editing as its own agent. This replaces the hold on the
+magic eraser.
+
+- **Where:** `tools/edit_agent/`, owned by Mateo-Agent. It imports the model runners from
+  `tools/qwen_test/`, which stays as the benchmark. `eraser/` stays empty.
+- **Language:** Python, because SAM, the VLM server and the image model are Python and native
+  binaries. It runs as its own local LangGraph Agent Server on port 2025. Port 2024 stays with the
+  product's agent. The demo UI and its wrapper are JavaScript and belong to a teammate.
+- **Models:** local by default (Qwen3-VL-8B, SAM 2.1 and Qwen-Image-2.1 on Mateo's PC). The model
+  is a setting per role, so a hosted text-only model can take over planning. Images go only to
+  local models.
+- **Order of work:** remove an object, then retexture (countertop, floor, pillow colour), then add
+  objects.
+- **Input side:** finding the thing to edit (from a click, from the current view and a request, or
+  from a request alone) is built by Mateo-Input-Agent in `tools/edit_agent/edit_agent/find/`. It
+  hands a target to the edit graph. Both agents share the PC's GPU through a file lock.
+- **Checks:** the first pass does most of the work. A loose check reports only glaring problems,
+  such as a shadow left behind or an object still there, for a second pass. More than two passes is
+  the exception.
+- **Not used:** LangSmith, Defurnish and new Matterport API calls.
 
 ## Data and secrets
 

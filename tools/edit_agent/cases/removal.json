@@ -1,0 +1,30 @@
+{
+  "about": "Removal test cases for the first pass. Each view is rendered from a downloaded scan under data/ (git-ignored), so this file holds no pictures. Only the item and the views are chosen by hand; locate, segment, generate, paste and check run untouched. Results go to data/edit_agent/runs/<time>-<name>/.",
+  "preset": "720",
+  "cases": [
+    {
+      "name": "interior-armchair",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the blue armchair",
+      "views": [
+        {"pano": 1, "yaw": 282, "pitch": -10, "fov": 60}
+      ],
+      "notes": "Living room. Angles were estimated from a contact sheet and not yet checked on a centred render. Panorama 4 (yaw about 305) also sees the chair and is not added yet."
+    },
+    {
+      "name": "exterior-bins",
+      "kind": "exterior",
+      "scan": "2rPahZzW6H7",
+      "scan_name": "Exterior",
+      "request": "remove the two trash bins at the curb",
+      "views": [
+        {"pano": 8, "yaw": 177, "pitch": -5, "fov": 50},
+        {"pano": 6, "yaw": 191, "pitch": -5, "fov": 50},
+        {"pano": 3, "yaw": 209, "pitch": -5, "fov": 50}
+      ],
+      "notes": "A black and a blue bin at the curb, about 9 m from the front walk, near world x -17.7, y -8.5. Panoramas 0 and 4 see them too; the case is limited to three. Scan fetched with tools/fetch_matterport.py fetch 2rPahZzW6H7 (11 panoramas, 2k, no mesh)."
+    }
+  ]
+}

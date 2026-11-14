@@ -1,0 +1,111 @@
+"""Turn the measurements and the VLM's findings into the list a second pass would work from,
+and draw a plain picture of the run (before, mask, after with the issues marked, and a map of what changed)."""
+import textwrap
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+
+from edit_agent import metrics
+from edit_agent.schemas import GRADES, REPAIRS, Issue, QAReport
+
+
+def _issue(kind, severity, source, evidence, region=None):
+    return Issue(kind=kind, severity=severity, source=source, evidence=evidence, region=region, repair=REPAIRS[kind])
+
+
+def build(state, limits):
+    target = state.get("target") or {}
+    scores = state.get("scores") or {}
+    issues, notes = [], []
+    if not target.get("boxes"):
+        issues.append(_issue("not_found", 3, "vlm", "the thing to edit was not found in the picture"))
+    elif not state.get("edited"):
+        issues.append(_issue("not_found", 3, "metric", "the segmenter returned an empty mask for the boxes"))
+    else:
+        for kind, severity, evidence, region in metrics.flags(scores, limits, scores.get("paste_box")):
+            issues.append(_issue(kind, severity, "metric", evidence, region))
+        found = state.get("findings") or {}
+        if target["kind"] == "remove":
+            left = [b["box"] for b in target["boxes"] if b["label"] in found.get("visible", [])]
+            if left and not any(i.kind == "object_remains" for i in issues):
+                region = [min(b[0] for b in left), min(b[1] for b in left), max(b[2] for b in left),
+                          max(b[3] for b in left)]
+                issues.append(_issue("object_remains", 3, "vlm", "still visible: " + ", ".join(found["visible"]),
+                                     region))
+        elif found.get("done", "yes") != "yes":
+            what = "the change was only partly applied" if found["done"] == "partly" else "the thing looks unchanged"
+            issues.append(_issue("not_applied", 3, "vlm", what, found.get("item_box")))
+        for (field, grade), (kind, severity, what) in GRADES.items():
+            if found.get(field) == grade:
+                issue = _issue(kind, severity, "vlm", what, found.get("close_box"))
+                (issues if severity >= limits.report_severity else notes).append(issue)
+    issues.sort(key=lambda i: -i.severity)
+    if issues:
+        summary = f"{len(issues)} issue(s) for a second pass: " + ", ".join(i.kind for i in issues) + "."
+        if (state.get("findings") or {}).get("worst"):
+            summary += f" The VLM's words: {state['findings']['worst']}"
+    else:
+        summary = "No glaring problems found."
+    numbers = {k: v for k, v in scores.items() if isinstance(v, (int, float))}
+    return QAReport(verdict="fix" if issues else "pass", scores=numbers, issues=issues, notes=notes, summary=summary)
+
+
+def _boxes(img, regions, colour, labels=None, width=3):
+    draw = ImageDraw.Draw(img)
+    for n, region in enumerate(regions):
+        if not region:
+            continue
+        draw.rectangle(region, outline=colour, width=width)
+        if labels:
+            draw.rectangle([region[0], region[1], region[0] + 9 * len(labels[n]) + 8, region[1] + 20], fill=colour)
+            draw.text((region[0] + 4, region[1] + 3), labels[n], fill=(255, 255, 255), font=ImageFont.load_default(14))
+    return img
+
+
+def sheet(state, report, out, tile=512):
+    view = Image.open(state["view"]).convert("RGB")
+    target = state.get("target") or {}
+    before = _boxes(view.copy(), [b["box"] for b in target.get("boxes", [])], (255, 200, 0))
+    middle, after = view.copy(), view.copy()
+    changed = Image.new("RGB", view.size)
+    if state.get("mask"):
+        a = np.asarray(view, np.float32).copy()
+        item = np.asarray(Image.open(state["mask"]).convert("L")) > 127
+        effect = out.parent / "effect.png"
+        if effect.exists():
+            shade = (np.asarray(Image.open(effect).convert("L")) > 127) & ~item
+            a[shade] = a[shade] * 0.5 + np.array([255, 40, 200], np.float32) * 0.5
+        a[item] = a[item] * 0.5 + np.array([255, 40, 40], np.float32) * 0.5
+        if state.get("paste_mask"):
+            area = np.asarray(Image.open(state["paste_mask"]).convert("L")) > 127
+            a[area & ~metrics.shrunk(area, 3)] = (0, 220, 255)
+        middle = Image.fromarray(a.astype(np.uint8))
+    if state.get("edited"):
+        after = Image.open(state["edited"]).convert("RGB")
+        changed = metrics.change_map(view, after)
+        changed.save(out.parent / "diff.png")
+        _boxes(after, [i["region"] for i in report["issues"]], (230, 30, 30),
+               [str(n + 1) for n in range(len(report["issues"]))])
+    panels = ((before, "before, with the boxes the VLM gave"),
+              (middle, "item (red), its shadow or glow (pink), paste area (blue line)"),
+              (after, "after, with the issues numbered"),
+              (changed, "what changed: |before - after| x4"))
+    scale = tile / max(view.size)
+    tw, th = round(view.size[0] * scale), round(view.size[1] * scale)
+    lines = [f"{report['verdict'].upper()}: {report['summary']}   request: {state['request']}"]
+    lines += [f"{n + 1}. [severity {i['severity']}, {i['source']}] {i['kind']}: {i['evidence']}  ->  {i['repair']}"
+              for n, i in enumerate(report["issues"])]
+    lines += [f"note [severity {i['severity']}] {i['kind']}: {i['evidence']}" for i in report["notes"]]
+    lines.append("scores: " + ", ".join(f"{k} {v}" for k, v in report["scores"].items()))
+    lines.append("seconds: " + ", ".join(f"{k} {v['seconds']}" for k, v in (state.get("timings") or {}).items()))
+    font = ImageFont.load_default(14)
+    wrapped = [part for line in lines for part in textwrap.wrap(line, width=max(40, len(panels) * tw // 8)) or [""]]
+    img = Image.new("RGB", (len(panels) * tw, th + 24 + 19 * len(wrapped) + 12), (24, 24, 24))
+    draw = ImageDraw.Draw(img)
+    for col, (panel, name) in enumerate(panels):
+        img.paste(panel.resize((tw, th), Image.LANCZOS), (col * tw, 24))
+        draw.text((col * tw + 6, 4), name, fill=(255, 255, 0), font=font)
+    for n, line in enumerate(wrapped):
+        draw.text((8, th + 30 + 19 * n), line, fill=(235, 235, 235), font=font)
+    img.save(out, quality=90)
+    return out

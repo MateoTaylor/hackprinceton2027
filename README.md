@@ -25,10 +25,11 @@ through:
 The stack and the agent design are in [AGENTS.md](AGENTS.md). The app is not built yet. We also
 enter the LangChain track, which judges the use of Deep Agents.
 
-**On hold:** a magic eraser for Matterport scans, which removes one chosen object from a scanned
-room so it is gone from every panorama. Matterport's own Defurnish removes all furniture by
-category; there is no single-object eraser. First planned use: an anomaly-spotting game played in
-real scanned homes ("what changed in this room?").
+**Scan editing** is being built as its own agent in [`tools/edit_agent/`](tools/edit_agent/README.md):
+a typed request removes one chosen object from a view of a scanned room and reports what is still
+wrong. Retexturing and adding objects come next. Matterport's own Defurnish removes all furniture
+by category; there is no single-object eraser. An earlier idea for it was an anomaly-spotting game
+played in real scanned homes ("what changed in this room?").
 
 ## Repo layout
 
@@ -40,8 +41,9 @@ real scanned homes ("what changed in this room?").
 | `tools/visualization/index.html` | Walk-through: WASD through the textured mesh, compare with the panorama photos | Mateo-Agent |
 | `tools/visualization/alignment.html` | Alignment checks: panoramas inside the mesh, convention detection | Mateo-Agent |
 | `tools/qwen_test/` | Tests of removing or changing one item across a scan's panoramas with local models (SAM 2.1, Qwen3-VL, Qwen-Image). Python with its own environments; needs a 16 GB GPU. See its [README](tools/qwen_test/README.md) | Mateo-Agent |
+| `tools/edit_agent/` | Scan edit agent: a typed request removes an object from one view and reports what a second pass should fix. A LangGraph graph in Python over the local models in `tools/qwen_test/`. See its [README](tools/edit_agent/README.md) | Mateo-Agent |
 | `tools/smoke/` | TypeScript check that CoStar, Matterport and Vexcel answer for one building, plus the data notes | Fahim-Agent |
-| `eraser/` | Magic eraser module (on hold) | Mateo-Agent |
+| `eraser/` | Empty. Scan editing is in `tools/edit_agent/` | Mateo-Agent |
 | `docs/design/` | UI design notes. Interactions not shown in the static screens: see `docs/design/interactions.md` | Fahim-Agent |
 | `AGENTS.md` | Direction, stack and working rules for every coding agent | everyone |
 | `AGENT_COMMS.md` | Coordination between the coding agents: ownership, contracts, log | everyone |

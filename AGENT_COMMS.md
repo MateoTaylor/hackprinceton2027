@@ -22,7 +22,8 @@ and factual; this file is read at the start of every work session.
 
 | Agent | Human | Task | Owns |
 | --- | --- | --- | --- |
-| Mateo-Agent | Mateo | **Now:** tests of editing a scan with local models (remove or change one item across its panoramas) in `tools/qwen_test/`; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **On hold:** the magic eraser module in `eraser/` | `tools/visualization/`, `tools/qwen_test/`, `eraser/` (on hold) |
+| Mateo-Agent | Mateo | **Now:** the scan edit agent in `tools/edit_agent/` (Python, LangGraph): a typed request removes an object from a view and reports what a second pass should fix. `tools/qwen_test/` stays as the benchmark; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **Not used:** `eraser/`, Defurnish, new Matterport API calls | `tools/visualization/`, `tools/qwen_test/`, `tools/edit_agent/` except `edit_agent/find/`, `eraser/` (empty) |
+| Mateo-Input-Agent | Mateo | The input side of the scan edit agent: find the thing to edit from a click, from the current view and a request, or from a request alone, and hand it to the edit graph. A second session on Mateo's PC; shares its GPU with Mateo-Agent through a file lock | `tools/edit_agent/edit_agent/find/` |
 | Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `docs/design/` |
 
 **Compute:** Mateo-Agent works on Mateo's PC (Windows 11, RTX 5070 Ti with 16 GB), the only machine
@@ -46,6 +47,8 @@ subfolder under `tools/`, owned by whoever builds them.
 - **Frame:** right-handed, Z up, meters; the same frame as the MatterPak OBJ and `cloud.xyz`.
 - **Panorama faces:** 0 = up, 1 = +X, 2 = −Y, 3 = −X, 4 = +Y, 5 = down (pano-local frame). The
   quaternion rotates pano-local directions into world as given.
+- **Scan edit agent:** graph `first_pass` on `127.0.0.1:2025` (Mateo's PC). Its input, result and
+  issue format are in `tools/edit_agent/README.md`. Paths in both are files on that PC.
 
 ## Open requests
 
@@ -126,6 +129,100 @@ _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 - Shared path: `README.md` layout table gains a `docs/design/` row pointing to the doc.
 
 **Needs from others:** nothing. The Paper file is unchanged.
+
+### 2026-11-14 13:55 ET · Mateo-Agent · Edit agent: long shadows go with the object; a test suite; one exterior scan in `data/`
+
+**Landed (`tools/edit_agent/`, details in its README)**
+- A removal now takes the object's shadow with it, however far it runs. The image model already
+  removed long shadows; the paste cut them off. The paste now follows the change the image model
+  made outwards from the object. The instruction also names the shadow.
+- Test cases: `cases/removal.json` (one interior, one exterior from three panoramas) and
+  `python -m edit_agent.suite`. At the new preset `720` (720 px): 38 to 41 s per view, all pass.
+- `sheet.jpg` has a fourth panel, a per-pixel map of what changed. The report has new scores
+  (`effect_share`, `effect_left`, `paste_added`). The graph's input and result fields are unchanged.
+
+**Changing (shared paths)**
+- `data/` on Mateo's PC: scan `2rPahZzW6H7` ("Exterior", an LA apartment building, 11 panoramas at
+  2k, no mesh), fetched with `tools/fetch_matterport.py fetch`. Mateo asked for this one pull.
+  `data/index.json` now lists two scans. `unlockModelBundle` was not called. The edit agent itself
+  makes no Matterport calls.
+
+**Findings others may need**
+- The image model gets no mask. It redraws the whole view from the instruction. The mask only
+  decides what is pasted back.
+- The 8B VLM does not see shadows on a street: "none" in 5 of 6 tries on pictures with a clear
+  leftover shadow. Asked for shadow boxes, it boxes the lower half of the object.
+- Small wording changes move the VLM a lot. A check question reworded to fit any place answered
+  "no problem" to a known bad edit. Test a prompt on cases of known quality before keeping it.
+
+**Who is affected:** anything that lists `data/index.json` now sees a second scan, and it has no
+mesh. Nothing changes for `tools/smoke/` or the app.
+
+**Needs from others:** nothing.
+
+### 2026-11-14 12:00 ET · Mateo-Agent · Edit agent: first pass landed with its interface; a second session takes the input side
+
+**Landed (`tools/edit_agent/`, details in its README)**
+- Graph `first_pass` on a local LangGraph Agent Server, `127.0.0.1:2025`. Input: `request`, plus
+  `image` (a path on Mateo's PC) or `scan` (`{model, pano, yaw, pitch, fov}`), and an optional
+  `preset`. Result: `edited` (path), `report` (`verdict`, `issues`, `notes`, `scores`, `summary`)
+  and `sheet` (one picture of the run). Progress comes on the `custom` stream as
+  `{step, status, seconds}`.
+- Measured on one view (remove a lamp and the side table under it): 80 s at 1024 px, 46 s at
+  768 px, 26 s at 512 px, 5 s when the thing is not in the picture.
+- The check is loose. Three short questions to the VLM and three pixel measurements list glaring
+  problems for a second pass. On five results of known quality it gave the right verdict five times.
+- Not built: the second pass that repairs the issues. Only removal has been run.
+
+**New agent: Mateo-Input-Agent** (in the Agents table)
+- A second session on Mateo's PC. It finds the thing to edit from a click, from the current view
+  and a request, or from a request alone, in `tools/edit_agent/edit_agent/find/`, and hands a
+  `target` to `first_pass`. The handoff is in the edit agent's README.
+- Both sessions share the one GPU through a file lock in `tools/edit_agent/edit_agent/gpu.py`.
+
+**Changing (shared paths)**
+- `AGENTS.md`, Scan edit agent: one bullet for the input side.
+- `README.md`: the "On hold" paragraph now says scan editing is being built and where. The
+  `eraser/` row says the folder is empty.
+- This file: Shared contracts points to the edit agent's interface.
+
+**Findings others may need**
+- The 8B VLM describes one picture reliably and compares two pictures badly. Questions with fixed
+  answers ("which of these can you see?") work. Open questions ("list the problems") give the same
+  answer for every picture.
+- `langgraph dev` on Windows needs the `colorama` package and reads graph paths from the current
+  folder. Start it with `--no-browser`: the Studio page it opens is hosted by LangChain.
+
+**Who is affected:** whoever builds the demo UI. Paths in the input and the result are files on
+Mateo's PC under `data/edit_agent/runs/` (git-ignored). How the UI reads the pictures is open; add
+an Open request with what you need. Nothing changes for `tools/smoke/` or the app.
+
+**Needs from others:** nothing.
+
+### 2026-11-14 11:20 ET · Mateo-Agent · Claiming `tools/edit_agent/`; scan editing is off hold; `AGENTS.md` changed
+
+**Decided by Mateo (now in `AGENTS.md`, new section "Scan edit agent")**
+- Scan editing is no longer on hold. It is built as an agent in a new `tools/edit_agent/`, owned by
+  Mateo-Agent. `tools/qwen_test/` stays as the benchmark and supplies the model runners.
+- The edit agent is Python on its own local LangGraph Agent Server, port 2025. Port 2024 stays with
+  the product's agent. The demo UI and its wrapper are JavaScript and are a teammate's work.
+- Order of work: remove an object, then retexture (countertop, floor, pillow colour), then add
+  objects.
+- LangSmith is not used. Defurnish and new Matterport API calls stay unused. `eraser/` stays empty.
+
+**Changing (shared paths)**
+- `AGENTS.md`: the sentence "the magic eraser is on hold" now points to the new section. The
+  product description and the stack table are untouched.
+- `README.md` layout table: one row for `tools/edit_agent/`.
+
+**First step (in progress):** one view. A typed request and an image go through locate (Qwen3-VL),
+outline (SAM), remove (Qwen-Image) and a loose check that lists glaring problems for a second pass.
+There is no repair loop yet.
+
+**Who is affected:** Fahim-Agent, only if the product's agent also needs port 2025 or the JS agent
+was meant to do scan editing. Say so here.
+
+**Needs from others:** nothing.
 
 ### 2026-11-14 10:20 ET · Mateo-Agent · Viewer landed; new `tools/qwen_test/`; this PC hosts the local models
 
