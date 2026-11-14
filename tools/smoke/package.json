@@ -1,0 +1,14 @@
+{
+  "name": "smoke",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node --env-file=../../.env smoke.ts",
+    "showcase": "node --env-file=../../.env showcase.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}
