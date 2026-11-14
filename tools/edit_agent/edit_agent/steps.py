@@ -11,13 +11,14 @@ from pathlib import Path
 
 import numpy as np
 from langchain_core.messages import HumanMessage
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
-from edit_agent import metrics
+from edit_agent import metrics, scout
 from edit_agent.config import QWEN
 from edit_agent.models import chat_model
-from edit_agent.schemas import (COMPARE_PROMPT, COMPARE_SCHEMA, LOCATE_PROMPT, LOCATE_SCHEMA, SURFACE_PROMPT,
-                                SURFACE_SCHEMA, VISIBLE_PROMPT, Target, edit_prompt, visible_schema)
+from edit_agent.schemas import (COMPARE_PROMPT, COMPARE_SCHEMA, LOCATE_PROMPT, LOCATE_SCHEMA, PLACE_PROMPT,
+                                PLACE_SCHEMA, SURFACE_PROMPT, SURFACE_SCHEMA, VISIBLE_PROMPT, Target, edit_prompt,
+                                visible_schema)
 from run_qwen import MODELS, QUANTS, SD_CLI, VAE, VISION, VramMonitor, grow_mask, membrane
 from vlm import data_url
 
@@ -192,7 +193,71 @@ def paste(view, raw, mask, preset, run):
     return edited, paste_mask, {"tone_shift": shift, "paste_box": list(area.getbbox()), **info}
 
 
-def inspect(server, view, edited, request, target, preset, run, also=None):
+PLACE_PX = 512                                    # a place's crop is enlarged to this: 256 image tokens
+
+
+def places(server, view, edited, regions, item, preset, run):
+    """Ask what is inside each scouted place, on a crop of the original and on the same crop of the result.
+
+    The place is marked with a red box. Each crop is one question, because the VLM describes one
+    picture well and compares two badly (see PLACE_PROMPT). Returns the regions with both answers.
+    """
+    pictures = {"before": Image.open(view).convert("RGB"), "after": Image.open(edited).convert("RGB")}
+    out, seconds = [], 0.0
+    for n, region in enumerate(regions, 1):
+        box = scout.crop_box(region["box"], pictures["before"].size)
+        answers = {}
+        for name, img in pictures.items():
+            crop = img.crop(box)
+            k = PLACE_PX / max(crop.size)
+            crop = crop.resize((round(crop.size[0] * k), round(crop.size[1] * k)), Image.LANCZOS)
+            x0, y0, x1, y1 = ((v - o) * k for v, o in zip(region["box"], box[:2] * 2))
+            ImageDraw.Draw(crop).rectangle([x0 - 6, y0 - 6, x1 + 6, y1 + 6], outline=(255, 0, 0), width=3)
+            path = run / f"place{n}_{name}.png"
+            crop.save(path)
+            answers[name], info = look(server, preset, [path], PLACE_PROMPT.format(item=item), PLACE_SCHEMA,
+                                       max_tokens=120)
+            seconds += info["answer_s"]
+        out.append({**region, **answers})
+    return out, round(seconds, 1)
+
+
+def restore(view, edited, mask, boxes, out, limits):
+    """Put the original's detail back in some boxes, in the tone the edit gave their surroundings.
+
+    For something the edit removed by mistake: a baseboard, a frame. The original pixels alone would
+    show as a patch wherever the edit changed the light (a lamp's glow went), so the smooth change the
+    edit made around the boxes is added to them. The item itself is never brought back.
+
+    A neighbour the model redrew that a box touches is taken back whole. Half original and half redrawn
+    shows double (a wire table in front of the baseboard). If that grows past `restore_max_share` of
+    the picture, only the boxes are restored. The area is saved next to `out` as `<name>_area.png`.
+    """
+    before, after = Image.open(view).convert("RGB"), Image.open(edited).convert("RGB")
+    w, h = before.size
+    long_side = max(w, h)
+    pad = round(0.02 * long_side)
+    area = np.zeros((h, w), bool)
+    for x0, y0, x1, y1 in boxes:
+        area[max(0, y0 - pad):y1 + pad, max(0, x0 - pad):x1 + pad] = True
+    item = np.asarray(Image.open(mask).convert("L").resize((w, h))) > 127
+    wider = scout.redrawn_with(before, after, area, limits)
+    if wider.mean() <= limits.restore_max_share:
+        area = wider
+    area &= ~metrics.grown(item, round(0.01 * long_side))
+    Image.fromarray(area.astype(np.uint8) * 255).save(Path(out).with_name(f"{Path(out).stem}_area.png"))
+    b, a = np.asarray(before, np.float32), np.asarray(after, np.float32)
+    keep = (~area & ~metrics.grown(item, pad)).astype(np.float32)        # the tone comes from around the boxes
+    r = round(0.04 * long_side)
+    weight = np.maximum(metrics.smooth(keep, r), 0.05)
+    tone = np.stack([metrics.smooth((a - b)[..., c] * keep, r) / weight for c in range(3)], axis=2)
+    restored = Image.fromarray(np.clip(b + tone, 0, 255).astype(np.uint8))
+    soft = Image.fromarray(area.astype(np.uint8) * 255).filter(ImageFilter.GaussianBlur(max(2, round(0.006 * long_side))))
+    Image.composite(restored, after, soft).save(out)
+    return out
+
+
+def inspect(server, view, edited, request, target, preset, run, also=None, regions=None):
     """Short questions with fixed answers, in one VLM session.
 
     1. Before and after, side by side: was the change applied, and was a neighbour damaged? It is
@@ -201,6 +266,7 @@ def inspect(server, view, edited, request, target, preset, run, also=None):
     2. Which of the things can still be seen?
     3. Is there a patch, a shadow or a glow left on the wall or floor?
     `also` is a pixel box the close-up must take in as well: where the item's shadow or glow was.
+    4. For each place the scout marked (`regions`): what is inside it, before and after?
     """
     boxes = np.array([b["bbox_2d"] for b in target["boxes"]])
     union = [int(v) for v in (*boxes[:, :2].min(axis=0), *boxes[:, 2:].max(axis=0))]
@@ -224,4 +290,6 @@ def inspect(server, view, edited, request, target, preset, run, also=None):
         surface, info3 = look(server, preset, [crop], SURFACE_PROMPT, SURFACE_SCHEMA, max_tokens=300)
         answer.update(seen, **surface, close_box=close)
         info = {key: round(info[key] + info2[key] + info3[key], 1) for key in info}
+    if regions:
+        answer["places"], info["places_s"] = places(server, view, edited, regions, target["item"], preset, run)
     return answer, info

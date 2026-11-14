@@ -6,14 +6,18 @@ is still wrong with the result. It is a LangGraph graph in Python over the local
 Qwen-Image-2.1 redraws the view. Everything runs on the PC that hosts those models. No picture
 leaves it.
 
-**Built so far: the first pass on one view.** It removes an object and lists glaring problems. It
-does not repair them. The second pass, retexturing, adding objects, skills and a Deep Agents
-coordinator are not built. See [Not built, not verified](#not-built-not-verified).
+**Built so far: the first pass on one view, and one repair.** It removes an object and lists
+glaring problems. It repairs one kind by itself: trim (a baseboard, a frame) that went with the
+object is put back. See [The second pass](#the-second-pass). Other repairs, retexturing, adding
+objects, skills and a Deep Agents coordinator are not built. See
+[Not built, not verified](#not-built-not-verified).
 
 ## The first pass
 
 ```
 prepare -> locate -> segment -> generate -> paste -> measure -> inspect -> report
+                                              ^                               |
+                                              +---------- repair <------------+  at most once
 ```
 
 | Step | What it does | With |
@@ -23,9 +27,10 @@ prepare -> locate -> segment -> generate -> paste -> measure -> inspect -> repor
 | segment | Outlines the object inside each box | SAM 2.1 |
 | generate | Redraws the whole view from the instruction | Qwen-Image |
 | paste | Puts the area around the object, plus its shadow however far it runs, back into the original, with tones matched at the border (see [Shadows](#shadows-and-the-difference-map)) | numpy |
-| measure | Numbers: change outside the area, change inside it, change at its border, tone shift, and how much of the object's shadow the paste missed | numpy |
-| inspect | Three short questions about the result (see [The check](#the-check)) | Qwen3-VL |
+| measure | Numbers: change outside the area, change inside it, the tone step at its border, tone shift, and how much of the object's shadow the paste missed. Also marks places where the edit removed or added edges outside the object (the scout) | numpy |
+| inspect | Three short questions about the result (see [The check](#the-check)), and one per marked place | Qwen3-VL |
 | report | Writes `report.json` and `sheet.jpg` | Pillow |
+| repair | Only if an issue carries an `action`: acts on it, then measure, inspect and report run again (see [The second pass](#the-second-pass)) | numpy |
 
 If the thing is not in the picture, the graph goes from locate straight to report with a
 `not_found` issue (about 5 s). The models take turns on the GPU, because they do not fit in 16 GB
@@ -93,21 +98,24 @@ for part in client.runs.stream(None, "first_pass", stream_mode=["custom", "value
 | `name` | Label for the run folder |
 | `target` | A thing that was already found. Skips locate. See [Handing in a target](#handing-in-a-target) |
 | `mask` | With `target`: path to a mask image, white = the item. Skips segment |
+| `raw` | With `target` and `mask`: path to a picture the image model made earlier. Skips generate, so a finished run can be replayed from its paste in about 13 s |
 
 ### Result
 
 | Field | Meaning |
 | --- | --- |
-| `edited` | Path to the edited picture |
+| `edited` | Path to the edited picture. After a repair it is `edited_2.png`, and the first pass's `edited.png`, `report_1.json` and `sheet_1.jpg` stay in the run folder |
+| `regions`, `repairs` | The places the scout marked, and what the repair did |
 | `report` | `{verdict, issues, notes, scores, summary}`. `verdict` is `pass` or `fix` |
 | `sheet` | Path to one picture of the run: before with boxes, mask with shadow and paste area, after with the issues marked, and a map of what changed |
 | `run_dir` | The run folder, `data/edit_agent/runs/<time>-<name>/` (git-ignored) |
 | `target`, `findings`, `timings` | What the locator found, the VLM's answers, seconds per step |
 
-Each issue is `{kind, severity, source, evidence, region, repair}`. `severity` is 3 when the edit
-failed, 2 when a problem is clear at a glance, 1 when it is faint. Faint findings go to `notes`, not
-`issues`. `region` is `[x0, y0, x1, y1]` in pixels of the working image. `repair` says what a second
-pass would do.
+Each issue is `{kind, severity, source, evidence, region, repair, action}`. `severity` is 3 when the
+edit failed, 2 when a problem is clear at a glance, 1 when it is faint. Faint findings go to
+`notes`, not `issues`. `region` is `[x0, y0, x1, y1]` in pixels of the working image. `repair` says
+in words what a second pass would do. `action` is set only when the graph can do it by itself
+(today: `restore`). After a repair, `timings` has keys such as `measure_2`.
 
 | Kind | Found by |
 | --- | --- |
@@ -116,8 +124,8 @@ pass would do.
 | `not_applied` | The VLM, for a change request (not tested) |
 | `shadow_left`, `light_left` | The VLM, in a close-up of the edited area. Also numbers: the image model cleaned an area up and the paste kept the original there |
 | `color_mismatch` | The VLM, in a close-up of the edited area |
-| `damaged_neighbour` | The VLM, comparing before and after (not tested) |
-| `visible_seam` | Change at the border of the pasted area (limit not calibrated) |
+| `damaged_neighbour` | The scout marks a place and the VLM names what is in it, before and after (see [The second pass](#the-second-pass)). Also the VLM comparing the whole pictures, which has never fired |
+| `visible_seam` | The tone step right at the border of the pasted area, along the worst tenth of it (see [The seam check](#the-seam-check)) |
 | `wrong_picture` | Change outside the pasted area: the model drew a different room |
 
 ## Presets
@@ -179,16 +187,90 @@ pictures with a clear leftover shadow it answered "none" in 5 of 6 tries.
 
 ## Test cases
 
-`cases/removal.json` holds the removal cases: one interior (an armchair) and one exterior (two
-bins at the curb, from three panoramas). It names scans and views, not pictures. Only the request
+`cases/removal.json` holds the removal cases: two interior (an armchair, and a lit table lamp whose
+glow covers the wall) and one exterior (two bins at the curb, from three panoramas). It names scans and views, not pictures. Only the request
 and the view are chosen by hand. From `tools/edit_agent/`:
 
 ```
 .venv\Scripts\python -m edit_agent.suite
 ```
 
-It runs every view through the first pass and prints a table. Measured at 720 px: 38 to 41 s per
-view, 156 s for the four, all pass.
+It runs every view through the graph and prints a table. Measured at 720 px, with the scout and its
+questions: 39 to 43 s per view when the GPU is free, 200 s for the five. All five pass, and no
+repair is triggered: with the current instruction the image model keeps the baseboard. The tone
+step at the paste border measures 3.6 to 7.6 against a limit of 12 (see
+[The seam check](#the-seam-check)). The armchair passes with a paler patch of floor where it stood.
+
+The scout marks one to three places in each view. On the street it marks the bins' shadow, and the
+VLM names it shadow before and surface after in all three views, so nothing is reported.
+
+### Cases seen from several panoramas
+
+`cases/multiview.json` holds four more removal cases, each seen from two or three panoramas: a
+coffee table with a tray and a vase on it, a dresser with a lamp and vases on it, and on the
+exterior scan a window and the garage door. The exterior cases edit the house itself and are odd on
+purpose. Each view is edited on its own, so nothing makes the views agree.
+
+```
+.venv\Scripts\python -m edit_agent.suite cases\multiview.json
+.venv\Scripts\python -m edit_agent.stages --suite <the table the first command names>
+```
+
+The second command draws one PNG per case in `data/edit_agent/outputs/stages/` (git-ignored). A
+row is a panorama and a column is a stage: the view, the VLM's boxes, the mask, the image model's
+redraw, the pasted first pass, what the check flagged, and the second pass. It reads the run
+folders and runs no model. It also takes run folders by name, one row each.
+
+Measured at 720 px on 2026-11-14: nine views in 468 s, with the retexture suite sharing the GPU.
+
+| Case | Panorama | What the first pass did | What the check said |
+| --- | --- | --- | --- |
+| Coffee table | 1 | Table and tray gone. The vase is left floating. | Pass, which is wrong. |
+| | 4 | Everything gone, the rug is clean. | `object_remains`, a false alarm: in its close-up the VLM took a side table at the edge for the coffee table. |
+| | 7 | Table and tray gone. The vase is left floating. | `color_mismatch`. The scout marked the vase, but the VLM named it an object before and after, so it is not reported. |
+| Dresser | 6 | Dresser, lamp and vases gone. The wall hanging above it is gone too. | `visible_seam` at 12.05 against 12, a false alarm: 97% of the picture is pasted and no border shows. |
+| | 2 | Dresser and vases gone. The lamp is left floating, and the redraw left a grey patch at the top of the wall. | `visible_seam` at 25.9, which is the grey patch. The lamp is not reported. |
+| Window | 3 and 4 | Window gone, the wall closes up. The plants, house numbers and sign stay. | Pass in both, which is right. |
+| Garage door | 1 and 7 | The door becomes a plain brown panel in its recess, the same brown in both views. | Pass in both, which is right. |
+
+- **A thing is removed only when the instruction names it.** In the three views where the VLM gave
+  one box and wrote "everything on it" or named only some of the things, something that stood on
+  the furniture is left floating. In the two views where it gave a box and a name for each thing,
+  all of them went, in one case with a wall hanging that should have stayed.
+- **The check does not see a floating thing.** The VLM's close-up answered that nothing is still
+  visible in all three views.
+- **No second pass ran.** Four views were reported, none with an issue that has a repair.
+
+### Light sources
+
+`cases/lights.json` holds six harder cases, each from two or three panoramas: a lit bedside lamp,
+a lit lamp on the dresser, a ceiling fan with its light, a track light whose spots draw glare
+streaks across the ceiling, the bedroom window (the room's daylight), and on the exterior scan the
+rainbow lens flares from the sun. Run it and draw it as above, with `cases\lights.json`.
+
+Measured at 720 px on 2026-11-14: sixteen views in 1030 s, with the retexture suite sharing the GPU.
+Fifteen pass and one is reported. Looked at full size, fourteen are clean and two are not:
+
+| Case | Panoramas | What the first pass did | What the check said |
+| --- | --- | --- | --- |
+| Bedside lamp | 6, 2, 1 | Lamp, its glow on the wall and its reflection on the nightstand gone. The blue vase beside it stays. | Pass in all three, which is right. |
+| Dresser lamp | 6, 2 | Lamp and its glow gone. The vases and the wall hanging stay. | Pass in both, which is right. |
+| Ceiling fan | 6, 8 | Fan, lit bowl, chains and blade shadows gone. | Pass, which is right. |
+| | 2 | The same, but the air vent beside the fan is gone too. | Pass, which is wrong: a blade covers the vent, so the vent lies in the ring around the item that the scout leaves out. |
+| Track light | 0, 7, 5 | Track, spots and their glare streaks gone. The recessed lights, smoke detector and vent stay. In 7 a small hook below the track went too. | Pass in all three, which is right. |
+| Bedroom window | 6, 2, 8 | Window, blinds, curtains and rod gone. The wall closes up and the room stays as bright. In 2 the whole picture is redrawn, so the tray and pillows come back a little softer. | 6: `visible_seam` at 18.1, a false alarm: 98% of the picture is pasted. 2 and 8: pass. |
+| Lens flare | 4 | Every flare gone, the plants under it redrawn and plausible. | Pass, which is right. |
+| | 7 | Both flares gone. The tree's shadow and the sun spots on the driveway went too, and its crack moved. | Pass, which is wrong. The scout marked the driveway, but surface before and after is not reported. |
+
+- **Removing a light works.** The glow on the wall, a reflection on the furniture and glare
+  streaks all go with the light, in every view, and the views agree.
+- **The seam alarm is wrong when nearly all of the picture is pasted.** Both alarms above 97%
+  pasted (here and the dresser) are false.
+- **The effect region takes whatever light the image model changed next to the item.** For a lamp
+  that is its glow. For the flare it took real shadows too. Where a glow or flare went, the region
+  mostly got darker (the lamps, track 0 and 5, flare 4), and the driveway got brighter where its
+  shadow went. Track 7 got brighter too and looks right, so the direction alone does not yet tell
+  the two apart.
 
 ## The check
 
@@ -199,6 +281,9 @@ second pass has a short list. It asks the VLM three questions with fixed answers
 2. A close-up of the result alone: which of the removed things can you still see?
 3. The same close-up: is there a patch, a shadow or a glow with nothing to cause it? Each is graded
    none, faint or clear. Only "clear" becomes an issue.
+
+A fourth kind of question is asked once per place the scout marked. It is described in
+[The second pass](#the-second-pass).
 
 Questions 2 and 3 are asked after a removal. They replaced an open "list the issues" question,
 which made the 8B VLM report the same faint shadow for every picture. The VLM describes one picture
@@ -223,6 +308,95 @@ wording that fits any place was tried and dropped: it answered "none" to all fiv
 patch included. With the room wording the VLM still names the removed things correctly on a street,
 but it describes the ground as a wall and floor and does not find shadows there.
 
+### The seam check
+
+`visible_seam` is a number, not a VLM answer. The paste matches the model's tones to the original at
+the border of the pasted area, so a clean paste changes nothing right at the border and more only
+further in. `border_step` is the tone change in a thin band just inside the border (0.3 to 1.2 % of
+the long side, 2 to 9 px at 720 px). It is the 90th percentile of that band and not the mean,
+because a border usually shows along part of its length, where it crosses a surface the model
+relit. Above 12 it is reported, with a box around the worst tenth.
+
+An earlier version measured deeper in (1.5 to 3 %) and took the mean. It fired on the clean lamp
+view, where the edit really did take the glow off the wall there, and it saw nothing when the pasted
+area was small.
+
+Tested without a model: five finished runs were pasted again in five ways each (as the graph does
+it, without following the shadow, too small, without matching tones, and the last two together), and
+every result was judged by eye.
+
+| Result | `border_step` | Reported |
+| --- | --- | --- |
+| The 42 finished runs and replays so far | 2.0 to 9.9 | none |
+| 16 re-pastes with no border to see | 3.6 to 10.3 | none |
+| 4 re-pastes with a faint border or a soft patch | 12.2 to 20.8 | all |
+| 5 re-pastes with a clear border | 15.8 to 96 | all |
+
+The number is not a scale of how visible a border is. A faint border on a plain white wall measured
+19, and a clear pale box on a wood floor 15.8. The lowest reported case (12.2, the bins pasted too
+small with tones not matched) is hard to see at all. The highest clean values (9.9 and 10.3) are
+from the run in which the model painted the wall grey. A leftover shadow or glow is not a seam and
+is not reported as one: that is `shadow_left` or `light_left`.
+
+## The second pass
+
+The image model redraws the whole view, and the paste copies its picture back over the object and
+over the object's shadow or glow. Inside that area other things can change too. On the lamp view the
+glow covers the wall, and in two runs the baseboard under it went with the lamp. The second pass
+finds that kind of damage and puts it right, once.
+
+**1. The scout marks places** (`scout.py`, no model, 2 s). It compares the amount of edge in the
+original and in the result, outside the object and inside the pasted area. Pixels cannot be
+compared: the model redraws every texture, so they differ everywhere. A line that is gone, or a new
+one, shows as a drop or a rise in edge. The three strongest places go on.
+
+The scout cannot tell a shadow's edge that was rightly removed from a baseboard that was wrongly
+removed. Both are edges that vanished next to the object. It also cannot see something the model
+left in (nothing changed there) or anything inside the object's outline.
+
+**2. The VLM names each place** (about 1 s per question). A red box marks the place on a crop of the
+original, and on the same crop of the result. Each is asked once, alone: what is inside the red box,
+and is it the target, a shadow, trim, another object or plain surface? The two answers are compared
+in code. Asking the VLM to compare the two crops itself did not work: it answered "nothing gone"
+for all 19 places tried, the deleted baseboard included.
+
+| Before | After | What happens |
+| --- | --- | --- |
+| trim | anything but trim | `damaged_neighbour`, severity 2, `action: restore` |
+| object | surface or shadow | a note. The VLM once took the removed armchair's own leg for a table leg |
+| surface | object | a note: something may have been drawn in |
+| shadow | surface | nothing. That is the shadow going with the object |
+
+On 19 places from runs of known quality: the deleted baseboard was named trim before and not after
+in 4 of 4, and the removed bins' shadow was named shadow then surface in 6 of 6.
+
+**3. The repair restores** (`steps.restore`, 1 s). In the marked boxes it puts back the original's
+pixels plus the smooth tone change the edit made around them, so the baseboard returns in the wall's
+new tone and not as a bright patch. The object is never brought back. A neighbour the model redrew
+that a box touches is taken back whole: half original and half redrawn shows double (the wire table
+in front of the baseboard did).
+
+Then measure, inspect and report run again. If the new report is worse, the first result is kept.
+`Preset.max_repairs` is 1.
+
+Replayed on seven finished runs (`raw` input, no image model): both runs with the deleted baseboard
+were repaired, and the scout then found nothing there. The five clean runs were left alone. A repair
+adds about 10 s: 1 s to restore, the rest to measure and ask the VLM again.
+
+A finished run's `report.json` is a whole graph input, so any run can be replayed from its paste:
+
+```
+.venv\Scripts\python -m edit_agent.run --input ..\..\data\edit_agent\runs\<run>\report.json --name replay
+.venv\Scripts\python -m edit_agent.scout ..\..\data\edit_agent\runs\<run>
+```
+
+The second command runs the scout alone and writes `scout.jpg` into the run folder: before and
+after with the marked places, and a crop of each.
+
+The VLM's names for a small place are not steady. The same spot by the armchair was "shadow under
+table edge" in one run and "wooden leg of coffee table" in the next. That is why only trim, which
+it named the same way every time, leads to a repair, and the rest are notes.
+
 ## Handing in a target
 
 Another part of the system may find the thing itself, from a click or from a search of the scan.
@@ -237,7 +411,10 @@ It hands the result in as `target`, and the graph skips locate:
 
 - `bbox_2d` is `[x1, y1, x2, y2]` on a 0-1000 scale of the picture, the scale Qwen3-VL writes. It
   does not depend on the resolution.
-- `kind` is `remove` or `change`. `behind` describes the surfaces to draw where the thing was.
+- `kind` is `remove` or `change`. `behind` (the VLM's words for the surfaces where the thing was) is
+  still required but is no longer passed to the image model. The image model sees the picture
+  itself, and it obeys a wrong description: "gray wall, no baseboard" repainted a white wall grey
+  and deleted its baseboard (the `interior-lamp` case).
 - Each box's `label` is what the check looks for afterwards, so it should name the object plainly.
 - With a `mask` as well (any size, white = the item), segment is skipped too.
 - On the command line, `--input found.json` takes a whole graph input (`request`, `image` or `scan`,
@@ -258,17 +435,26 @@ has not been run.
 
 ## Not built, not verified
 
-Not built: the second pass that repairs the issues, retexturing as a tested path, adding objects,
-runtime skills, a Deep Agents coordinator, edits across several panoramas (that is in
-`tools/qwen_test/`), the demo UI.
+Not built: repairs for anything but removed trim. A leftover shadow or glow, a seam, a colour
+mismatch, a neighbouring object that was removed and something drawn in are reported and not
+repaired. Drawing the picture again as a repair is not built either. Also not built: retexturing as
+a tested path, adding objects, runtime skills, a Deep Agents coordinator, edits across several
+panoramas (that is in `tools/qwen_test/`), the demo UI.
+
+Known and not caught: the armchair's floor comes back paler where it stood, and every check passes.
+A thing that stood on the removed furniture and is left floating (coffee table, dresser). A
+neighbour that touches the item and is removed with it (the vent beside the ceiling fan). Real
+shadows removed with a light (the driveway under the lens flare).
 
 Not built: a check that finds a shadow the image model left in on a street. Each view of the
 exterior case is edited on its own, so the three results are not made to agree.
 
 Not verified: a `change` request through the whole pass, pictures that are not square, the
-`anthropic` provider, the limits for `visible_seam` and `damaged_neighbour`, the limits of the
-effect region (first guesses that worked on seven runs), and the shadow sentence in the instruction
-on anything but the four test views. The check's five known cases are all from one room. The
+`anthropic` provider, the limit for `visible_seam` on a border the graph made itself (every seam
+it was tested on was made on purpose, and one person judged them), the scout's limits (first
+guesses from 28 runs of two rooms and one street), the limits of the effect region (first guesses that worked on seven
+runs), and the shadow sentence in the instruction on anything but the four test views. The restore
+was tried on one kind of damage in one room. The check's five known cases are all from one room. The
 interior test case has one view, and its angles were set from a contact sheet.
 
 ## Notes between sessions

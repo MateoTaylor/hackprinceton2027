@@ -1,0 +1,55 @@
+{
+  "about": "Removal cases seen from two or three panoramas each, to compare the results across views. Each view is edited on its own: nothing makes the views agree. The exterior cases edit the house itself and are odd on purpose (a window, the garage door). Each view is rendered from a downloaded scan under data/ (git-ignored), so this file holds no pictures. Run with: python -m edit_agent.suite cases/multiview.json. One picture per case: python -m edit_agent.stages --suite <table>.json.",
+  "preset": "720",
+  "cases": [
+    {
+      "name": "interior-coffee-table",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the coffee table and everything on it",
+      "views": [
+        {"pano": 1, "yaw": 237, "pitch": -25, "fov": 60},
+        {"pano": 4, "yaw": 282, "pitch": -25, "fov": 60},
+        {"pano": 7, "yaw": 275, "pitch": -10, "fov": 35}
+      ],
+      "notes": "Living room, near world x -1.2, y -6.5. A glass and mirror table with a tray and a vase on it, standing on a yellow patterned rug. The rug's pattern under the table has to be invented, so the views can disagree there. Panorama 7 sees it from the kitchen, 5.4 m away."
+    },
+    {
+      "name": "interior-dresser",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the dresser and everything on it",
+      "views": [
+        {"pano": 6, "yaw": 222, "pitch": -12, "fov": 60},
+        {"pano": 2, "yaw": 245, "pitch": -20, "fov": 75}
+      ],
+      "notes": "Bedroom, near world x 0.9, y -6.3. A dark wood dresser with a lit lamp and three vases on it, against a white wall with a baseboard, under a wall hanging that must stay. Panorama 2 stands 1.7 m from it."
+    },
+    {
+      "name": "exterior-window",
+      "kind": "exterior",
+      "scan": "2rPahZzW6H7",
+      "scan_name": "Exterior",
+      "request": "remove the window",
+      "views": [
+        {"pano": 3, "yaw": 25, "pitch": 0, "fov": 60},
+        {"pano": 4, "yaw": 310, "pitch": 0, "fov": 60}
+      ],
+      "notes": "The front window, near world x -6.0, y -2.3, with plants in front of its lower edge and the house numbers and a sign on the pillar next to it. Odd on purpose: the wall has to close up."
+    },
+    {
+      "name": "exterior-garage-door",
+      "kind": "exterior",
+      "scan": "2rPahZzW6H7",
+      "scan_name": "Exterior",
+      "request": "remove the garage door",
+      "views": [
+        {"pano": 1, "yaw": 0, "pitch": 0, "fov": 60},
+        {"pano": 7, "yaw": 0, "pitch": 0, "fov": 70}
+      ],
+      "notes": "The white double garage door at the end of the driveway. Odd on purpose: the request does not say what should be there instead, and the door fills much of the view, so the paste area is most of the picture."
+    }
+  ]
+}

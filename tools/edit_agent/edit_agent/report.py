@@ -1,16 +1,23 @@
 """Turn the measurements and the VLM's findings into the list a second pass would work from,
 and draw a plain picture of the run (before, mask, after with the issues marked, and a map of what changed)."""
 import textwrap
+from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from edit_agent import metrics
-from edit_agent.schemas import GRADES, REPAIRS, Issue, QAReport
+from edit_agent.schemas import GRADES, REPAIRS, Issue, QAReport, place_finding
 
 
-def _issue(kind, severity, source, evidence, region=None):
-    return Issue(kind=kind, severity=severity, source=source, evidence=evidence, region=region, repair=REPAIRS[kind])
+def _issue(kind, severity, source, evidence, region=None, action=None):
+    return Issue(kind=kind, severity=severity, source=source, evidence=evidence, region=region, repair=REPAIRS[kind],
+                 action=action)
+
+
+def weight(report):
+    """How bad a report is, to compare a repair with what it started from: the severities added up."""
+    return sum(i["severity"] for i in report["issues"])
 
 
 def build(state, limits):
@@ -39,6 +46,12 @@ def build(state, limits):
             if found.get(field) == grade:
                 issue = _issue(kind, severity, "vlm", what, found.get("close_box"))
                 (issues if severity >= limits.report_severity else notes).append(issue)
+        for place in found.get("places", []):                       # what the scout marked and the VLM named
+            finding = place_finding(place)
+            if finding:
+                severity, what, action = finding
+                issue = _issue("damaged_neighbour", severity, "vlm", what, place["box"], action)
+                (issues if severity >= limits.report_severity else notes).append(issue)
     issues.sort(key=lambda i: -i.severity)
     if issues:
         summary = f"{len(issues)} issue(s) for a second pass: " + ", ".join(i.kind for i in issues) + "."
@@ -62,6 +75,20 @@ def _boxes(img, regions, colour, labels=None, width=3):
     return img
 
 
+def overlay(view, mask, effect=None, paste_mask=None):
+    """The view with the item in red, its shadow or glow in pink and the pasted area outlined in blue."""
+    a = np.asarray(view, np.float32).copy()
+    item = np.asarray(Image.open(mask).convert("L")) > 127
+    if effect and Path(effect).exists():
+        shade = (np.asarray(Image.open(effect).convert("L")) > 127) & ~item
+        a[shade] = a[shade] * 0.5 + np.array([255, 40, 200], np.float32) * 0.5
+    a[item] = a[item] * 0.5 + np.array([255, 40, 40], np.float32) * 0.5
+    if paste_mask and Path(paste_mask).exists():
+        area = np.asarray(Image.open(paste_mask).convert("L")) > 127
+        a[area & ~metrics.shrunk(area, 3)] = (0, 220, 255)
+    return Image.fromarray(a.astype(np.uint8))
+
+
 def sheet(state, report, out, tile=512):
     view = Image.open(state["view"]).convert("RGB")
     target = state.get("target") or {}
@@ -69,17 +96,7 @@ def sheet(state, report, out, tile=512):
     middle, after = view.copy(), view.copy()
     changed = Image.new("RGB", view.size)
     if state.get("mask"):
-        a = np.asarray(view, np.float32).copy()
-        item = np.asarray(Image.open(state["mask"]).convert("L")) > 127
-        effect = out.parent / "effect.png"
-        if effect.exists():
-            shade = (np.asarray(Image.open(effect).convert("L")) > 127) & ~item
-            a[shade] = a[shade] * 0.5 + np.array([255, 40, 200], np.float32) * 0.5
-        a[item] = a[item] * 0.5 + np.array([255, 40, 40], np.float32) * 0.5
-        if state.get("paste_mask"):
-            area = np.asarray(Image.open(state["paste_mask"]).convert("L")) > 127
-            a[area & ~metrics.shrunk(area, 3)] = (0, 220, 255)
-        middle = Image.fromarray(a.astype(np.uint8))
+        middle = overlay(view, state["mask"], out.parent / "effect.png", state.get("paste_mask"))
     if state.get("edited"):
         after = Image.open(state["edited"]).convert("RGB")
         changed = metrics.change_map(view, after)

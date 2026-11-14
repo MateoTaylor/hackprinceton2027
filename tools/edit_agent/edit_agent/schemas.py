@@ -1,4 +1,4 @@
-"""The typed results that pass between steps, and the four questions the VLM is asked."""
+"""The typed results that pass between steps, and the five questions the VLM is asked."""
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 IssueKind = Literal["not_found", "object_remains", "not_applied", "shadow_left", "light_left", "color_mismatch",
                     "visible_seam", "damaged_neighbour", "wrong_picture"]
 
-# What a second pass would do about each kind of issue. The second pass is not built yet.
+# What a second pass would do about each kind of issue. Built so far: `damaged_neighbour` at a scouted
+# place (graph.repair). The others are still words.
 REPAIRS = {
     "not_found": "rephrase the request or choose a view that shows the thing",
     "object_remains": "regenerate with an instruction that names what is left, or a new seed",
@@ -15,7 +16,7 @@ REPAIRS = {
     "light_left": "paste the image model's picture over the lit surface if it is dark there; else mask it and regenerate",
     "color_mismatch": "tone-match a wider area; regenerate if it stays",
     "visible_seam": "paste a wider tone-matched area",
-    "damaged_neighbour": "paste the neighbour's original pixels back on top",
+    "damaged_neighbour": "put the original's detail back there, in the tone of the edit around it",
     "wrong_picture": "regenerate with a new seed",
 }
 
@@ -42,6 +43,7 @@ class Issue(BaseModel):
     evidence: str
     region: list[int] | None = None               # [x0, y0, x1, y1] in pixels of the working image
     repair: str
+    action: Literal["restore"] | None = None      # what the second pass does about it by itself; None = only reported
 
 
 class QAReport(BaseModel):
@@ -90,8 +92,10 @@ def edit_prompt(target):
     if not text.endswith("."):
         text += "."
     if target.kind == "remove":
-        text += (" Remove the shadow it casts and its reflection too."
-                 f" Show what is behind it: {target.behind.strip().rstrip('.')}.")
+        # `target.behind` (the VLM's words for the wall and floor) is not passed on. The image model sees
+        # the picture itself, and a wrong description is obeyed: "gray wall, no baseboard" repainted a
+        # white wall grey and deleted its baseboard.
+        text += " Remove the shadow it casts and its reflection too."
     else:
         text += " Keep its shape, position and shading."
     return text + " Keep everything else in the image exactly the same."
@@ -167,6 +171,48 @@ Answer with JSON:
 - "patch": is there a rectangular or blob-shaped area whose brightness or colour differs from the wall around it, like a pasted patch? "none", "faint" or "clear".
 - "shadow": is there a shadow or dark silhouette on the wall or floor with no object there to cast it? "none", "faint" or "clear".
 - "glow": is there a bright glow on the wall or floor, as if from a lamp, with no lamp there? "none", "faint" or "clear"."""
+
+# 5. A place the scout marked (scout.py): what is inside the red box? Asked once on a crop of the
+# original and once on the same crop of the result; the two answers are compared in code (report.py).
+# Asked as one comparison of the two crops, the VLM answered "nothing is gone" for everything, a
+# deleted baseboard included. Asked this way on 19 places of known quality it named the deleted
+# baseboard as trim in 4 of 4, and a rightly removed shadow as a shadow in 6 of 6 (street pictures).
+PLACE_SCHEMA = {
+    "title": "place",
+    "type": "object",
+    "properties": {"inside": {"type": "string", "maxLength": 80},
+                   "kind": {"type": "string", "enum": ["target", "shadow", "trim", "object", "surface"]}},
+    "required": ["inside", "kind"],
+}
+
+PLACE_PROMPT = """Look at this photo of part of a room. A red box marks one place.
+
+Answer with JSON:
+- "inside": what is inside the red box, at most 8 words.
+- "kind": what the red box mostly holds:
+  "target" if it is part of this: {item}
+  "shadow" if it is a shadow or a dark reflection lying on a surface
+  "trim" if it is a baseboard, a frame of a door or window, a moulding or a step
+  "object" if it is another thing or piece of furniture
+  "surface" if it is plain wall, floor or ground"""
+
+
+def place_finding(place):
+    """What a scouted place means, from the VLM's two answers: (severity, evidence, action) or None.
+
+    Only one case is acted on: trim that was there and is not there now. A shadow that went is what
+    was asked for. An object that went is reported as a note and not put back, because on the test
+    runs the VLM took the removed armchair's own leg for a table leg.
+    """
+    before, after = place["before"], place["after"]
+    if place["kind"] == "edges_lost" and before["kind"] == "trim" and after["kind"] != "trim":
+        return 2, f"'{before['inside']}' was removed with the item; the place now shows '{after['inside']}'", "restore"
+    if place["kind"] == "edges_lost" and before["kind"] == "object" and after["kind"] in ("surface", "shadow"):
+        return 1, f"'{before['inside']}' may have been removed with the item; the place now shows '{after['inside']}'", None
+    if place["kind"] == "edges_new" and before["kind"] == "surface" and after["kind"] == "object":
+        return 1, f"something new was drawn on '{before['inside']}': '{after['inside']}'", None
+    return None
+
 
 # How each grade becomes a finding: (field, grade) -> (kind, severity, what it means)
 GRADES = {

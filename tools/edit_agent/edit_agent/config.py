@@ -26,7 +26,7 @@ class Limits:
     """Loose on purpose: the check is there to catch glaring problems, not to grade the edit."""
     wrong_picture_drift: float = 40.0             # clean edits drift 9-19, a returned reference picture 60-74
     unchanged_inside: float = 5.0                 # the masked area changed less than this: nothing was removed
-    border_change: float = 10.0                   # tone difference just inside the paste border
+    border_step: float = 12.0                     # tone step at the paste border: clean pastes 4-8, visible borders 12 and up
     report_severity: int = 2                      # VLM findings below this are kept as notes only
     # The item's "effect": where the image model changed the smooth brightness in one piece with the item
     # (its shadow, reflection or glow). Brightness is on the 0-255 scale.
@@ -34,6 +34,11 @@ class Limits:
     effect_min: float = 10.0                      # ... and at least this much
     effect_max_share: float = 0.25                # joined to the item over more of the picture: the scene was relit, ignore it
     effect_left: float = 0.001                    # share of the picture the model cleaned up but the paste kept
+    # scouting (scout.py): edges outside the item that vanished or appeared. First guesses from 28 runs.
+    scout_edge: float = 4.0                       # change in edge energy that counts (a deleted baseboard measures 8)
+    scout_min_share: float = 0.0004               # smaller regions than this share of the picture are dropped
+    scout_regions: int = 3                        # at most this many regions go on to a closer look
+    restore_max_share: float = 0.08               # a restore that grows past this share of the picture stays in its boxes
 
 
 @dataclass(frozen=True)
@@ -55,6 +60,7 @@ class Preset:
     paste_grow_pct: int = 100                     # paste a mask this much larger than the item, tone-matched
     tone_match: bool = True
     follow_change: bool = True                    # also paste the item's effect, however far it reaches (a long shadow)
+    max_repairs: int = 1                          # second passes after the first; more than two passes is the exception
     # `eyes` is the model that sees pixels. It must stay local.
     eyes: Role = field(default_factory=Role)
     limits: Limits = field(default_factory=Limits)
