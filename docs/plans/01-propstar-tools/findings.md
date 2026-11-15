@@ -112,16 +112,20 @@ uses the primitive shape until a file is in `app/web/public/models/`.
 | Class | Model, author | Licence | Triangles | Download | Page |
 | --- | --- | --- | --- | --- | --- |
 | `wheelchair` | Wheelchair 01, Garreth Dean | CC0 | 40,252 | Direct, glTF at 1k is 1.7 MB | https://polyhaven.com/a/wheelchair_01 |
-| `forklift` | Forklift Truck, louis-muir | CC BY 4.0 | 9,645 | Sketchfab login | https://sketchfab.com/3d-models/forklift-truck-060f3f8bc7de4e6ca2f348d414702e9d |
-| `slab_scissor`, `rough_terrain_scissor` | Scissor Lift, one80solar | CC BY 4.0 | 4,579 faces | Sketchfab login | https://sketchfab.com/3d-models/scissor-lift-44b32d34ea2945ddb4d98e7143aca15a |
+| `forklift` | Forklift Truck, louis-muir | CC BY 4.0 | 9,627 | Sketchfab login, GLB at 1k is 7.3 MB | https://sketchfab.com/3d-models/forklift-truck-060f3f8bc7de4e6ca2f348d414702e9d |
+| `slab_scissor`, `rough_terrain_scissor` | Scissor Lift, one80solar | CC BY 4.0 | 4,579 | Sketchfab login, GLB at 1k is 1.8 MB | https://sketchfab.com/3d-models/scissor-lift-44b32d34ea2945ddb4d98e7143aca15a |
 
 - The wheelchair file is in metres, about 0.82 by 1.10 by 1.10. It is one mesh, so its wheels do
   not turn.
-- Fahim chose the scissor lift because it extends. Sketchfab's record gives it one animation
-  clip, one material and two textures. Nobody has loaded the file yet, so b4 checks that the
-  clip raises the platform.
-- The Sketchfab licences were read from Sketchfab's public API record for each model, because the
-  pages need JavaScript. Check the licence on the page when you download.
+- Fahim chose the scissor lift because it extends. Both Sketchfab files were downloaded on
+  2026-11-15 as GLB with 1k textures. Their download dialogs show "CC Attribution. Author must
+  be credited. Commercial use is allowed."
+- Neither file uses Draco or meshopt. Almost all of each file is PNG textures. The forklift has
+  7 and the geometry is 0.6 MB, so a 2k download is 22 MB.
+- The forklift is 3 static meshes with 3 materials. Its units are not metres.
+- The scissor lift is one skinned mesh with 16 joints, one material and two textures. Its one
+  clip, "Take 001", moves the 16 joints for 4 seconds. Nobody has played it yet, so b4 checks
+  that it raises the platform.
 
 ## `tools/world`, the drivable prototype
 

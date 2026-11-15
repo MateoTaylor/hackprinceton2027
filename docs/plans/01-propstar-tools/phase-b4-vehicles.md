@@ -30,7 +30,9 @@ model file shows that model and every other class shows its shape built from pri
 - `buildVehicle` returns the primitive shape at once. When `MODELS` names a file for the class, it
   loads the file and swaps the model in. When the file is missing or fails to load, the primitive
   shape stays, so a missing model never breaks the demo.
-- Scale a model by one factor, so that its length equals the row's `lengthM`. Put its origin at
+- Scale a model by one factor, the largest at which its length fits the row's `lengthM` and its
+  width fits the row's `widthM`. The wheelchair model is wider for its length than its row, so
+  scaling by length alone makes it wider than the door check allows. Put its origin at
   the base centre and turn it by `yawDeg` so that it faces the way it drives. Keep the model's own
   materials. The collider stays the box from `driveSpecFor`, whatever the model looks like.
 - The viewer bundles its own three, and no object from the app's `three` may enter its scene. If
@@ -43,13 +45,17 @@ model file shows that model and every other class shows its shape built from pri
   sets its clip to that fraction of the clip's length and does not play it. The primitive scissor
   moves its deck and folds its bars, as `lift-visual.ts` does. If the clip does not play in the
   viewer's scene, show the model stowed, leave `raise` off and record that.
+- The scissor lift is one skinned mesh with 16 joints, and the clip moves the joints for 4
+  seconds. A skinned mesh needs its skeleton rebuilt with `handle.three` too. Try this model
+  first. If the skin does not rebuild, keep the primitive scissor, which already rises, and
+  record that.
 - Keep the files in `app/web/public/models/` with a `LICENSE.md`. It gives each file's name,
   author, page link and licence, which a CC BY licence requires. Each file is a GLB or a glTF
-  without Draco or meshopt compression, under 5 MB, with no maker's logo.
+  without Draco or meshopt compression, under 8 MB, with no maker's logo.
 - Download the wheelchair yourself from the link in the Models table. It is CC0 and needs no
-  account. Fahim downloads the forklift and the scissor lift, because Sketchfab needs a login. Do
-  not log in to any service. If a file from Fahim is not there, leave its `MODELS` entry in
-  place and go on with the primitive shape.
+  account. The main session gives you the forklift and the scissor lift files, which Fahim's
+  Sketchfab account downloaded on 2026-11-15. Do not log in to any service. If a file is not
+  there, leave its `MODELS` entry in place and go on with the primitive shape.
 - `driveSpecFor` sets `halfM` to half of `lengthM`, `stowedHeightM - 0.1` and `widthM`,
   `rideHeightM` to `0.1 + halfM.y`, `wheelbaseM` to 0.75 of `lengthM`, 3 m/s and 0.7 rad.
 - Create `app/web/src/scene/sceneSync.ts` with `createSceneSync(spaceId, onScene)`. It sends the
