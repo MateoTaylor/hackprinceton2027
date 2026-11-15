@@ -17,9 +17,21 @@ if (!apiKey) {
 }
 
 const properties = await loadProperties(fileURLToPath(new URL('propstar.duckdb', DATA)))
-const cache = createDiskCache(fileURLToPath(new URL('cache/vexcel/', DATA)))
+const MB = 1_000_000
+// Measured per entry: oblique about 2.6 MB (a 150-220 m square at full resolution), tile 48 KB,
+// parcel 119 KB, thumb 44 KB, coverage 5 KB. The oblique budget holds about 95 photos, or 24
+// properties seen from every side.
+const cache = createDiskCache(fileURLToPath(new URL('cache/vexcel/', DATA)), {
+  oblique: 250 * MB,
+  tiles: 1000 * MB,
+  parcel: 64 * MB,
+  thumb: 32 * MB,
+  'oblique-coverage': 8 * MB,
+})
+const usage = await cache.usage()
 const app = createApp({ properties, vexcel: createVexcel({ apiKey, cache }) })
 
 serve({ fetch: app.fetch, hostname: HOST, port: PORT }, () => {
   console.log(`Propstar API on http://${HOST}:${PORT}/api with ${properties.length} properties`)
+  console.log(`cache ${Object.entries(usage).map(([prefix, u]) => `${prefix} ${Math.round(u.bytes / MB)}/${u.cap / MB} MB`).join(', ')}`)
 })

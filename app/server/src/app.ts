@@ -73,7 +73,9 @@ export function createApp({ properties, vexcel }: { properties: Property[]; vexc
     if (!property) return error(c, 404, 'Unknown property')
     const dir = c.req.param('dir')
     if (!isDirection(dir)) return error(c, 400, 'Direction must be north, east, south or west')
-    return image(c, await vexcel.oblique(property, dir))
+    const { photo, pose } = await vexcel.oblique(property, dir)
+    if (pose) c.header('X-Oblique-Pose', JSON.stringify(pose))
+    return image(c, photo)
   })
 
   app.notFound((c) => c.body(null, 404))

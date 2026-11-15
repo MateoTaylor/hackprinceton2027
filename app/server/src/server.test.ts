@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
+import type { LngLat } from '../../shared/api.ts'
 import type { Property } from '../../shared/property.ts'
 import { createApp, parseTile } from './app.ts'
 import { type Cached, cacheFile, createDiskCache } from './cache.ts'
-import { createVexcel, newestObliques, squareBounds } from './vexcel.ts'
+import { readObliquePose } from './obliquePose.ts'
+import { createVexcel, limiter, newestObliques, obliqueFocus, squareBounds } from './vexcel.ts'
 
 const roots: string[] = []
 after(() => Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))))
@@ -158,4 +160,168 @@ test('routes reject bad input without calling Vexcel and serve repeat misses fro
     assert.deepEqual(await res.json(), { error: 'No imagery here' })
   }
   assert.equal(calls.length, 1)
+})
+
+test('a budgeted prefix evicts its least recently used entries, and the order survives a restart', async () => {
+  const root = await tempRoot()
+  const body = (n: number) => async () => jpeg(Array(100).fill(n))
+  const stored = async (key: string) => readFile(join(root, `${key}.body`)).then(() => true, () => false)
+  const cache = createDiskCache(root, { oblique: 300 })
+  await cache.get('oblique/a', body(1))
+  await cache.get('oblique/b', body(2))
+  await cache.get('oblique/a', body(9))
+  await cache.get('oblique/c', body(3))
+  await cache.get('tiles/x', body(4))
+  assert.deepEqual(await Promise.all(['oblique/a', 'oblique/b', 'oblique/c', 'tiles/x'].map(stored)), [true, false, true, true])
+  const { oblique } = await cache.usage()
+  assert.equal(oblique.entries, 2)
+  assert.ok(oblique.bytes <= 300)
+
+  const [old, recent] = [new Date(Date.now() - 60_000), new Date()]
+  // The reverse of both write order and file name order, so only the meta mtimes can give it.
+  await utimes(join(root, 'oblique/c.meta'), old, old)
+  await utimes(join(root, 'oblique/a.meta'), recent, recent)
+  await createDiskCache(root, { oblique: 300 }).get('oblique/d', body(5))
+  assert.deepEqual(await Promise.all(['oblique/a', 'oblique/c', 'oblique/d'].map(stored)), [true, false, true])
+})
+
+// A JPEG stand-in carrying only the XMP fields the pose reader uses: a 1000 px square frame looking
+// straight down at a 100 m square, north up.
+function fakeOblique(crop = '250,250,500,500') {
+  const [lon, lat, dLon, dLat] = [-118, 34, 100 / (111_320 * Math.cos(((34 + 100 / 111_320) * Math.PI) / 180)), 100 / 111_320]
+  const tags = {
+    'capture-date': '2025-12-01 19:55:59.0',
+    'raster-size-width': '1000',
+    'raster-size-height': '1000',
+    'pixel-bbox': crop,
+    geometry: `POLYGON ((${lon} ${lat + dLat}, ${lon + dLon} ${lat + dLat}, ${lon + dLon} ${lat}, ${lon} ${lat}, ${lon} ${lat + dLat}))`,
+  }
+  const xmp = Object.entries(tags).map(([k, v]) => `<Vexcel:${k}>${v}</Vexcel:${k}>`).join('')
+  return new Uint8Array([0xff, 0xd8, ...new TextEncoder().encode(xmp)])
+}
+
+// A box `half` metres either side of a point, corners in pose order.
+function boxAround([lon, lat]: LngLat, half: number): LngLat[] {
+  const [dLon, dLat] = [half / (111_320 * Math.cos((lat * Math.PI) / 180)), half / 111_320]
+  return [[lon - dLon, lat + dLat], [lon + dLon, lat + dLat], [lon + dLon, lat - dLat], [lon - dLon, lat - dLat]]
+}
+
+// A 20 m box centred on the fake photo's ground, so 200 px of a 1000 px frame and centred in the crop.
+const fakeLonScale = 111_320 * Math.cos(((34 + 50 / 111_320) * Math.PI) / 180)
+const fakeCentre: LngLat = [-118 + 50 / fakeLonScale, 34 + 50 / 111_320]
+const fakeFocus = boxAround(fakeCentre, 10)
+
+test('the pose of a photo comes from its frame footprint and crop', () => {
+  const pose = readObliquePose(fakeOblique(), fakeFocus, fakeCentre)
+  assert.ok(pose)
+  assert.equal(pose.width, 500)
+  assert.equal(pose.capturedOn, '2025-12-01')
+  assert.ok(Math.abs(pose.bearing) < 1e-6 && Math.abs(pose.pitch) < 1e-3, `${pose.bearing} ${pose.pitch}`)
+  assert.ok(Math.abs(pose.metresPerPixel - 0.1) < 1e-6)
+  const { x, y, width, height } = pose.focus
+  assert.ok([x - 150, y - 150, width - 200, height - 200].every((d) => Math.abs(d) < 0.5), JSON.stringify(pose.focus))
+  const [tl, , br] = pose.quad
+  assert.ok(Math.abs((tl[1] + br[1]) / 2 - (34 + 50 / 111_320)) < 1e-9)
+  assert.ok(tl[1] > br[1] && tl[0] < br[0])
+  assert.equal(readObliquePose(fakeOblique('250,250'), fakeFocus, fakeCentre), null)
+  assert.equal(readObliquePose(new Uint8Array([0xff, 0xd8]), fakeFocus, fakeCentre), null)
+})
+
+test('the focus box grows evenly around a pin off the middle of the property', () => {
+  const pin: LngLat = [fakeCentre[0] + 5 / fakeLonScale, fakeCentre[1]]
+  const pose = readObliquePose(fakeOblique(), fakeFocus, pin)
+  assert.ok(pose)
+  const { center, x, y, width, height } = pose.focus
+  assert.ok([x - 150, y - 150, width - 300, height - 200].every((d) => Math.abs(d) < 0.5), JSON.stringify(pose.focus))
+  assert.ok(Math.abs(center[0] - pin[0]) < 1e-9 && Math.abs(center[1] - pin[1]) < 1e-9)
+  const off = readObliquePose(fakeOblique(), fakeFocus, [0, 0])?.focus
+  assert.ok(off && Math.abs(off.x - 150) < 0.5 && Math.abs(off.width - 200) < 0.5, 'a pin off the photo leaves the box on the property')
+})
+
+test('an oblique photo is a 160 m square around the pin, cut before the parcel is known', { timeout: 2000 }, async () => {
+  let releaseParcel = () => {}
+  const parcelGate = new Promise<void>((resolve) => (releaseParcel = resolve))
+  const asked: Record<string, string> = {}
+  const fetch: typeof globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input))
+    if (url.pathname.endsWith('property/extract')) {
+      await parcelGate
+      return new Response(null, { status: 404 })
+    }
+    if (url.pathname.endsWith('oriented/collections')) {
+      asked.collections = url.searchParams.get('wkt') ?? ''
+      const properties = { collection: 'la-2025', 'last-capture-date': '2025-12-10T21:03:34', 'product-type': 'oblique-north' }
+      return Response.json({ features: [{ properties }] })
+    }
+    asked.extract = JSON.parse(String(init?.body)).wkt
+    releaseParcel()
+    return new Response(fakeOblique(), { headers: { 'content-type': 'image/jpeg' } })
+  }
+  const app = createApp({ properties: [property], vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()), fetch }) })
+  assert.equal((await app.request('/api/oblique/commercial-1/north')).status, 200)
+  const corners = (wkt = '') => [...wkt.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])])
+  const xs = corners(asked.extract).map((c) => c[0])
+  const ys = corners(asked.extract).map((c) => c[1])
+  const metres = (deg: number[], scale: number) => (Math.max(...deg) - Math.min(...deg)) * scale
+  assert.ok(Math.abs(metres(ys, 111_320) - 160) < 1e-6 && Math.abs(metres(xs, 111_320 * Math.cos((34 * Math.PI) / 180)) - 160) < 1e-6)
+  assert.ok(Math.abs((Math.max(...xs) + Math.min(...xs)) / 2 - property.lon) < 1e-9 && Math.abs((Math.max(...ys) + Math.min(...ys)) / 2 - property.lat) < 1e-9)
+  assert.ok(asked.collections.startsWith('POLYGON'))
+})
+
+test('the client frames the parcel with 10 m to spare', () => {
+  const lat = 34.03
+  const parcel = { west: -118.25, south: lat, east: -118.2493, north: lat + 72 / 111_320 }
+  const [nw, , se] = obliqueFocus(parcel)
+  assert.ok(Math.abs(nw[1] - parcel.north - 10 / 111_320) < 1e-12)
+  assert.ok(Math.abs(se[0] - parcel.east - 10 / (111_320 * Math.cos(((lat + 36 / 111_320) * Math.PI) / 180))) < 1e-9)
+})
+
+const MEASURED = new URL('../../../data/propstar/cache/vexcel/oblique/commercial-1254240/us-ca-losangeles-2025/', import.meta.url)
+const measured = await readFile(new URL('north.body', MEASURED)).then(() => true, () => false)
+
+test('poses match the ones measured on cached Los Angeles photos', { skip: !measured && 'no cached photos' }, async () => {
+  const expected = { north: [1228, 1034, 0.308, 40.797], east: [1301, 926, 89.311, 45.171], south: [1244, 1124, -177.985, 41.504] }
+  for (const [direction, [width, height, bearing, pitch]] of Object.entries(expected)) {
+    const body = await readFile(new URL(`${direction}.body`, MEASURED))
+    // Framing the photo's own footprint, with no pin on it, measures the camera at the crop's centre.
+    const pin: LngLat = [-118.2499818, 34.0341946]
+    const quad = readObliquePose(body, boxAround(pin, 10), pin)?.quad ?? []
+    const pose = readObliquePose(body, quad, [0, 0])
+    assert.ok(pose, direction)
+    assert.deepEqual([pose.width, pose.height], [width, height], direction)
+    assert.ok(Math.abs(pose.bearing - bearing) < 1e-3 && Math.abs(pose.pitch - pitch) < 1e-3, `${direction} ${pose.bearing} ${pose.pitch}`)
+  }
+})
+
+test('an oblique photo carries its pose in a header', async () => {
+  const fetch: typeof globalThis.fetch = async (input) => {
+    const path = new URL(String(input)).pathname
+    if (path.endsWith('property/extract')) return new Response(null, { status: 404 })
+    if (path.endsWith('oriented/collections')) {
+      const properties = { collection: 'la-2025', 'last-capture-date': '2025-12-10T21:03:34', 'product-type': 'oblique-east' }
+      return Response.json({ features: [{ properties }] })
+    }
+    return new Response(fakeOblique(), { headers: { 'content-type': 'image/jpeg' } })
+  }
+  const app = createApp({ properties: [property], vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()), fetch }) })
+  assert.deepEqual(await (await app.request('/api/oblique/commercial-1')).json(), { directions: ['east'] })
+  assert.equal((await app.request('/api/oblique/commercial-1/north')).status, 404)
+  const res = await app.request('/api/oblique/commercial-1/east')
+  assert.equal(res.status, 200)
+  assert.equal(JSON.parse(res.headers.get('x-oblique-pose') ?? 'null')?.width, 500)
+})
+
+test('the limiter serves urgent waiters first, newest first, and a freed slot goes to a waiter', async () => {
+  const limit = limiter(1)
+  const order: string[] = []
+  let release = () => {}
+  const first = limit(() => new Promise<void>((resolve) => (release = resolve)), false)
+  const queued = [['tile-old', false], ['tile-new', false], ['hover', true], ['click', true]] as const
+  const waiting = queued.map(([name, urgent]) => limit(async () => void order.push(name), urgent))
+  release()
+  await first
+  // Arrives after the slot was freed but before its waiter ran, so it must not take the slot.
+  const late = limit(async () => void order.push('late'), true)
+  await Promise.all([...waiting, late])
+  assert.deepEqual(order, ['click', 'late', 'hover', 'tile-new', 'tile-old'])
 })
