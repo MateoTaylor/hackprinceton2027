@@ -43,9 +43,10 @@ only through port 2024, so the agent can change without touching the client.
 ## Agent design
 
 - A coordinator narrows the candidates with a read-only SQL tool over DuckDB.
-- It delegates one subagent per property through parallel `task` calls. Each subagent reads the
-  CoStar fields, the Vexcel ortho and the Matterport panoramas, and returns a Zod `responseFormat`
-  of score plus evidence.
+- It delegates a subagent to a property only when the user focuses on that property and asks for
+  the deeper look. Fahim decided this on 2026-11-15. A question across many properties starts no
+  subagent per property. The subagent reads the CoStar fields, the Vexcel ortho and the Matterport
+  panoramas, and returns a Zod `responseFormat` of score plus evidence.
 - Tools emit progress through `config.writer`, so pins colour as results arrive.
 - Domain knowledge lives in runtime skills such as `skills/accessibility-audit/SKILL.md`.
 - `interruptOn` asks the user before the agent places an object.

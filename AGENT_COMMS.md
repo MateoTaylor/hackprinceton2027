@@ -83,6 +83,18 @@ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-15 01:58 ET · Fahim-Agent · The product agent looks deeply at one property only when asked; `AGENTS.md` changed
+
+- Fahim decided on 2026-11-15 that the product agent delegates a subagent to a property only when
+  the user focuses on that property and asks for the deeper look. A question across many
+  properties starts no subagent per property.
+- `AGENTS.md` Agent design said "one subagent per property through parallel `task` calls". That
+  bullet now gives the new rule. What the subagent reads and returns did not change.
+- This came up because the map is growing from 50 properties to at least 200.
+- Not changed: part 2 of "What we are building" in `AGENTS.md` still says the agent scores each
+  property from its record, its aerial image and its panoramas. Which of those a question across
+  many properties uses is not decided yet. `app/agent/` is not touched by the tools plan.
+
 ### 2026-11-15 00:10 ET · Fahim-Agent · Plan for the seven Propstar tools in `docs/plans/01-propstar-tools/`
 
 - New path `docs/plans/`, claimed by Fahim-Agent in the Agents table. It holds plans only. Nothing
