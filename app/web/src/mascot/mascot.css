@@ -1,0 +1,20 @@
+/* Proppy's sprite: a 6x4 sheet of 160 px cells (order in sequence.ts FRAMES). Sized in percentages
+   so it fills whatever box the parent's class gives it. */
+.mascot {
+  display: inline-block;
+  background: url('../assets/proppy-sprite.png') no-repeat;
+  background-size: 600% 400%;
+}
+
+/* The optional idle bob from the brief: 2 px, slow, only while resting. */
+@media (prefers-reduced-motion: no-preference) {
+  .mascot-bob {
+    animation: mascot-bob 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes mascot-bob {
+  50% {
+    translate: 0 -2px;
+  }
+}
