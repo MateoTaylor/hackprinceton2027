@@ -5,8 +5,7 @@ import { pointInRing, ringBounds } from '../../model/geo.ts'
 // `Math.floor(i / cols)`, counted from the south-west corner of the storey ring's bounds at
 // `originX`, `originY`. `spaceIndex` and `doorIndex` hold the index of the space and the opening
 // over each cell, or -1. `doorSpaces` holds the space indexes on the two sides of each opening, with
-// -1 for the outside of an exterior door. `clearanceM` is the distance from a cell to the nearest
-// cell a route cannot step to, and 0 on a cell that is not walkable.
+// -1 for the outside of an exterior door.
 export interface StoreyGrid {
   storeyIndex: number
   cellM: number
@@ -17,7 +16,6 @@ export interface StoreyGrid {
   spaceIndex: Int16Array
   doorIndex: Int16Array
   doorSpaces: (readonly [number, number])[]
-  clearanceM: Float32Array
 }
 
 const NONE = -1
@@ -25,8 +23,6 @@ const DOOR_DEPTH_CELLS = 3
 const RAD = Math.PI / 180
 const EPSILON_M = 1e-9
 const AROUND = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as const
-const BEFORE = [[-1, 0], [-1, -1], [0, -1], [1, -1]] as const
-const AFTER = [[1, 0], [1, 1], [0, 1], [-1, 1]] as const
 
 // Furnishings never block a cell.
 //   const grid = buildStoreyGrid(building.storeys[0])
@@ -45,7 +41,6 @@ export function buildStoreyGrid(storey: Storey, cellM = 0.25): StoreyGrid {
     spaceIndex: new Int16Array(cols * rows).fill(NONE),
     doorIndex: new Int16Array(cols * rows).fill(NONE),
     doorSpaces: storey.openings.map(({ spaceIds: [a, b] }) => [spaceIds.indexOf(a), b === null ? NONE : spaceIds.indexOf(b)]),
-    clearanceM: new Float32Array(cols * rows),
   }
   storey.spaces.forEach(({ ring }, space) => {
     const bounds = ringBounds(ring)
@@ -67,7 +62,6 @@ export function buildStoreyGrid(storey: Storey, cellM = 0.25): StoreyGrid {
       if (joined && Math.abs(along) <= halfWidth && Math.abs(across) <= halfDepth) grid.doorIndex[cell] = door
     })
   })
-  chamferClearance(grid)
   return grid
 }
 
@@ -96,6 +90,18 @@ export function* neighbours(grid: StoreyGrid, cell: number) {
   }
 }
 
+// The door a step from cell `a` to cell `b` passes through into another space, or -1 for a step
+// that stays in one space, ends in a wall gap, or only passes beside a door. Stepping out of a gap
+// counts as passing its door, so a route that dips into a gap and back is charged for the door too.
+export function crossedDoor({ spaceIndex, doorIndex, doorSpaces }: StoreyGrid, a: number, b: number) {
+  const [from, to] = [spaceIndex[a], spaceIndex[b]]
+  if (to === NONE || from === to) return NONE
+  for (const door of [doorIndex[a], doorIndex[b]]) {
+    if (door !== NONE && doorSpaces[door].includes(to) && (from === NONE || doorSpaces[door].includes(from))) return door
+  }
+  return NONE
+}
+
 const stepLengthM = ({ cellM }: StoreyGrid, dc: number, dr: number) => (dc && dr ? cellM * Math.SQRT2 : cellM)
 
 function stepTo(grid: StoreyGrid, cell: number, dc: number, dr: number): number {
@@ -117,8 +123,8 @@ function connects(grid: StoreyGrid, a: number, b: number) {
   const { spaceIndex, doorIndex, doorSpaces } = grid
   const [spaceA, spaceB, doorA, doorB] = [spaceIndex[a], spaceIndex[b], doorIndex[a], doorIndex[b]]
   if (spaceA !== NONE && spaceA === spaceB) return true
-  if (doorA !== NONE && (doorA === doorB || doorSpaces[doorA].includes(spaceB))) return true
-  return doorB !== NONE && doorSpaces[doorB].includes(spaceA)
+  if (doorA !== NONE && (doorA === doorB || (spaceB !== NONE && doorSpaces[doorA].includes(spaceB)))) return true
+  return doorB !== NONE && spaceA !== NONE && doorSpaces[doorB].includes(spaceA)
 }
 
 function forCellsIn(grid: StoreyGrid, minX: number, minY: number, maxX: number, maxY: number, visit: (cell: number, centre: Point) => void) {
@@ -127,23 +133,5 @@ function forCellsIn(grid: StoreyGrid, minX: number, minY: number, maxX: number, 
   const [row0, row1] = [Math.max(0, Math.floor((minY - originY) / cellM)), Math.min(rows - 1, Math.floor((maxY - originY) / cellM))]
   for (let row = row0; row <= row1; row++) {
     for (let col = col0; col <= col1; col++) visit(row * cols + col, cellCentre(grid, row * cols + col))
-  }
-}
-
-function chamferClearance(grid: StoreyGrid) {
-  const { cols, rows, clearanceM } = grid
-  const relax = (cell: number, steps: readonly (readonly [number, number])[]) => {
-    for (const [dc, dr] of steps) {
-      const stepM = stepLengthM(grid, dc, dr)
-      const next = stepTo(grid, cell, dc, dr)
-      clearanceM[cell] = Math.min(clearanceM[cell], next === NONE ? stepM : clearanceM[next] + stepM)
-    }
-  }
-  for (let cell = 0; cell < cols * rows; cell++) {
-    clearanceM[cell] = isWalkable(grid, cell) ? Infinity : 0
-    if (clearanceM[cell]) relax(cell, BEFORE)
-  }
-  for (let cell = cols * rows - 1; cell >= 0; cell--) {
-    if (clearanceM[cell]) relax(cell, AFTER)
   }
 }

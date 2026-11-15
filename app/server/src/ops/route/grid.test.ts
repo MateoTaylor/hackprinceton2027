@@ -49,31 +49,3 @@ test('a room reaches the next room only through a door', () => {
   const shut = { ...storey, openings: storey.openings.filter(({ id }) => id !== 'a0-unit-sw-door') }
   assert.deepEqual(floodSpaces(buildStoreyGrid(shut), centre), new Set([unit]))
 })
-
-test('the walls of a 4 m room between two others leave about 2 m of clearance at its centre', () => {
-  const column = (x0: number, x1: number): Ring => [
-    [x0, 0],
-    [x1, 0],
-    [x1, 12],
-    [x0, 12],
-  ]
-  const provenance = { source: 'inferred', confidence: 0.5 } as const
-  const storey: Storey = {
-    index: 0,
-    label: 'Ground',
-    elevationM: 0,
-    heightM: 3,
-    ring: column(0, 12),
-    ...provenance,
-    spaces: [
-      { id: 'west', label: 'West', ring: column(0, 4), ...provenance },
-      { id: 'room', label: 'Room', ring: column(4, 8), ...provenance },
-      { id: 'east', label: 'East', ring: column(8, 12), ...provenance },
-    ],
-    openings: [],
-    furnishings: [],
-  }
-  const grid = buildStoreyGrid(storey)
-  const clearance = grid.clearanceM[cellAt(grid, [5.9, 6])]
-  assert.ok(Math.abs(clearance - 2) < 0.15, `clearance ${clearance}`)
-})

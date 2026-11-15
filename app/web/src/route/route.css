@@ -1,0 +1,159 @@
+.route-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.route-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.route-controls label {
+  display: flex;
+  flex: 1 1 160px;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.route-controls select {
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.route-view {
+  position: relative;
+  height: 360px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.route-tooltip {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(12px, -50%);
+}
+
+.route-storeys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.route-storeys button {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.route-storeys button.on-route {
+  color: var(--color-text);
+  box-shadow: var(--color-accent-bright) 0 0 0 1px inset;
+}
+
+.route-storeys button[aria-pressed='true'] {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.route-storeys .route-next {
+  margin-left: auto;
+  background: var(--color-accent);
+  color: var(--color-text);
+}
+
+.route-figures {
+  display: flex;
+  gap: 24px;
+  margin: 0;
+}
+
+.route-figures dt {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.route-figures dd {
+  margin: 0;
+  font-size: 18px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.route-figures dd.route-bad,
+.route-none {
+  color: #e0675e;
+}
+
+.route-none {
+  margin: 0;
+  font-weight: 600;
+}
+
+.route-assumptions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 16px;
+}
+
+.route-band {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.route-band.good {
+  background: #148a6033;
+  color: #3dbb8c;
+}
+
+.route-band.mid {
+  background: #b07f2233;
+  color: #d9a94a;
+}
+
+.route-band.bad {
+  background: #b23b3333;
+  color: #e0675e;
+}
+
+.route-assumptions {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
