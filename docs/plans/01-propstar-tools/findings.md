@@ -98,7 +98,7 @@ model(id) {
   Signage tool copies that look with its own lines. Whether the SDK can switch the built-in mode
   on from code was not checked, and the plan does not depend on it.
 - A second search on 2026-11-15 found licensed vehicle models. The Models table below lists them.
-  Only the wheelchair is CC0 with a direct download. The realistic forklift and scissor lift are
+  Only the wheelchair is CC0 with a direct download. The forklift and the scissor lift are
   CC BY 4.0 on Sketchfab, which needs a login to download and a credit in the repo. No CC0
   scissor lift exists on Poly Pizza, Poly Haven, Quaternius, Kenney or OpenGameArt.
 - Vehicles without a model are built from boxes and cylinders. No vehicle carries a maker's
@@ -106,18 +106,20 @@ model(id) {
 
 ### Models
 
-Fahim has not yet approved the two CC BY rows. [b4](phase-b4-vehicles.md) uses the primitive
-shape until a file is in `app/web/public/models/`.
+Fahim approved all three rows and the CC BY licence on 2026-11-15. [b4](phase-b4-vehicles.md)
+uses the primitive shape until a file is in `app/web/public/models/`.
 
 | Class | Model, author | Licence | Triangles | Download | Page |
 | --- | --- | --- | --- | --- | --- |
 | `wheelchair` | Wheelchair 01, Garreth Dean | CC0 | 40,252 | Direct, glTF at 1k is 1.7 MB | https://polyhaven.com/a/wheelchair_01 |
 | `forklift` | Forklift Truck, louis-muir | CC BY 4.0 | 9,645 | Sketchfab login | https://sketchfab.com/3d-models/forklift-truck-060f3f8bc7de4e6ca2f348d414702e9d |
-| `slab_scissor`, `rough_terrain_scissor` | Scissor_lift, booth4684 | CC BY 4.0 | 4,892 | Sketchfab login | https://sketchfab.com/3d-models/scissor-lift-16102509224d45c5ba1eb6aafce9006b |
+| `slab_scissor`, `rough_terrain_scissor` | Scissor Lift, one80solar | CC BY 4.0 | 4,579 faces | Sketchfab login | https://sketchfab.com/3d-models/scissor-lift-44b32d34ea2945ddb4d98e7143aca15a |
 
 - The wheelchair file is in metres, about 0.82 by 1.10 by 1.10. It is one mesh, so its wheels do
   not turn.
-- The scissor lift is one static model, so its platform does not rise.
+- Fahim chose the scissor lift because it extends. Sketchfab's record gives it one animation
+  clip, one material and two textures. Nobody has loaded the file yet, so b4 checks that the
+  clip raises the platform.
 - The Sketchfab licences were read from Sketchfab's public API record for each model, because the
   pages need JavaScript. Check the licence on the page when you download.
 

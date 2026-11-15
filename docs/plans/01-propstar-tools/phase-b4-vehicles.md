@@ -38,6 +38,11 @@ model file shows that model and every other class shows its shape built from pri
   load with `GLTFLoader` in `models.ts` and rebuild each mesh with `handle.three` from the parsed
   attribute arrays and texture images. `models.ts` is then the one file that `imports.test.ts`
   lets import `three/addons`. Record the choice in `decisions-lane-b.tsv`.
+- The scissor lift model carries one animation clip that raises its platform. Give a visual
+  that can rise a `raise(fraction)` method, where 0 is stowed and 1 is fully raised. The model
+  sets its clip to that fraction of the clip's length and does not play it. The primitive scissor
+  moves its deck and folds its bars, as `lift-visual.ts` does. If the clip does not play in the
+  viewer's scene, show the model stowed, leave `raise` off and record that.
 - Keep the files in `app/web/public/models/` with a `LICENSE.md`. It gives each file's name,
   author, page link and licence, which a CC BY licence requires. Each file is a GLB or a glTF
   without Draco or meshopt compression, under 5 MB, with no maker's logo.
@@ -58,12 +63,17 @@ model file shows that model and every other class shows its shape built from pri
   a Place button that is disabled when `placeable` is false. Place drops the object 3 m ahead of
   the camera, on the floor a ray cast finds, and switches to **Placed** with the new object
   selected. Without room it shows "No room here. Move the camera and try again."
-- **Placed** lists the placed objects. WASD drives the selected one, and Remove deletes it.
+- **Placed** lists the placed objects. WASD drives the selected one, and Remove deletes it. A
+  selected object whose visual has `raise` shows a **Platform height** slider from 0 to the row's
+  `platformHeightM`. The height on screen is approximate, because a model is scaled by its
+  length. The raised height lives in the browser only. It is not in the scene document, so a
+  reload shows the lift stowed and `scene_get` does not report it.
 
 ## Data structures
 
 - `ShapeBuilder`: `(three, equipment) => VehicleVisual`.
-- `VehicleVisual`: `{root, update(pose)}`. The origin of `root` is the base centre.
+- `VehicleVisual`: `{root, update(pose), raise?(fraction)}`. The origin of `root` is the base
+  centre.
 - `ModelSpec`: `{file, yawDeg}`. `file` is a name under `public/models/`.
 - `SceneSync`: `{load(), place(equipmentId, pose), saveSoon(objectId, pose), remove(objectId),
   dispose()}`.
@@ -80,7 +90,9 @@ model file shows that model and every other class shows its shape built from pri
    lift and a wheelchair, drive the forklift and stop. Take a screenshot. Reload and take
    another. All three stand where they stopped. Record in `decisions-lane-b.tsv` which classes
    showed a model and which showed the primitive shape.
-4. Run `node docs/plans/01-propstar-tools/probe-op.mjs scene_get spaceId=L3sdz2m7jxp --port 8789
+4. Select the scissor lift, move **Platform height** to its top and take a screenshot. The
+   platform stands raised.
+5. Run `node docs/plans/01-propstar-tools/probe-op.mjs scene_get spaceId=L3sdz2m7jxp --port 8789
    --show result.objectCount`. It matches the screen. Record it in `decisions-lane-b.tsv`.
-5. Check the screenshots against `docs/design/design.md`. Stop both PIDs. Run the ownership
+6. Check the screenshots against `docs/design/design.md`. Stop both PIDs. Run the ownership
    check with `--lane lane-b`.
