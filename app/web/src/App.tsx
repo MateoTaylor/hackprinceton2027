@@ -6,7 +6,7 @@ import { matches, NO_FACETS, type Facets } from './filter'
 import { FlyThrough } from './FlyThrough'
 import { Header } from './Header'
 import { MapView } from './MapView'
-import { NO_PINS, withHighlights, type Pins } from './pins'
+import { pinsFromHighlights } from './pins'
 import { SORTS, type SortKey } from './property'
 import { Proppy } from './Proppy'
 import { QuickView } from './QuickView'
@@ -30,7 +30,7 @@ export function App() {
   const [query, setQuery] = useState('')
   const [facets, setFacets] = useState<Facets>(NO_FACETS)
   const [proppyOpen, setProppyOpen] = useState(false)
-  const [pins, setPins] = useState<Pins>(NO_PINS)
+  const [proppyRunning, setProppyRunning] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -66,7 +66,7 @@ export function App() {
 
   useEffect(() => report({ filter: { kind, type, sort, savedOnly } }), [report, kind, type, sort, savedOnly])
 
-  const shownPins = useMemo(() => withHighlights(pins, view.highlights), [pins, view.highlights])
+  const shownPins = useMemo(() => pinsFromHighlights(view.highlights, proppyRunning), [view.highlights, proppyRunning])
 
   const toggleSaved = useCallback(
     (id: string) =>
@@ -158,7 +158,7 @@ export function App() {
               onClose={() => setScreen({ kind: 'selected', propertyId: screen.propertyId })}
             />
           )}
-          <Proppy open={proppyOpen} onOpen={() => setProppyOpen(true)} onClose={() => setProppyOpen(false)} onPins={setPins} />
+          <Proppy open={proppyOpen} onOpen={() => setProppyOpen(true)} onClose={() => setProppyOpen(false)} onRunning={setProppyRunning} />
           {selected && tool && <ToolPanel tool={tool} property={selected} onClose={() => setScreen({ kind: 'selected', propertyId: selected.id })} />}
         </main>
       </div>

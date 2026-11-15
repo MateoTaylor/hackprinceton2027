@@ -1,152 +1,196 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { test } from 'node:test'
 import { AIMessage, ToolMessage, type BaseMessage } from '@langchain/core/messages'
 import { fakeModel } from '@langchain/core/testing'
 import { Command, MemorySaver } from '@langchain/langgraph'
-import { PropertyScore, type PinEvent } from './contract.ts'
-import { createProppy, queryProperties } from './proppy.ts'
+import type { OpEnvelope } from '../../server/src/ops/op.ts'
+import type { OpManifestEntry } from '../../server/src/ops/registry.ts'
+import { VIEW_UNAVAILABLE, opTools, type Ops } from './ops.ts'
+import { cached, createProppy } from './proppy.ts'
+
+const schema: OpManifestEntry['input'] = { type: 'object', properties: { propertyId: { type: 'string' } }, required: ['propertyId'] }
+
+const entry = (name: string, effect: OpManifestEntry['effect']): OpManifestEntry => ({
+  name,
+  summary: `${name} summary`,
+  effect,
+  input: schema,
+  output: {},
+})
+
+const VIEW = {
+  version: 7,
+  screen: 'map',
+  camera: { center: [-95.37, 29.76], zoom: 12 },
+  bounds: null,
+  inView: { count: 2, propertyIds: ['p1', 'p2'] },
+  filter: null,
+  highlightCount: 0,
+  highlights: [],
+  attached: true,
+}
+
+// Invented ops that record every call. `answers` overrides an op's envelope by name.
+function fakeOps(names: [string, OpManifestEntry['effect']][], answers: Record<string, OpEnvelope> = {}) {
+  const calls: { name: string; input: unknown }[] = []
+  const ops: Ops = {
+    manifest: names.map(([name, effect]) => entry(name, effect)),
+    call: async (name, input) => {
+      calls.push({ name, input })
+      return answers[name] ?? { ok: true, result: name === 'view_get' ? VIEW : { name } }
+    },
+  }
+  return { ops, calls }
+}
+
+const FULL: [string, OpManifestEntry['effect']][] = [
+  ['property_get', 'read'],
+  ['scene_place', 'write'],
+  ['view_get', 'read'],
+  ['view_highlight', 'view'],
+]
 
 const toolMessages = (messages: BaseMessage[], name: string) =>
   messages.filter((m): m is ToolMessage => ToolMessage.isInstance(m) && m.name === name)
 
-test('query_properties reads rows and refuses writes and file access', async () => {
-  const { rows } = JSON.parse(await queryProperties.invoke({ sql: 'SELECT id FROM properties LIMIT 2;' }))
-  assert.equal(rows.length, 2)
+const ask = (content: string) => ({ messages: [{ role: 'user', content }] })
 
-  assert.match(await queryProperties.invoke({ sql: 'DELETE FROM properties' }), /^Refused/)
-  assert.match(await queryProperties.invoke({ sql: 'SELECT 1; DROP TABLE properties' }), /^Refused/)
-  assert.match(await queryProperties.invoke({ sql: 'SELECT 1) t; CALL pragma_version(); SELECT (1' }), /^SQL error. Failed to extract/)
-  const commented = JSON.parse(await queryProperties.invoke({ sql: 'SELECT id FROM properties -- every row' }))
-  assert.ok(commented.rows.length > 0)
+test('every manifest entry becomes a tool named after its op', () => {
+  const { ops } = fakeOps(FULL)
+  assert.deepEqual(
+    opTools(ops).map((t) => t.name),
+    FULL.map(([name]) => name),
+  )
+})
 
-  const canary = path.join(mkdtempSync(path.join(tmpdir(), 'proppy-')), 'canary.txt')
-  writeFileSync(canary, 'canary-secret')
-  const read = await queryProperties.invoke({ sql: `SELECT content FROM read_text('${canary}')` })
-  assert.doesNotMatch(read, /canary-secret/)
-  assert.match(read, /^SQL error/)
+test('an error envelope reaches the model as text with its code and hint', async () => {
+  const { ops } = fakeOps(FULL, {
+    property_get: { ok: false, error: { code: 'not_found', message: 'No property p9.', hint: 'Find ids with property_query.' } },
+  })
+  const coordinator = fakeModel()
+    .respondWithTools([{ name: 'property_get', args: { propertyId: 'p9' } }])
+    .respond(new AIMessage('done'))
+  const { messages } = await createProppy({ ops, model: coordinator, checkpointer: new MemorySaver() }).invoke(ask('p9?'), {
+    configurable: { thread_id: 'error' },
+  })
+  assert.equal(toolMessages(messages, 'property_get')[0].text, 'not_found: No property p9. Hint: Find ids with property_query.')
 })
 
 test('the filesystem refuses paths that climb out of agent-fs', async () => {
+  const { ops } = fakeOps(FULL)
   const coordinator = fakeModel()
     .respondWithTools([{ name: 'read_file', args: { file_path: '/../../.env' } }])
     .respond(new AIMessage('done'))
-  const agent = createProppy({ model: coordinator, checkpointer: new MemorySaver() })
-  const { messages } = await agent.invoke(
-    { messages: [{ role: 'user', content: 'read the env' }] },
-    { configurable: { thread_id: 'fs' } },
-  )
+  const { messages } = await createProppy({ ops, model: coordinator, checkpointer: new MemorySaver() }).invoke(ask('read the env'), {
+    configurable: { thread_id: 'fs' },
+  })
   assert.match(toolMessages(messages, 'read_file')[0].text, /must not contain "\.\."/)
 })
 
-test('two parallel scores colour pins, and place_object waits for approval', async () => {
-  const { rows } = JSON.parse(await queryProperties.invoke({ sql: 'SELECT id FROM properties ORDER BY id LIMIT 2' }))
-  const ids: string[] = rows.map((r: { id: string }) => r.id)
+for (const decision of ['approve', 'reject'] as const) {
+  test(`a write op waits for the user, and ${decision} ${decision === 'approve' ? 'runs it once' : 'never runs it'}`, async () => {
+    const { ops, calls } = fakeOps(FULL)
+    const coordinator = fakeModel()
+      .respondWithTools([{ name: 'scene_place', args: { propertyId: 'p1' } }])
+      .respond(new AIMessage('done'))
+    const agent = createProppy({ ops, model: coordinator, checkpointer: new MemorySaver() })
+    const config = { configurable: { thread_id: decision } }
+    const first = await agent.invoke(ask('place a lift'), config)
+    assert.match(JSON.stringify(first.__interrupt__), /"name":"scene_place"/)
+    assert.equal(calls.filter((c) => c.name === 'scene_place').length, 0, 'nothing placed before the decision')
 
-  const coordinator = fakeModel()
-    .respondWithTools([{ name: 'query_properties', args: { sql: 'SELECT id FROM properties ORDER BY id LIMIT 2' } }])
-    .respondWithTools(
-      ids.map((id) => ({ name: 'task', args: { subagent_type: 'score-property', description: `Score ${id} for wheelchair access` } })),
-    )
-    .respondWithTools([{ name: 'place_object', args: { propertyId: ids[0], object: 'scissor lift' } }])
-    .respond(new AIMessage('done'))
-
-  const scorer = fakeModel()
-  for (let i = 0; i < 4; i++) {
-    scorer.respond((messages: BaseMessage[]) => {
-      const ask = String(messages.find((m) => m.type === 'human')?.content)
-      const propertyId = ids.find((id) => ask.includes(id)) ?? 'unknown'
-      if (!messages.some((m) => ToolMessage.isInstance(m))) {
-        return new AIMessage({ content: '', tool_calls: [{ name: 'get_property', args: { propertyId }, id: `get-${propertyId}` }] })
-      }
-      const score = { propertyId, score: 72, summary: 'Level entry likely.', evidence: [{ source: 'costar', detail: 'One storey.' }] }
-      return new AIMessage({ content: '', tool_calls: [{ name: 'PropertyScore', args: score, id: `score-${propertyId}` }] })
-    })
-  }
-
-  const agent = createProppy({ model: coordinator, subagentModel: scorer, checkpointer: new MemorySaver() })
-  const config = { configurable: { thread_id: 'e2e' } }
-  const pins: PinEvent[] = []
-  let interrupted: unknown
-  const stream = await agent.stream(
-    { messages: [{ role: 'user', content: 'which are wheelchair-friendly?' }] },
-    { ...config, streamMode: ['custom', 'updates'], subgraphs: true },
-  )
-  for await (const [, mode, chunk] of stream) {
-    if (mode === 'custom') pins.push(chunk as PinEvent)
-    if (mode === 'updates' && '__interrupt__' in chunk) interrupted = chunk.__interrupt__
-  }
-
-  for (const id of ids) {
-    assert.ok(pins.some((p) => p.propertyId === id && p.status === 'scoring'), `${id} turned scoring`)
-    assert.ok(pins.some((p) => p.propertyId === id && p.status === 'scored' && p.score === 72), `${id} turned scored`)
-  }
-
-  const { values } = await agent.graph.getState(config)
-  const scores = toolMessages(values.messages, 'task').map((m) => PropertyScore.parse(JSON.parse(m.text)))
-  assert.deepEqual(scores.map((s) => s.propertyId).sort(), [...ids].sort())
-
-  assert.match(JSON.stringify(interrupted), /"name":"place_object"/)
-  assert.equal(toolMessages(values.messages, 'place_object').length, 0, 'nothing placed before approval')
-
-  const resumed = await agent.invoke(new Command({ resume: { decisions: [{ type: 'approve' }] } }), config)
-  assert.match(toolMessages(resumed.messages, 'place_object')[0].text, /"requested":true/)
-  assert.equal(resumed.messages.at(-1)?.text, 'done')
-})
-
-const scoreOne = async (propertyId: string, scorerTurns: ((messages: BaseMessage[]) => AIMessage)[]) => {
-  const coordinator = fakeModel()
-    .respondWithTools([{ name: 'task', args: { subagent_type: 'score-property', description: `Score ${propertyId}` } }])
-    .respond(new AIMessage('done'))
-  const scorer = fakeModel()
-  for (const turn of scorerTurns) scorer.respond(turn)
-  const agent = createProppy({ model: coordinator, subagentModel: scorer, checkpointer: new MemorySaver() })
-  const pins: PinEvent[] = []
-  const messages: BaseMessage[] = []
-  const stream = await agent.stream(
-    { messages: [{ role: 'user', content: 'which are wheelchair-friendly?' }] },
-    { configurable: { thread_id: propertyId }, streamMode: ['custom', 'values'], subgraphs: true },
-  )
-  try {
-    for await (const [namespace, mode, chunk] of stream) {
-      if (mode === 'custom') pins.push(chunk as PinEvent)
-      if (mode === 'values' && namespace.length === 0) messages.splice(0, messages.length, ...chunk.messages)
-    }
-    return { pins, messages, error: undefined }
-  } catch (error) {
-    return { pins, messages, error }
-  }
+    await agent.invoke(new Command({ resume: { decisions: [{ type: decision }] } }), config)
+    assert.equal(calls.filter((c) => c.name === 'scene_place').length, decision === 'approve' ? 1 : 0)
+  })
 }
+
+test('the system message holds the view note, or says the view is unavailable', async () => {
+  for (const [names, expected] of [
+    [FULL, /What the user sees now:\n\{"screen":"map".*"highlightCount":0\}\n\n/],
+    [FULL.filter(([name]) => name !== 'view_get'), /The view is unavailable\.\n\n/],
+  ] as const) {
+    const { ops } = fakeOps([...names])
+    const coordinator = fakeModel().respond(new AIMessage('done'))
+    await createProppy({ ops, model: coordinator, checkpointer: new MemorySaver() }).invoke(ask('hi'), {
+      configurable: { thread_id: String(names.length) },
+    })
+    const system = coordinator.calls[0].messages.find((m) => m.type === 'system')?.text ?? ''
+    assert.match(system, expected)
+    assert.doesNotMatch(system, /"version"/)
+  }
+  assert.equal(VIEW_UNAVAILABLE.trim(), 'The view is unavailable.')
+})
 
 const call = (name: string, args: Record<string, unknown>) => () =>
   new AIMessage({ content: '', tool_calls: [{ name, args, id: `${name}-call` }] })
 
-test('a missing record and aerial still yield a PropertyScore', async () => {
-  const propertyId = 'nope-1'
-  const score = { propertyId, score: 10, summary: 'No record or aerial.', evidence: [] }
-  const { pins, messages, error } = await scoreOne(propertyId, [
-    call('get_property', { propertyId }),
-    call('view_aerial', { propertyId }),
-    call('PropertyScore', score),
+// Runs one score-property task whose model takes the given turns, approving every interrupt, and
+// returns every op call made with the error that ended the run, if one did.
+async function scoreOne(scorerTurns: (() => AIMessage)[]) {
+  const { ops, calls } = fakeOps(FULL)
+  const coordinator = fakeModel()
+    .respondWithTools([{ name: 'task', args: { subagent_type: 'score-property', description: 'Score p1 for wheelchair access' } }])
+    .respond(new AIMessage('done'))
+  const scorer = fakeModel()
+  for (const turn of scorerTurns) scorer.respond(turn)
+  const agent = createProppy({ ops, model: coordinator, subagentModel: scorer, checkpointer: new MemorySaver() })
+  const config = { configurable: { thread_id: 'score' } }
+  try {
+    let result = await agent.invoke(ask('how about p1?'), config)
+    while (result.__interrupt__) result = await agent.invoke(new Command({ resume: { decisions: [{ type: 'approve' }] } }), config)
+    return { calls, error: undefined }
+  } catch (error) {
+    return { calls, error }
+  }
+}
+
+test('the scorer has no write or view op, even when a write is approved', async () => {
+  const { calls, error } = await scoreOne([
+    call('scene_place', { propertyId: 'p1' }),
+    call('view_highlight', { propertyId: 'p1' }),
+    call('PropertyScore', { propertyId: 'p1', score: 50, summary: 'Unknown.', evidence: [] }),
   ])
   assert.equal(error, undefined)
-  assert.deepEqual(PropertyScore.parse(JSON.parse(toolMessages(messages, 'task')[0].text)), score)
-  assert.deepEqual(pins, [
-    { type: 'pin', propertyId, status: 'scoring' },
-    { type: 'pin', propertyId, status: 'scored', score: 10 },
-  ])
+  assert.equal(calls.filter((c) => c.name === 'scene_place').length, 0)
+  assert.equal(calls.filter((c) => c.name === 'view_highlight').length, 1, 'only postScore posts')
 })
 
-test('a scorer that errors turns its pin failed', async () => {
-  const propertyId = 'nope-2'
-  const { pins, error } = await scoreOne(propertyId, [
-    call('get_property', { propertyId }),
+test('a valid PropertyScore posts one highlight', async () => {
+  const summary = 'Level entry from the street and a lift to every storey, per the scan.'.repeat(2)
+  const { calls, error } = await scoreOne([
+    call('property_get', { propertyId: 'p1' }),
+    call('PropertyScore', { propertyId: 'p1', score: 72, summary, evidence: [{ source: 'costar', detail: 'One storey.' }] }),
+  ])
+  assert.equal(error, undefined)
+  assert.deepEqual(
+    calls.filter((c) => c.name === 'view_highlight').map((c) => c.input),
+    [{ mode: 'add', items: [{ propertyId: 'p1', score: 72, note: summary.slice(0, 80) }] }],
+  )
+})
+
+test('an invalid PropertyScore posts nothing', async () => {
+  const { calls, error } = await scoreOne([
+    call('PropertyScore', { propertyId: 'p1', score: 140, summary: 'Too high.', evidence: [] }),
     () => {
       throw new Error('model overloaded')
     },
   ])
   assert.match(String(error), /model overloaded/)
-  assert.deepEqual(pins.at(-1), { type: 'pin', propertyId, status: 'failed' })
+  assert.equal(calls.filter((c) => c.name === 'view_highlight').length, 0)
+})
+
+test('cached builds once, and builds again after a reject', async () => {
+  let builds = 0
+  const fail = cached(async () => {
+    builds++
+    throw new Error('off')
+  })
+  await assert.rejects(fail(), /off/)
+  await assert.rejects(fail(), /off/)
+  assert.equal(builds, 2)
+
+  let made = 0
+  const once = cached(async () => ++made)
+  assert.deepEqual(await Promise.all([once(), once()]), [1, 1])
+  assert.equal(await once(), 1)
 })

@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@duckdb/node-api':
-        specifier: 1.4.5-r.1
-        version: 1.4.5-r.1
       '@langchain/anthropic':
         specifier: 1.6.4
         version: 1.6.4(@langchain/core@1.4.0(@opentelemetry/api@1.10.0)(ws@8.23.0))
@@ -97,42 +94,6 @@ packages:
 
   '@dabh/diagnostics@2.0.9':
     resolution: {integrity: sha512-R6siwR65Hm+3yfgP7o8DKhNvputQAwfoz9zTc3kyDudnomj2/BcLmD+uGQQPICjuFUp8ounPBU+jmKsocwVVAg==}
-
-  '@duckdb/node-api@1.4.5-r.1':
-    resolution: {integrity: sha512-lXPfeJclmhTGhBBnfVXy4siuGNpa8QaUIQGAWlDirC92Dq5fELdITI/LihiFDh5Gz7aM8AN9stCGIH891uv1oQ==}
-
-  '@duckdb/node-bindings-darwin-arm64@1.4.5-r.1':
-    resolution: {integrity: sha512-daWqehxIQX5Fnlbkp+yTX2A7rrlXWzfMYNLqil+kZXI7zKG7D/EmT+gWcgSL8N9Jo0fR9RBo8CtzUlR/AaRL5Q==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@duckdb/node-bindings-darwin-x64@1.4.5-r.1':
-    resolution: {integrity: sha512-iTtnNyVXF8zbdlxOe+Rgjcbbv+4WCkWYGfK3ejCwhaqBc8DH07fWPP5ZGtSbUDs/LDOvV/4k3IGD9hXaNTBmPw==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@duckdb/node-bindings-linux-arm64@1.4.5-r.1':
-    resolution: {integrity: sha512-hDGBZDU5fum/4VDa/PFXUReZKb6ijOx63n10CZUKyY7tnZUV3K3/VpGdCpFyv+jwGuB2M27HpTwMtFYulRmGPQ==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@duckdb/node-bindings-linux-x64@1.4.5-r.1':
-    resolution: {integrity: sha512-/0lEDmIx3crdopnz9snXnJGm1tvf6pqowX/LvycMnKYMAfpeXiQDLjAqgCJ4+95O4Y6An+Fgy6e4m7WW7ZYxVg==}
-    cpu: [x64]
-    os: [linux]
-
-  '@duckdb/node-bindings-win32-arm64@1.4.5-r.1':
-    resolution: {integrity: sha512-j+2s9yYlQW1lkGydObiZCPfmW6GzvqgYF42IPY0b9laENFvGz6tD5dwfZ8E41L5vwFSaK1AhjOZ6NFcCMQEPtg==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@duckdb/node-bindings-win32-x64@1.4.5-r.1':
-    resolution: {integrity: sha512-4a1FmopqCbJgtUwDswEAzozCbSOR+waiJyAl4K9LHfACV897e72w/XZQT9kHEw36GJE03uWJIyqHlcV+WA+tXA==}
-    cpu: [x64]
-    os: [win32]
-
-  '@duckdb/node-bindings@1.4.5-r.1':
-    resolution: {integrity: sha512-yIXjn8PcB/twK5qzlGyAYflWS7SOc+Pw2GSDzXOszL2uDWthozMj44c3kCWFVLx8P1lfjXw7N9Fjca+uBQpn6Q==}
 
   '@epic-web/invariant@1.0.0':
     resolution: {integrity: sha512-lrTPqgvfFQtR/eY/qkIzp98OGdNJu0m5ji3q/nJI8v3SXkRKEnWiOxMmbvcSoAIzv/cGiuvRy57k4suKQSAdwA==}
@@ -1370,37 +1331,6 @@ snapshots:
       '@so-ric/colorspace': 1.1.6
       enabled: 2.0.0
       kuler: 2.0.0
-
-  '@duckdb/node-api@1.4.5-r.1':
-    dependencies:
-      '@duckdb/node-bindings': 1.4.5-r.1
-
-  '@duckdb/node-bindings-darwin-arm64@1.4.5-r.1':
-    optional: true
-
-  '@duckdb/node-bindings-darwin-x64@1.4.5-r.1':
-    optional: true
-
-  '@duckdb/node-bindings-linux-arm64@1.4.5-r.1':
-    optional: true
-
-  '@duckdb/node-bindings-linux-x64@1.4.5-r.1':
-    optional: true
-
-  '@duckdb/node-bindings-win32-arm64@1.4.5-r.1':
-    optional: true
-
-  '@duckdb/node-bindings-win32-x64@1.4.5-r.1':
-    optional: true
-
-  '@duckdb/node-bindings@1.4.5-r.1':
-    optionalDependencies:
-      '@duckdb/node-bindings-darwin-arm64': 1.4.5-r.1
-      '@duckdb/node-bindings-darwin-x64': 1.4.5-r.1
-      '@duckdb/node-bindings-linux-arm64': 1.4.5-r.1
-      '@duckdb/node-bindings-linux-x64': 1.4.5-r.1
-      '@duckdb/node-bindings-win32-arm64': 1.4.5-r.1
-      '@duckdb/node-bindings-win32-x64': 1.4.5-r.1
 
   '@epic-web/invariant@1.0.0': {}
 

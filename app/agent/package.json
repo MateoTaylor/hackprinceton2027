@@ -8,7 +8,6 @@
     "test": "cross-env LANGSMITH_TRACING=false LANGSMITH_TRACING_V2=false LANGCHAIN_TRACING=false LANGCHAIN_TRACING_V2=false node --test src/*.test.ts"
   },
   "dependencies": {
-    "@duckdb/node-api": "1.4.5-r.1",
     "@langchain/anthropic": "1.6.4",
     "@langchain/core": "1.4.0",
     "@langchain/langgraph": "1.7.4",
