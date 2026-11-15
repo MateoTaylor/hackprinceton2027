@@ -7,34 +7,51 @@
 }
 
 .dollhouse-panel {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: minmax(360px, 1fr) auto;
-  gap: 12px;
+  position: relative;
   height: 100%;
-  min-height: 520px;
 }
 
 .dollhouse-view {
-  min-height: 0;
+  position: absolute;
+  inset: 0;
 }
 
+.dollhouse-panel .dollhouse {
+  border-radius: 0;
+}
+
+.dollhouse-panel .legend {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+}
+
+/* Floats down the right edge, below ToolPanel's close button. */
 .storey-picker {
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  bottom: 16px;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 6px;
-  max-height: 100%;
   overflow-y: auto;
+  pointer-events: none;
 }
 
 .storey-picker .chip {
+  flex-shrink: 0;
   justify-content: space-between;
   gap: 8px;
   min-width: 96px;
   border: 0;
+  background: var(--color-surface-2);
+  box-shadow: var(--shadow);
   font: 500 13px/16px var(--font);
   color: var(--color-text);
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .storey-picker .chip[aria-pressed='true'] {
@@ -47,20 +64,6 @@
   height: 8px;
   border-radius: var(--radius-full);
   background: var(--color-accent-bright);
-}
-
-.dollhouse-notes {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font: 400 13px/18px var(--font);
-  color: var(--color-text-muted);
-}
-
-.dollhouse-notes ul {
-  margin: 0;
-  padding-left: 18px;
 }
 
 .legend {

@@ -136,6 +136,8 @@ button:disabled {
   height: 56px;
   flex-shrink: 0;
   padding-inline: 24px;
+  position: relative;
+  z-index: 10;
   background: var(--color-chrome);
   box-shadow: var(--color-border) 0 -1px 0 inset;
 }
@@ -208,9 +210,104 @@ button:disabled {
   background: var(--color-border);
 }
 
-.filter-pill .search {
+.filter-pill .query {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 131px;
+  padding-inline: 14px 8px;
+  cursor: text;
+}
+
+.filter-pill .query input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.filter-pill .query input::placeholder {
+  color: var(--color-text);
+}
+
+.filter-pill .query .clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+}
+
+.filter-pill select.type {
+  width: 92px;
+  padding-inline: 14px;
+  text-overflow: ellipsis;
+}
+
+.filter-pill select.sort {
+  width: 108px;
+  padding-inline: 14px;
+  text-overflow: ellipsis;
+}
+
+.filter-menu {
+  position: relative;
+}
+
+.filter-pill .filters {
+  position: relative;
   background: var(--color-accent);
   color: #ffffff;
+}
+
+.filter-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-text);
+  color: var(--color-bg);
+  font: 700 11px/14px var(--font);
+}
+
+.filter-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 380px;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-label {
+  font: 400 12px/16px var(--font);
+  color: var(--color-text-muted);
+}
+
+.filter-clear {
+  align-self: flex-start;
 }
 
 .header-pill {
@@ -589,24 +686,6 @@ button:disabled {
   padding-top: 12px;
 }
 
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding-inline: 10px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface-2);
-  font: 500 12px/16px var(--font);
-}
-
-.tag-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: var(--color-accent-bright);
-}
-
 .button {
   display: inline-flex;
   align-items: center;
@@ -660,11 +739,83 @@ button:disabled {
   color: var(--color-text-muted);
 }
 
-.flythrough iframe {
+.flythrough-stage {
+  position: relative;
   flex: 1;
-  width: 100%;
-  border: 0;
+  min-height: 0;
+}
+
+.flythrough-viewer {
+  position: absolute;
+  inset: 0;
   background: var(--color-bg);
+}
+
+/* Keeps the viewer's own controls below the before and after card. */
+.flythrough-viewer > matterport-viewer {
+  isolation: isolate;
+}
+
+.flythrough-status {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  background: var(--overlay);
+  font: 400 13px/16px var(--font);
+  color: var(--color-text);
+}
+
+.anchored-edits {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.anchored-quad {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  transform-origin: 0 0;
+  outline: 3px solid #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.anchored-quad img {
+  position: absolute;
+  max-width: none;
+}
+
+.anchored-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+}
+
+.anchored-controls span {
+  min-width: 48px;
+  font: 600 13px/16px var(--font);
+  text-align: center;
+}
+
+.anchored-controls button:disabled {
+  opacity: 0.35;
 }
 
 /* Proppy */
@@ -897,10 +1048,7 @@ button:disabled {
 
 .tool-row {
   display: flex;
-  justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--color-border);
+  gap: 8px;
 }
 
 .tool-button {
@@ -908,19 +1056,15 @@ button:disabled {
   color: var(--color-text);
 }
 
+/* An open tool covers the whole map, everything right of the sidebar. */
 .tool-panel {
   position: absolute;
-  top: 20px;
-  right: 20px;
-  bottom: 20px;
+  inset: 0;
   z-index: 4;
   display: flex;
   flex-direction: column;
-  width: min(760px, 62%);
   overflow: hidden;
   background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
 }
 
 .tool-panel-head {
@@ -929,6 +1073,14 @@ button:disabled {
   gap: 12px;
   padding: 16px 16px 16px 20px;
   border-bottom: 1px solid var(--color-border);
+}
+
+.tool-panel-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .tool-panel-icon {
@@ -965,6 +1117,41 @@ button:disabled {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding: 20px;
+}
+
+/* A canvas tool's body fills the panel, with its title at the bottom left and close at the top right. */
+.tool-panel.canvas .tool-panel-head {
+  display: contents;
+}
+
+.tool-panel.canvas .tool-panel-label {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 1;
+  padding: 8px 16px 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+.tool-panel.canvas .panel-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+}
+
+.tool-panel.canvas .tool-panel-body {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+}
+
+.tool-panel.canvas .tool-panel-body > .panel-state,
+.tool-panel.canvas .tool-panel-body > .panel-note {
   padding: 20px;
 }
 

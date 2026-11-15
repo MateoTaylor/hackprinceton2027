@@ -95,11 +95,17 @@ export function App() {
   return (
     <div className="app">
       <Header
+        query={query}
+        onQuery={setQuery}
         types={types}
         type={type}
         onType={setType}
         sort={sort}
         onSort={setSort}
+        kind={kind}
+        onKind={setKind}
+        facets={facets}
+        onFacets={setFacets}
         onFrame={() => {
           setScreen(BROWSE)
           const fit = boundsOf(visible)
@@ -115,12 +121,6 @@ export function App() {
           visible={visible}
           selectedId={selected?.id ?? null}
           onSelect={select}
-          kind={kind}
-          onKind={setKind}
-          query={query}
-          onQuery={setQuery}
-          facets={facets}
-          onFacets={setFacets}
           saved={saved}
           onToggleSaved={toggleSaved}
           onRetry={() => setReload((n) => n + 1)}

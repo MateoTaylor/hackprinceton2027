@@ -9,9 +9,10 @@ declare global {
   }
 }
 
-// The viewer's three.js scene. Build every object added to `scene` with `three`, the viewer's own
-// module, because a second copy of three.js breaks `instanceof` checks inside the viewer.
+// The viewer's SDK and its three.js scene. Build every object added to `scene` with `three`, the
+// viewer's own module, because a second copy of three.js breaks `instanceof` checks inside the viewer.
 export type SceneHandle = {
+  sdk: MpSdk
   three: typeof THREE
   scene: THREE.Scene
   camera: THREE.Camera
@@ -51,7 +52,7 @@ export async function mountScene(container: HTMLElement, spaceId: string, signal
     sceneObject = object
     const meshes = () => scanMeshes(context.scene)
     await settled(meshes, deadline)
-    return { three: context.three, scene: context.scene, camera: context.camera, renderer: context.renderer, meshes, dispose }
+    return { sdk, three: context.three, scene: context.scene, camera: context.camera, renderer: context.renderer, meshes, dispose }
   } catch (error) {
     dispose()
     throw timeout.aborted ? new Error('The scan did not finish loading. Pick it again or try another space.') : error

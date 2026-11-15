@@ -36,3 +36,20 @@ export interface ObliquePose {
 export interface ApiError {
   error: string
 }
+
+// GET /api/renders/:modelId. Mateo's prepared scan edits for a Matterport model, keyed by the
+// sweep (panorama) id the edit was seen from. Each slide is one flat square view taken from that
+// sweep: its pictures before and after the edit and the mask of what changed (white), as URLs on
+// this API, and where it looked. `yaw` (from +X towards +Y), `pitch` (up from level) and `fov`
+// (horizontal) are degrees in the scan's Z-up world frame. Empty `sweeps` when the model has none.
+export interface RenderSlides {
+  sweeps: Record<string, RenderSlide[]>
+}
+
+export interface RenderSlide {
+  command: string
+  before: string
+  after: string
+  mask: string
+  view: { yaw: number; pitch: number; fov: number; width: number; height: number }
+}

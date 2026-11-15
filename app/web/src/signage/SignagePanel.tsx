@@ -36,7 +36,8 @@ const points = (corners: (Vec2 | null)[]) => (corners.every((p) => p !== null) ?
 
 // The Signage panel. It shows the property's oblique photos, one heading at a time, and hangs
 // blank signs on the building's outside walls, which come from the Vexcel outline and height.
-// Signs live in the building's frame, so every heading shows the same signs.
+// Signs live in the building's frame, so every heading shows the same signs. The photo fills the
+// panel, with the heading and sign controls top-left and the selected sign's card on the right.
 export default function SignagePanel({ property }: PanelProps) {
   const propertyId = property.id
   const [directions, setDirections] = useState<Direction[] | null>(null)
@@ -242,14 +243,6 @@ export default function SignagePanel({ property }: PanelProps) {
 
   return (
     <div className="signage-panel">
-      <div className="chip-row" role="group" aria-label="Photo heading">
-        {(directions ?? []).map((d) => (
-          <button key={d} className="chip" aria-pressed={d === direction} onClick={() => setDirection(d)}>
-            Looking {d}
-          </button>
-        ))}
-      </div>
-
       <div className="signage-photo">
         {direction && frame && view && (
           <svg
@@ -290,7 +283,7 @@ export default function SignagePanel({ property }: PanelProps) {
         )}
       </div>
 
-      <p className="signage-status" role="status">
+      <p className="signage-status signage-hint" role="status">
         {notice ??
           (selectedHidden
             ? 'This sign faces away from this photo.'
@@ -298,29 +291,38 @@ export default function SignagePanel({ property }: PanelProps) {
               ? 'Click a wall to hang the sign.'
               : view
                 ? `Walls from the Vexcel outline and height. Photo fit confidence ${view.confidence.toFixed(2)}.`
-                : ' ')}
+                : null)}
       </p>
 
-      <div className="signage-row">
-        <button className="button" disabled={!view || !walls} aria-pressed={armed} onClick={() => (setArmed(!armed), setNotice(null))}>
-          {!armed && <Plus size={16} aria-hidden />}
-          {armed ? 'Cancel' : 'Place sign'}
-        </button>
-        <div className="chip-row" role="group" aria-label="Signs">
-          {signs.map((sign, index) => (
-            <button key={sign.id} className="chip" aria-pressed={sign.id === selectedId} onClick={() => select(sign)}>
-              Sign {index + 1}
+      <div className="signage-tools">
+        <div className="chip-row" role="group" aria-label="Photo heading">
+          {(directions ?? []).map((d) => (
+            <button key={d} className="chip" aria-pressed={d === direction} onClick={() => setDirection(d)}>
+              Looking {d}
             </button>
           ))}
         </div>
-        <button className="signage-switch" role="switch" aria-checked={outline} onClick={() => setOutline(!outline)}>
-          <span aria-hidden />
-          Walls
-        </button>
+        <div className="signage-row">
+          <button className="button" disabled={!view || !walls} aria-pressed={armed} onClick={() => (setArmed(!armed), setNotice(null))}>
+            {!armed && <Plus size={16} aria-hidden />}
+            {armed ? 'Cancel' : 'Place sign'}
+          </button>
+          <div className="chip-row" role="group" aria-label="Signs">
+            {signs.map((sign, index) => (
+              <button key={sign.id} className="chip" aria-pressed={sign.id === selectedId} onClick={() => select(sign)}>
+                Sign {index + 1}
+              </button>
+            ))}
+          </div>
+          <button className="signage-switch" role="switch" aria-checked={outline} onClick={() => setOutline(!outline)}>
+            <span aria-hidden />
+            Walls
+          </button>
+        </div>
       </div>
 
       {selected && size && (
-        <>
+        <div className="signage-card">
           <div className="signage-row">
             {(['widthM', 'heightM'] as const).map((side) => (
               <label key={side} className="signage-field">
@@ -347,7 +349,7 @@ export default function SignagePanel({ property }: PanelProps) {
               Faces {Math.round(reading.facingDeg)}°. Confidence {reading.confidence.toFixed(2)}. The sign is a blank placeholder. No sign rule is checked.
             </p>
           )}
-        </>
+        </div>
       )}
     </div>
   )

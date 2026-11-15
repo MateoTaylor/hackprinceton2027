@@ -54,6 +54,7 @@ const app = createApp({
   },
   sdkKey: process.env.MP_SDK_KEY?.trim() || null,
   editLink,
+  rendersDir: fileURLToPath(new URL('../../../demo_renders/', import.meta.url)),
 })
 
 serve({ fetch: app.fetch, hostname: HOST, port: PORT }, () => {

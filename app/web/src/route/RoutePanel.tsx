@@ -24,8 +24,9 @@ type Solved = { result: RouteAnswer; detail: RouteDetail }
 type Tooltip = { door: RouteDetail['doors'][number]; x: number; y: number }
 
 // The Routing panel: click a floor and pick a payload, and a dot trail runs from the street to
-// it with a tick or a cross on each door. Hover a door for its confidence. The pointer is read in
-// the capture phase, before the canvas's own listener reports the hover.
+// it with a tick or a cross on each door. The building fills the panel, with the payload picker,
+// storey chips and route figures floating over it. Hover a door for its confidence. The pointer
+// is read in the capture phase, before the canvas's own listener reports the hover.
 export default function RoutePanel({ property }: PanelProps) {
   const building = useOp<unknown, BuildingDetail>('building_get', { propertyId: property.id }, { detail: true })
   if (building.status !== 'ready') return <OpStatus state={building} />
@@ -108,11 +109,13 @@ function RouteView({ propertyId, building }: { propertyId: string; building: Bui
           </button>
         )}
       </div>
-      {target ? (
-        <RouteResult key={JSON.stringify([target, payload])} propertyId={propertyId} target={target} payload={payload} onRoute={onRoute} />
-      ) : (
-        <p className="panel-note">Click a floor to see the way in.</p>
-      )}
+      <div className="route-result">
+        {target ? (
+          <RouteResult key={JSON.stringify([target, payload])} propertyId={propertyId} target={target} payload={payload} onRoute={onRoute} />
+        ) : (
+          <p className="panel-note">Click a floor to see the way in.</p>
+        )}
+      </div>
     </div>
   )
 }
@@ -134,31 +137,22 @@ function RouteResult({ propertyId, target, payload, onRoute }: RouteResultProps)
 
   if (!ready) return <OpStatus state={route} />
   const { result } = ready
-  return (
-    <>
-      {result.reachable ? (
-        <dl className="route-figures">
-          <div>
-            <dt>Length</dt>
-            <dd>{result.lengthM?.toFixed(0)} m</dd>
-          </div>
-          <div>
-            <dt>Doors</dt>
-            <dd>{result.doorCount}</dd>
-          </div>
-          <div>
-            <dt>Too tight</dt>
-            <dd className={result.failCount ? 'route-bad' : undefined}>{result.failCount}</dd>
-          </div>
-        </dl>
-      ) : (
-        <p className="route-none">No way in for this payload</p>
-      )}
-      <ul className="route-assumptions">
-        {result.assumptions.map((assumption) => (
-          <li key={assumption}>{assumption}</li>
-        ))}
-      </ul>
-    </>
+  return result.reachable ? (
+    <dl className="route-figures">
+      <div>
+        <dt>Length</dt>
+        <dd>{result.lengthM?.toFixed(0)} m</dd>
+      </div>
+      <div>
+        <dt>Doors</dt>
+        <dd>{result.doorCount}</dd>
+      </div>
+      <div>
+        <dt>Too tight</dt>
+        <dd className={result.failCount ? 'route-bad' : undefined}>{result.failCount}</dd>
+      </div>
+    </dl>
+  ) : (
+    <p className="route-none">No way in for this payload</p>
   )
 }

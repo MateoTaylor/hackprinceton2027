@@ -17,6 +17,10 @@ export type Tool = {
   only?: PropertyKind
   // The only property ids the tool is offered on, for a tool that works on prepared data.
   onlyIds?: readonly string[]
+  // The panel fills the whole frame edge to edge, and ToolPanel floats its title and close button over it.
+  canvas?: true
+  // Left off the property card. Proppy can still open the panel.
+  offCard?: true
 }
 
 // 2838 Potomac Ave, the one property with prepared picture edits in its drop folder. See
@@ -26,13 +30,13 @@ const PREPARED_EDITS = ['residential-201926017']
 // The tools, in the order the property card shows them. Each panel is the default export of
 // a file in its lane's folder and loads only when opened.
 export const TOOLS: readonly Tool[] = [
-  { id: 'dollhouse', label: 'Dollhouse', icon: Box, panel: lazy(() => import('./dollhouse/DollhousePanel')) },
-  { id: 'route', label: 'Routing', icon: Route, panel: lazy(() => import('./route/RoutePanel')) },
-  { id: 'signage', label: 'Signage', icon: Signpost, panel: lazy(() => import('./signage/SignagePanel')), only: 'commercial' },
-  { id: 'edit', label: 'Magic Eraser', icon: Eraser, panel: lazy(() => import('./edit/EditPanel')), onlyIds: PREPARED_EDITS },
-  { id: 'remodel', label: 'Remodel', icon: PaintRoller, panel: lazy(() => import('./remodel/RemodelPanel')), onlyIds: PREPARED_EDITS },
+  { id: 'dollhouse', label: 'Slice', icon: Box, panel: lazy(() => import('./dollhouse/DollhousePanel')), canvas: true },
+  { id: 'route', label: 'Routing', icon: Route, panel: lazy(() => import('./route/RoutePanel')), canvas: true },
+  { id: 'signage', label: 'Signage', icon: Signpost, panel: lazy(() => import('./signage/SignagePanel')), only: 'commercial', canvas: true },
+  { id: 'edit', label: 'Magic Eraser', icon: Eraser, panel: lazy(() => import('./edit/EditPanel')), onlyIds: PREPARED_EDITS, offCard: true },
+  { id: 'remodel', label: 'Remodel', icon: PaintRoller, panel: lazy(() => import('./remodel/RemodelPanel')), onlyIds: PREPARED_EDITS, offCard: true },
 ]
 
-// The tools a property card shows for `property`.
+// The tools that can open on `property`.
 export const toolsFor = (property: Property) =>
   TOOLS.filter(({ only, onlyIds }) => (!only || only === property.kind) && (!onlyIds || onlyIds.includes(property.id)))

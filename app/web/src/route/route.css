@@ -1,42 +1,47 @@
 .route-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  position: relative;
+  height: 100%;
+}
+
+.route-view {
+  position: absolute;
+  inset: 0;
+}
+
+.route-view .dollhouse {
+  border-radius: 0;
 }
 
 .route-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  z-index: 1;
 }
 
 .route-controls label {
   display: flex;
-  flex: 1 1 160px;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 16px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+  box-shadow: var(--shadow);
   font-size: 12px;
   line-height: 16px;
   color: var(--color-text-muted);
 }
 
 .route-controls select {
-  height: 40px;
+  height: 32px;
   padding: 0 12px;
   border: 0;
   border-radius: var(--radius-full);
-  background: var(--color-surface-2);
+  background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
   font-size: 13px;
   font-weight: 500;
-}
-
-.route-view {
-  position: relative;
-  height: 360px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-2);
 }
 
 .route-tooltip {
@@ -56,23 +61,35 @@
   transform: translate(12px, -50%);
 }
 
+/* Floats down the right edge, below ToolPanel's close button. */
 .route-storeys {
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  bottom: 16px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  overflow-y: auto;
+  pointer-events: none;
 }
 
 .route-storeys button {
+  flex-shrink: 0;
+  min-width: 96px;
   height: 32px;
   padding: 0 12px;
   border: 0;
   border-radius: var(--radius-full);
   background: var(--color-surface-2);
+  box-shadow: var(--shadow);
   color: var(--color-text-muted);
   font: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .route-storeys button.on-route {
@@ -86,9 +103,21 @@
 }
 
 .route-storeys .route-next {
-  margin-left: auto;
+  margin-top: 6px;
   background: var(--color-accent);
   color: var(--color-text);
+}
+
+/* Floats at the bottom centre, clear of ToolPanel's title in the bottom-left corner. */
+.route-result {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
 }
 
 .route-figures {
@@ -120,16 +149,6 @@
   font-weight: 600;
 }
 
-.route-assumptions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 13px;
-  line-height: 16px;
-}
 
 .route-band {
   padding: 2px 8px;
@@ -153,7 +172,3 @@
   color: #e0675e;
 }
 
-.route-assumptions {
-  color: var(--color-text-muted);
-  font-size: 12px;
-}

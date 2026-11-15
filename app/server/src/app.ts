@@ -9,6 +9,7 @@ import { OPS, PROPPY_OPS } from './ops/index.ts'
 import type { Op } from './ops/op.ts'
 import { createRegistry, type OpBase } from './ops/registry.ts'
 import { createViewOps } from './ops/view/index.ts'
+import { mountRenders } from './renders.ts'
 import { mountView } from './view/routes.ts'
 import { createViewStore, type ViewStore } from './view/store.ts'
 import { isDirection, UpstreamError } from './vexcel.ts'
@@ -44,7 +45,8 @@ const image = (c: Context, answer: Cached) => {
 // Matterport SDK key the browser's Showcase embed needs, and /api/edit/* forwards to `editLink`.
 // `view` is the one view the view ops and GET /api/events share; by default `ops` holds the public
 // ops plus the view ops bound to it, served at /api/ops, and `proppyOps` holds Proppy's private ops,
-// served the same way at /api/proppy/ops.
+// served the same way at /api/proppy/ops. `rendersDir` is the repo's `demo_renders/`, served at
+// /api/renders.
 export function createApp({
   base,
   view = createViewStore(),
@@ -52,6 +54,7 @@ export function createApp({
   proppyOps = PROPPY_OPS,
   sdkKey = null,
   editLink = {},
+  rendersDir = null,
 }: {
   base: OpBase
   view?: ViewStore
@@ -59,6 +62,7 @@ export function createApp({
   proppyOps?: readonly Op[]
   sdkKey?: string | null
   editLink?: Parameters<typeof forwardEdit>[1]
+  rendersDir?: string | null
 }) {
   const { properties, vexcel } = base
   const registry = createRegistry(ops, base)
@@ -91,6 +95,8 @@ export function createApp({
   app.all('/api/edit/*', (c) => forwardEdit(c.req.raw, editLink))
 
   app.get(PICTURE_ROUTE, servePicture(base.dataDir))
+
+  if (rendersDir) mountRenders(app, rendersDir)
 
   app.get('/api/tiles/:z/:x/:y', async (c) => {
     const tile = parseTile(c.req.param('z'), c.req.param('x'), c.req.param('y'))

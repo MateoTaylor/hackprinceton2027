@@ -76,12 +76,14 @@ type Props = { tool: Tool; property: Property; onClose: () => void }
 export function ToolPanel({ tool, property, onClose }: Props) {
   const Panel = tool.panel
   return (
-    <section className="tool-panel" aria-label={`${tool.label} for ${property.name}`}>
+    <section className={`tool-panel${tool.canvas ? ' canvas' : ''}`} aria-label={`${tool.label} for ${property.name}`}>
       <header className="tool-panel-head">
-        <tool.icon size={20} className="tool-panel-icon" aria-hidden />
-        <div className="tool-panel-title">
-          <strong>{tool.label}</strong>
-          <span>{property.name}</span>
+        <div className="tool-panel-label">
+          <tool.icon size={20} className="tool-panel-icon" aria-hidden />
+          <div className="tool-panel-title">
+            <strong>{tool.label}</strong>
+            <span>{property.name}</span>
+          </div>
         </div>
         <button className="circle panel-close" aria-label={`Close ${tool.label}`} onClick={onClose}>
           <X size={18} />

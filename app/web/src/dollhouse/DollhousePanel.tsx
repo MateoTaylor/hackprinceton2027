@@ -6,14 +6,15 @@ import { Dollhouse } from './Dollhouse.tsx'
 import './dollhouse.css'
 import { Legend } from './Legend.tsx'
 
-type BuildingResult = { inferredShare: number; assumptions: string[]; counts: { unplacedScans: number } }
+type BuildingResult = { inferredShare: number }
 
 const hasScan = ({ spaces }: BuildingModel['storeys'][number]) => spaces.some(({ source }) => source === 'scan')
 
 // The storey to open first: the lowest that holds scanned space, else the ground storey.
 const firstStorey = ({ storeys }: BuildingModel) => (storeys.find(hasScan) ?? storeys[0])?.index ?? null
 
-// The Dollhouse panel. ToolPanel draws its frame and passes the selected property.
+// The Slice panel. ToolPanel draws its frame and passes the selected property. The building fills
+// the panel, with the legend and storey picker floating over it.
 export default function DollhousePanel({ property }: PanelProps) {
   const op = useOp<BuildingResult, BuildingDetail>('building_get', { propertyId: property.id }, { detail: true })
   if (op.status !== 'ready') return <OpStatus state={op} />
@@ -23,13 +24,13 @@ export default function DollhousePanel({ property }: PanelProps) {
 function DollhouseView({ building, result }: { building: BuildingModel; result: BuildingResult }) {
   const [storeyIndex, setStoreyIndex] = useState<number | null>(() => firstStorey(building))
   const storeys = building.storeys.toSorted((a, b) => b.index - a.index)
-  const unplaced = result.counts.unplacedScans
 
   return (
     <div className="dollhouse-panel">
       <div className="dollhouse-view">
         <Dollhouse building={building} storeyIndex={storeyIndex} />
       </div>
+      <Legend inferredShare={result.inferredShare} />
       <nav className="storey-picker" aria-label="Storeys">
         <button className="chip" aria-pressed={storeyIndex === null} onClick={() => setStoreyIndex(null)}>
           Whole building
@@ -41,17 +42,6 @@ function DollhouseView({ building, result }: { building: BuildingModel; result: 
           </button>
         ))}
       </nav>
-      <div className="dollhouse-notes">
-        <Legend inferredShare={result.inferredShare} />
-        {unplaced > 0 && <span>{unplaced === 1 ? '1 scan could not be placed.' : `${unplaced} scans could not be placed.`}</span>}
-        {result.assumptions.length > 0 && (
-          <ul>
-            {result.assumptions.map((assumption) => (
-              <li key={assumption}>{assumption}</li>
-            ))}
-          </ul>
-        )}
-      </div>
     </div>
   )
 }
