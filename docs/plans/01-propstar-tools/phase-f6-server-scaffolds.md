@@ -24,7 +24,7 @@ Every lane finds its folder, its ops and its packages already in place. After th
   - `ops/building/`: `building_get`.
   - `ops/route/`: `route_solve`.
   - `ops/scene/`: `scene_get`, `scene_place`, `scene_move`, `scene_remove`.
-  - `ops/signage/`: `lift_choose`, `signage_plan`.
+  - `ops/signage/`: `lift_choose`, `signage_measure`.
   - `ops/area/`: `area_places`, `area_summary`.
   - `ops/features/`: `features_get`.
   - `ops/edit/`: `edit_places`, `edit_start`, `edit_get`.
@@ -46,9 +46,9 @@ Every lane finds its folder, its ops and its packages already in place. After th
 - Add the server packages that the lanes need. Pin exact versions: `ngraph.graph`, `ngraph.path`
   1.6.1, `clipper2-ts` 2.0.1-19, `three` 0.187.0, `three-mesh-bvh` 0.9.18 and `@types/three`.
   The last three serve [r5](phase-r5-mesh-clearance.md).
-- Add the scripts `build:area` and `build:zoning` to `app/server/package.json`. They run
-  `pipeline/area.ts` and `pipeline/zoning.ts` without `--env-file`, because neither needs a key.
-  Create both files as stubs that print "not built yet" and exit 1.
+- Add the script `build:area` to `app/server/package.json`. It runs `pipeline/area.ts` without
+  `--env-file`, because it needs no key. Create the file as a stub that prints "not built yet"
+  and exits 1.
 - Extend `guard.test.ts` to expect 16 ops, and add a test that `/api/scene/config` answers 503
   without a key and sets `no-store` with one. Add a test that `/api/edit/health` answers 503
   `edit_api_not_configured` when `editLink` is empty. The test calls no outside service.

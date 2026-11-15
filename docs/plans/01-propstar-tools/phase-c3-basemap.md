@@ -35,7 +35,7 @@ After this phase the map can switch to a street basemap, with the nearby places 
   nearest of each group and the list of `result.places`. A chip sets the active group, which filters
   the list and highlights the map. A zero count is a muted chip that cannot be picked. The
   assumptions sit at the foot in caption type. The CSS lives in `app/web/src/area/area.css`.
-- If Fahim takes open choice 6, "no street basemap", drop the toggle, `STREET_STYLE_URL`, the style
+- If Fahim takes open choice 4, "no street basemap", drop the toggle, `STREET_STYLE_URL`, the style
   swap, the attribution and Verification steps 3 and 4. Places then draw over Vexcel.
 
 ## Data structures

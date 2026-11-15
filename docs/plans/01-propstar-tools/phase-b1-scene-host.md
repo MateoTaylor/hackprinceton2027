@@ -36,7 +36,9 @@ it in the Scene panel, and the lane holds one handle on the viewer's three.js sc
 - `SceneHandle`: `{three, scene, camera, renderer, meshes(), dispose()}`. `three` is the viewer's
   module, typed `typeof import('three')`. `dispose` removes the element and its listeners.
 - `SpaceEntry`: `{id, label, kind: 'demo' | 'kit' | 'property'}`. `SPACES` holds `L3sdz2m7jxp`
-  (plant, demo), `18TRzZNyxvU` (office, demo) and `35LT5s1GSfA` (kit scan, untried).
+  (plant, demo), `18TRzZNyxvU` (office, demo), `35LT5s1GSfA` (kit scan, untried) and
+  `2rPahZzW6H7` (kit scan of a building from outside, untried).
+- `EXTERIOR_SPACE_ID`: `2rPahZzW6H7`, exported from `spaces.ts`. The Signage panel opens it.
 - The frame of `handle.scene` is the scene frame, stated as Y up in
   [b2](phase-b2-scene-document.md). Check which axis is up and record it in `decisions-lane-b.tsv`.
 
@@ -51,5 +53,8 @@ it in the Scene panel, and the lane holds one handle on the viewer's three.js sc
 5. Pick the plant and take a screenshot at 1440 by 900. The status line reads 27 meshes and about
    1,030,018 triangles. Pick the office. It reads 35 meshes.
 6. Pick `35LT5s1GSfA` and record whether it opens. If it fails, remove it from `SPACES`.
-7. Check the screenshots in your scratchpad against `docs/design/design.md`. Stop both PIDs. Run
+7. Pick `2rPahZzW6H7`, look at the building from outside and take a screenshot. Record whether it
+   opens and whether the mesh count is above zero. If it fails, set `EXTERIOR_SPACE_ID` to the
+   plant, record that, and tell the main session.
+8. Check the screenshots in your scratchpad against `docs/design/design.md`. Stop both PIDs. Run
    the ownership check with `--lane lane-b`.

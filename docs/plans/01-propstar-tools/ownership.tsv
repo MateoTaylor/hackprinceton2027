@@ -12,7 +12,6 @@ app/server/package.json	foundation	Only foundation adds a dependency or a script
 app/server/pnpm-lock.yaml	foundation	Changes with package.json
 app/server/pipeline/build.ts	foundation	f6 adds the building_facts table
 app/server/pipeline/area.ts	lane-c	c1 builds area.duckdb
-app/server/pipeline/zoning.ts	lane-b	b6 builds the zoning table
 app/server/src/app.ts	foundation	f2 mounts the ops, f6 adds the scene config route and the edit proxy
 app/server/src/main.ts	foundation	f2 reads PROPSTAR_PORT, f5 and f6 build the context
 app/server/src/vexcel.ts	foundation	f5 adds extract
@@ -29,7 +28,7 @@ app/server/src/ops/equipment/	foundation	equipment_list
 app/server/src/ops/building/	lane-a	building_get and the steps behind it
 app/server/src/ops/route/	lane-a	route_solve
 app/server/src/ops/scene/	lane-b	scene_get, scene_place, scene_move, scene_remove
-app/server/src/ops/signage/	lane-b	lift_choose and signage_plan
+app/server/src/ops/signage/	lane-b	lift_choose and signage_measure
 app/server/src/ops/area/	lane-c	area_places and area_summary
 app/server/src/ops/features/	lane-c	features_get
 app/server/src/ops/edit/	lane-c	edit_places, edit_start, edit_get and the edit client
@@ -48,8 +47,8 @@ app/web/src/MapView.tsx	lane-c	c3 adds the basemap toggle and the places layer
 app/web/src/dollhouse/	lane-a	The look page, the renderer and the Dollhouse panel
 app/web/src/route/	lane-a	The route overlay and the Routing panel
 app/web/public/kit/	lane-a	CC0 furniture models with their licence file
-app/web/src/scene/	lane-b	The Showcase host, the collider and the vehicles
-app/web/src/signage/	lane-b	The sign layer and the Signage panel
+app/web/src/scene/	lane-b	The Showcase host, the collider, the vehicles, the sign and its measurement lines
+app/web/src/signage/	lane-b	The Signage panel
 app/web/src/area/	lane-c	The places store and the Area panel
 app/web/src/features/	lane-c	The Features panel
 app/web/src/edit/	lane-c	The panorama cube and the Edit panel

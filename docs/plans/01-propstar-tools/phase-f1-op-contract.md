@@ -45,7 +45,7 @@ lane writes an op as a single `defineOp` call and tests it without HTTP.
   step or a key is missing, and the hint names it), `no_data` (the source has nothing for this
   property), `upstream`, `conflict` (a write lost to a newer version) and `internal` (a bug).
 - `OpContext`: `{properties, vexcel, dataDir, call}`. f5 adds `matterport`. f6 adds `buildingFacts`.
-- `Source`: `costar`, `vexcel`, `scan`, `mesh`, `overture`, `city`, `maker` or `inferred`.
+- `Source`: `costar`, `vexcel`, `scan`, `mesh`, `overture`, `maker` or `inferred`.
 - `Confidence`: a number from 0 to 1. `Assumptions`: at most 8 sentences of at most 200 characters.
 
 ## Verification

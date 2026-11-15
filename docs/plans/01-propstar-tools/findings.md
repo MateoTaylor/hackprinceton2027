@@ -91,6 +91,12 @@ model(id) {
 - Kit scans that have a MatterPak on the account, as fallbacks: `35LT5s1GSfA`, `DyxhMkHBivo`,
   `vR3V3LVTBFj`, `2WMhwuqjJkb`, `e69f8VbdT5e`, `kc7dw4iFVdB`. Nobody has tried a kit scan in the
   web component yet.
+- Kit scan `2rPahZzW6H7` shows a building from outside, with 11 panoramas, by Mateo's log. The
+  Signage tool hangs its sign there. Nobody has opened it in the web component, and nobody has
+  checked that its mesh holds the outside wall and the ground in front of it.
+- Matterport's viewer has its own measurement mode, a white line with a length label. The
+  Signage tool copies that look with its own lines. Whether the SDK can switch the built-in mode
+  on from code was not checked, and the plan does not depend on it.
 - No free vehicle model with a clear licence turned up. Build vehicles from boxes and cylinders,
   and carry no maker's branding.
 
@@ -143,7 +149,10 @@ model(id) {
 - OpenFreeMap serves a free street basemap for MapLibre.
 - A check blocked a downloaded `pmtiles` binary from running. Do not plan on it.
 
-## Signage, Los Angeles (LAMC 14.4)
+## Signage, Los Angeles (LAMC 14.4), not used
+
+Fahim cut the sign rules on 2026-11-15. The Signage tool hangs a placeholder sign and measures
+it. No phase reads this section or the next one. The notes stay for a later plan.
 
 - Wall sign area: 2 sq ft per foot of street frontage plus 1 sq ft per foot of building frontage.
   Each storey above the first adds 10%, up to 50%. A wall sign may not rise above the top of the
@@ -165,7 +174,7 @@ model(id) {
   type.
 - The permit for a lift on a public sidewalk was not researched.
 
-## Signage, Houston (Chapter 46), deferred
+## Signage, Houston (Chapter 46), not used
 
 - Wall signs: 25% of the wall area or 1,000 sq ft. Roof signs are prohibited. Projecting signs
   need 14 ft of clearance and project 10 ft at most. Ground sign limits depend on the street

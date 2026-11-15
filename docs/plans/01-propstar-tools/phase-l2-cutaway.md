@@ -28,7 +28,7 @@ has a storey picker on every fixture.
   `StageLayer` list for the stage. The storeys below the cut are solid massing in the prototype
   grid. The cut storey comes from `buildStorey`. The storeys above the cut are an outline only,
   so the height of the building still reads.
-- `storeyIndex: null` returns the whole building uncut. The Signage panel uses that.
+- `storeyIndex: null` returns the whole building uncut.
 - Add `setStorey(storeyIndex)`, `onPick` and `onHover` to the stage. The stage raycasts the
   pointer against the floor slabs and reports a `Pick`. A storey has few slabs, so a plain
   `Raycaster` is enough.

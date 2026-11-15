@@ -16,8 +16,8 @@ into the same view.
 - Create `app/web/src/dollhouse/Dollhouse.tsx`. Its props are `{building, look?, storeyIndex,
   layers?, onPick?, onHover?}`. It creates the stage in an effect, feeds it `buildCutaway` plus
   the caller's `layers`, and calls `dispose` on unmount.
-- `layers` is how the route overlay and the sign layer draw into the dollhouse. They pass
-  `StageLayer` objects and never reach into the stage.
+- `layers` is how the route overlay draws into the dollhouse. It passes `StageLayer` objects and
+  never reaches into the stage.
 - Create `app/web/src/dollhouse/index.ts`. It exports `Dollhouse`, `toScene`, `DEFAULT_LOOK` and
   the types `StageLayer`, `Pick` and `Look`. Other folders import from this file only.
 - Fill `DollhousePanel.tsx`. Call `useOp('building_get', {propertyId: property.id}, {detail:

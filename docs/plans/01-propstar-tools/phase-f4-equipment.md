@@ -25,7 +25,8 @@ chooses from. After this phase `equipment_list` answers.
 - Add one `forklift`, one `pallet_jack` and three `prop` rows (a grand piano, a crate and a
   pallet). Mark their dimensions `inferred` with a `confidence`.
 - Add one `sign` row with the id `sign_panel`. It is a flat panel 2.4 m long, 0.6 m tall and
-  0.05 m deep, marked `inferred`. [b5](phase-b5-surface-anchors.md) hangs it on a wall.
+  0.05 m deep, marked `inferred`. [b5](phase-b5-surface-anchors.md) hangs it on a wall, and
+  [b6](phase-b6-sign-size.md) lets a placed sign take another width and height.
 - Give every row a `mount`. It is `wall` for `sign_panel` and `floor` for every other row.
 - Create `app/server/src/ops/equipment/index.ts` with `equipment_list` and add it to `OPS`.
 - Create `equipment.test.ts`. It checks that ids are unique, that every dimension is positive or

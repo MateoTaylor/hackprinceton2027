@@ -2,54 +2,67 @@
 
 Part of [the plan overview](overview.md).
 
-Lane B, signage track, phase 4, and a milestone. It depends on [b8](phase-b8-signage-plan.md) and
-[l5](phase-l5-dollhouse-panel.md). It uses API port 8789 and web port 5175. Read
-`docs/design/design.md` and run the **frontend-design** skill first.
+Lane B, signage track, phase 4, and a milestone. It depends on [b8](phase-b8-signage-measure.md).
+It uses API port 8789 and web port 5175. Read `docs/design/design.md` and run the
+**frontend-design** skill first.
 
 ## Goal
 
-A user opens Signage from the property card and sees the blank sign on the building, its size,
-the lift that installs it and what the rules allow. After this phase the signage track is ready
-for review.
+A user opens Signage, sees a building from outside in its Matterport scan, clicks the wall to
+hang a blank sign and switches on measurement lines. The lines show the sign's width, its height
+and its height above the ground. After this phase the signage track is ready for review.
 
 ## Changes
 
-- Create `app/web/src/signage/Elevation.tsx` with `Elevation({facade, sign})`. It draws the facade
-  as a flat SVG elevation scaled to its box, in `--surface-2` with a `--border` outline. Draw the
-  blank sign centred at `mountHeightM`, as b8 placed it, with an `--accent-bright` outline. Label
-  its width, its height and the mounting height above the ground line, in metres to one decimal
-  with feet beside them.
-- Create `app/web/src/signage/signLayer.ts` with `signLayer(corners)`. It returns a `StageLayer`
-  with `id: 'sign'` and no `onStorey`. Its `object` is a two-triangle quad through the corners
-  plus an `EdgesGeometry` outline, both in `DEFAULT_LOOK.palette.accent`. Map each corner with
-  `toScene`. Import from `app/web/src/dollhouse/index.ts` only.
-- Fill `app/web/src/signage/SignagePanel.tsx`. Call `useOp('signage_plan', {propertyId:
-  property.id}, {detail: true})` and `useOp('building_get', {propertyId: property.id}, {detail:
-  true})`.
-  - At the top, draw `Dollhouse` with `detail.building`, `storeyIndex: null` and `layers:
-    [signLayer(detail.corners)]`. When `corners` is `null`, pass no layers. Draw `Elevation` below.
-  - Show the zone, then one row per sign type in `allowed` with its area or height and its
-    section. Mark a row with `checked: false` as "Unconfirmed", and show a `null` section as
-    "Section not confirmed".
-  - Show the lift's class label and working height, or "No lift drawn" when `lift` is `null`.
-  - List `assumptions`. Show "Subject to overlays" as its own line, always.
-- The loading and error states come from `ToolPanel`. A `no_data` answer shows its hint. Keep
-  the CSS in `app/web/src/signage/signage.css` and import it from the panel.
-- Create `signLayer.test.ts`. It checks that the layer has no `onStorey` and that the quad's 4
-  vertices sit at the mapped corners.
+- Create `app/web/src/scene/signMeasure.ts` with the pure `signMeasures(sign)` and
+  `formatLength(m)`.
+  - `signMeasures` returns up to three `Measure` entries. `width` runs along the top edge, 0.15 m
+    above it. `height` runs along one side edge, 0.15 m beside it. `clearance` runs from the
+    bottom centre straight down to `groundY`. Without `groundY` it returns no `clearance`.
+  - Every point sits 0.02 m in front of the sign's face, along `anchor.normal`. The width axis is
+    the horizontal direction at right angles to the normal.
+  - `formatLength(2.4)` returns `2.40 m · 7 ft 10 in`. Round to the nearest inch, and carry 12
+    inches into a foot.
+- Create `app/web/src/scene/measureOverlay.ts` with `createMeasureOverlay(handle)`. It draws each
+  measure the way Matterport's own measurement mode does: a white line, a dot at each end and a
+  label at the midpoint.
+  - Build every object with `handle.three`. The line is a thin cylinder of 0.012 m radius,
+    because WebGL lines are one pixel wide. The dots are spheres.
+  - The label is a `Sprite` with a `CanvasTexture`: a dark pill with white text from
+    `formatLength`. Use `sizeAttenuation: false`, so the label keeps its size on screen.
+  - Every material has `depthTest: false` and a high `renderOrder`, so the scan never hides a
+    line.
+- In `ScenePanel.tsx`, add the props `initialSpaceId` and `renderTools(ctx)`. The panel opens
+  `initialSpaceId` first and draws what `renderTools` returns under its object list.
+- Fill `app/web/src/signage/SignagePanel.tsx`. It renders `ScenePanel` with `initialSpaceId:
+  EXTERIOR_SPACE_ID` and these controls.
+  - **Place sign** arms `sign_panel` for a wall click, through the flow in
+    [b5](phase-b5-surface-anchors.md).
+  - Width and height inputs in metres, in steps of 0.1. A change calls `sync.resize` after 300 ms.
+  - A **Measurements** switch. It shows the overlay for the selected sign and starts on.
+  - A readout from `signage_measure`, called again after each scene change: width, height, area,
+    bottom and top above the ground, and the lift's label and working height. A `null` height
+    reads "Ground not found".
+  - **Place lift** arms the chosen lift for a floor click below the sign. Cut this button first if
+    time runs short.
+- Keep the CSS in `app/web/src/signage/signage.css`. Controls use the tokens in `design.md`.
 
 ## Data structures
 
-- `ElevationProps`: `{facade: {lengthM, heightM}, sign: {widthM, heightM, mountHeightM} | null}`.
-- `SignPlan` and `SignDetail`: the `signage_plan` result and detail from b8, declared in
-  `app/web/src/signage/types.ts`. The web has no `zod`, and `callOp` trusts the named type.
+- `Measure`: `{id: 'width' | 'height' | 'clearance', a: [x, y, z], b: [x, y, z], lengthM}`.
+- `SceneToolsContext`: `{handle, spaceId, objects, selectedId, select(id), arm(equipmentId),
+  sync}`. `sync` is the `SceneSync` from [b4](phase-b4-vehicles.md).
+- `MeasureOverlay`: `{show(measures), hide(), dispose()}`.
 
 ## Verification
 
-1. Run `pnpm --dir app/web typecheck` and `pnpm --dir app/web test`.
+1. Run `pnpm --dir app/web typecheck` and `pnpm --dir app/web test`. `signMeasure.test.ts` checks
+   a 2.4 by 0.6 m sign at `y = 4` over `groundY = 0.5` that faces +X (lengths 2.4, 0.6 and 3.2),
+   the same sign without `groundY` (two measures), and `formatLength` on 2.4, 0.3 and 3.05.
 2. Start the API on port 8789 and the web app on port 5175. Record both PIDs.
-3. Open `http://localhost:5175`, select `commercial-248243` and open Signage. Take a screenshot
-   at 1440 by 900, save it to your scratchpad and check it against `docs/design/design.md`. The
-   sign shows on the building and on the elevation, and "Subject to overlays" is visible.
-4. Stop both PIDs. Run the ownership check with `--lane lane-b`.
-5. Stop here. The main session hands the signage diff to a reviewer subagent.
+3. Open `http://localhost:5175`, select a property and open Signage. Hang a sign on the outside
+   wall and set it to 3 by 1 m. Use `browser_take_screenshot` only, at 1440 by 900.
+4. Take one screenshot with Measurements on and one with it off. With it on, three labelled
+   lines show, and the readout names a lift. Check both against `docs/design/design.md`.
+5. Stop both PIDs. Run the ownership check with `--lane lane-b`.
+6. Stop here. The main session hands the signage diff to a reviewer subagent.

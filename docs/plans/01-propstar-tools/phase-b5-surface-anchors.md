@@ -30,8 +30,8 @@ on a wall, and a model can hang one through `scene_place` with a wall anchor.
 - In `app/server/src/ops/scene/index.ts`, `scene_place` throws `invalid_input` when the anchor
   kind differs from the row's `mount`, or when a `wall` row has no anchor. The hint names the
   kind the row needs.
-- If time runs short, cut the wall anchors first, as the overview's cut list says. Keep floor
-  placement by click.
+- Do not cut the wall anchor. The Signage tool in [b6](phase-b6-sign-size.md) to
+  [b9](phase-b9-signage-panel.md) hangs its sign through it.
 
 ## Data structures
 

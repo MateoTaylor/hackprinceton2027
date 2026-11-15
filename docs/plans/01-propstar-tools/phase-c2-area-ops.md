@@ -7,7 +7,7 @@ Lane C, area track, phase 2. It depends on [c1](phase-c1-area-extract.md). It us
 ## Goal
 
 A model asks what is near a property and gets places, counts and the street it faces. After this
-phase both area ops answer from the local extract, and `signage_plan` reads `frontingStreet`.
+phase both area ops answer from the local extract.
 
 ## Changes
 
@@ -41,7 +41,7 @@ phase both area ops answer from the local extract, and `signage_plan` reads `fro
   bearingDeg}], total, radiusM, source, assumptions}`. `detail.places` adds `lat, lon`.
 - `area_summary` input `{propertyId, radiusM = 800}`. Result: `{counts: Record<AreaGroup, number>,
   nearest: [{group, name, distanceM}], frontingStreet, source, assumptions}`.
-- `FrontingStreet`: `{name, roadClass, bearingDeg, distanceM} | null`. Lane B reads these names.
+- `FrontingStreet`: `{name, roadClass, bearingDeg, distanceM} | null`.
 
 ## Verification
 

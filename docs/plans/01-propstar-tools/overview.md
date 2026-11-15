@@ -28,8 +28,10 @@ The seven tools:
 4. **Scene.** Objects placed and driven inside a Matterport scan, such as a forklift on a factory
    floor, a scissor lift outside a building and a model mounted on a facade. A scene holds at
    most 30 objects.
-5. **Signage.** What exterior sign a building may carry, computed from frontage, zone and mounting
-   height, with a blank sign drawn on the facade and the lift class needed to install it.
+5. **Signage.** A blank sign hung on a building's outside wall in its Matterport scan. Measurement
+   lines switch on and off, in the style of Matterport's own measurement mode, and show the
+   sign's width, its height and its height above the ground. The tool also names the lift class
+   that reaches the sign. Fahim cut the sign rules on 2026-11-15, so it checks no city code.
 6. **Features.** Vexcel property attributes such as pool, roof condition, vehicles and tree cover.
 7. **Edit.** Remove or retexture an object in a scan's panoramas from a text command, such as
    "remove the floor lamp" or "make the countertop white marble". The edit runs in Mateo's scan
@@ -59,13 +61,15 @@ In scope:
   `tools/edit_api/proxy.ts`, mounted in the Hono server.
 - The two public Matterport demo spaces (`L3sdz2m7jxp`, a manufacturing plant, and `18TRzZNyxvU`, a
   commercial office) for the Scene tool, opened in the browser with the team's Showcase SDK key.
+- The kit scan `2rPahZzW6H7`, which shows a building from outside, for the Signage tool.
+  [b1](phase-b1-scene-host.md) checks that the viewer opens it and names the fallback.
 - Generated layouts for storeys that have no scan, marked `inferred` everywhere they appear.
 
 Out of scope:
 
 - The deep agent, its subagents and its skills. The API is shaped for it, and
   [Agent adapter](#agent-adapter-later-plan) says how it will connect.
-- Houston sign rules. `propstar.duckdb` holds 50 properties, all in Los Angeles.
+- Sign rules, zoning and permits, for any city. The Signage tool measures a placeholder sign.
 - The scan edit pipeline. It stays in `tools/edit_agent/` on Mateo's PC. This plan calls it
   through `tools/edit_api/` and edits neither folder.
 - Drive-time routing on streets. Walking distance is a straight-line estimate.
@@ -121,7 +125,7 @@ output schema and an effect of `read` or `write`.
 | `features_get` | read | Vexcel attributes of the property |
 | `equipment_list` | read | The lifts and vehicles that can be placed, with dimensions |
 | `lift_choose` | read | The smallest lift class that reaches a height and outreach |
-| `signage_plan` | read | Allowed signs, a blank sign on the facade and the lift to install it |
+| `signage_measure` | read | The size of a placed sign, its height above the ground and the lift that reaches it |
 | `scene_get` | read | The objects placed in a scan |
 | `scene_place` | write | Place an object in a scan at a pose or an anchor |
 | `scene_move` | write | Move or rotate a placed object |
@@ -142,15 +146,14 @@ The rules that make the API easy for a model to use:
   `result`.
 - **Units in names.** `widthM`, `heightFt`, `distanceM`, `yawDeg`. No bare numbers.
 - **Provenance on every derived value.** `source` is one of `costar`, `vexcel`, `scan`, `mesh`,
-  `overture`, `city`, `maker` or `inferred`. Inferred values carry `confidence` from 0 to 1.
+  `overture`, `maker` or `inferred`. Inferred values carry `confidence` from 0 to 1.
 - **Stated assumptions.** Each result lists the assumptions the op made, in plain sentences.
 - **Stable ids.** Property ids are the `Property.id` strings the map already uses.
 - **Same input, same output.** Generators take a seed derived from the input. Results are cached
   on disk by input hash.
 - **Ops compose through `ctx.call`.** An op that needs another op's answer calls it by name
   through `OpContext.call`. It never imports another lane's folder. `route_solve` calls
-  `building_get` this way, and `signage_plan` calls `building_get`, `area_summary` and
-  `lift_choose`.
+  `building_get` this way, and `signage_measure` calls `lift_choose`.
 
 ## Alternatives
 
@@ -224,9 +227,10 @@ it, because the look track draws invented fixtures until l5.
 
 - [b1 Scene host](phase-b1-scene-host.md), [b2 Scene document](phase-b2-scene-document.md),
   [b3 Collider and drive](phase-b3-collider-drive.md), [b4 Vehicles](phase-b4-vehicles.md),
-  [b5 Surface anchors](phase-b5-surface-anchors.md), [b6 Signage rules](phase-b6-signage-rules.md),
-  [b7 Lift choice](phase-b7-lift-choice.md), [b8 `signage_plan`](phase-b8-signage-plan.md),
-  [b9 Signage panel](phase-b9-signage-panel.md)
+  [b5 Surface anchors](phase-b5-surface-anchors.md)
+- Signage, which runs inside the Scene viewer and needs no other lane:
+  [b6 Sign size and ground](phase-b6-sign-size.md), [b7 Lift choice](phase-b7-lift-choice.md),
+  [b8 `signage_measure`](phase-b8-signage-measure.md), [b9 Signage panel](phase-b9-signage-panel.md)
 
 **Lane C, area, features and edit**
 
@@ -238,8 +242,8 @@ it, because the look track draws invented fixtures until l5.
   [Before kickoff](#before-kickoff). With the link down, the lane still builds the client, the
   ops and the panel against a fake.
 
-What to cut first if time runs short, in this order: r5, c5, l4's legend, b5's facade anchors, a6
-for scanned rooms. The demo still works without each of them.
+What to cut first if time runs short, in this order: r5, c5, l4's legend, b9's Place lift button,
+a6 for scanned rooms. The demo still works without each of them.
 
 ## Verification
 
@@ -308,15 +312,14 @@ an edit holds the GPU on Mateo's PC for up to 9 minutes. A tool call is one
 
 ## Before kickoff
 
-These steps need Fahim. Foundation cannot finish [f6](phase-f6-server-scaffolds.md) without the
-first one, and the Edit tool cannot reach the PC without the others.
+The first step is done. The Edit tool cannot reach the PC without the others, and Fahim parked
+them on 2026-11-15. The Edit lane builds against a fake until they are done.
 
-1. **Merge `origin/main`.** The local `main` is 12 commits behind and 1 ahead. Mateo's commits add
-   `tools/edit_api/`, new key names in `.env.example` and a longer `AGENT_COMMS.md`. The Protocol
-   says to keep both sides' entries on a conflict in that file. The main session merges only on
-   Fahim's word.
-2. **Add the two edit keys.** Fahim puts `EDIT_API_URL` and `EDIT_API_TOKEN` from Mateo into the
-   repo-root `.env`. The names are already in `.env.example` on `origin/main`.
+1. **Merge `origin/main`.** Done on 2026-11-15. The branch `fahim-agent/propstar-tools` holds the
+   merge, so `tools/edit_api/` is in the tree and foundation can finish
+   [f6](phase-f6-server-scaffolds.md). The local `main` is untouched.
+2. **Add the two edit keys.** `EDIT_API_TOKEN` is in the repo-root `.env`. `EDIT_API_URL` is still
+   missing. It is the address of Mateo's PC, and Mateo gives it privately.
 3. **Open the link.** The laptop joins the campus VPN, and Mateo opens the firewall on his PC for
    it. His log says no call from this laptop was checked yet. [e1](phase-e1-edit-link.md) checks
    the link.
@@ -335,18 +338,14 @@ These need Fahim's answer. Each has a default, so no lane blocks on them.
 2. **Furniture in scanned rooms.** Default is room-label templates, which sends no image off the
    laptop. The alternative sends panorama crops to the hosted model that Proppy already uses for
    aerial images. That is a data decision, not a technical one.
-3. **Houston sign rules.** Default is to defer them while the database is Los Angeles only.
-4. **`tools/world/`.** The recommendation is to delete it after [b4](phase-b4-vehicles.md) ports
+3. **`tools/world/`.** The recommendation is to delete it after [b4](phase-b4-vehicles.md) ports
    the parts the app needs, because it is logged as a throwaway. No phase deletes it. It stays
    until Fahim says so.
-5. **Zoning lookup.** Default is to download whole grid cells of about 2 km (0.02°) that contain
-   each property, deduplicated, and join them locally. The city's server sees cell corners. It
-   never sees an address or a property coordinate.
-6. **Street basemap.** Default is OpenFreeMap tiles loaded by the browser, which is the one
+4. **Street basemap.** Default is OpenFreeMap tiles loaded by the browser, which is the one
    third-party request in the app. The alternative is no street basemap, with places drawn over
    the Vexcel imagery.
-7. **Standing permission to commit per phase**, as described under Commits.
-8. **Scans that are not on the edit PC.** The edit API edits only a scan that Mateo's PC has
+5. **Standing permission to commit per phase**, as described under Commits.
+6. **Scans that are not on the edit PC.** The edit API edits only a scan that Mateo's PC has
    already downloaded. Default is to add no op for the download and to ask Mateo to download the
    scans for the demo. The alternative is a write op, `edit_fetch`, that calls the API's
    `POST /places/{model_id}/fetch`. It downloads panoramas and never unlocks a bundle.

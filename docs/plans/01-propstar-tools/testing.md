@@ -108,7 +108,7 @@ node --env-file=.env tools/edit_api/client_test.ts --check
 - A key, or any line of `.env`. That includes the values of `EDIT_API_URL` and `EDIT_API_TOKEN`.
 - A CoStar record, a broker or contact name, or an op response body.
 - A signed Matterport URL. `data/<scan>/raw_locations.json` holds them.
-- Mesh geometry from the two demo spaces.
+- Mesh geometry from a demo space or a kit scan.
 - A scan picture or an edited scan picture from the edit API. It stays in the browser's memory.
 
 ## Check ownership
@@ -132,11 +132,13 @@ Run this by hand once all three lanes land, on ports 8787 and 5173.
    entrance, each door shows a tick or a cross, and hover shows the confidence.
 4. Open **Area**. Switch to the street basemap. Places within 800 m appear by category.
 5. Open **Features**. Vexcel attributes appear with their capture date.
-6. Open **Signage**. The facade shows a blank sign, the allowed area with its section numbers and
-   the lift class, with "subject to overlays".
+6. Open **Signage**. The scan shows a building from outside. Click the wall to hang a blank
+   sign, set its size and switch **Measurements** on. Three labelled lines show the width, the
+   height and the height above the ground, and the panel names the lift class.
 7. Open **Scene** on the manufacturing demo space. Place a scissor lift and drive it with WASD.
 8. On the campus VPN, open **Edit** on a property whose scan is on the edit PC. Look at an
    object, type "remove the floor lamp" and wait. The panel shows the queue, the steps and the
    panorama before and after.
-9. Run `node docs/plans/01-propstar-tools/probe-op.mjs signage_plan propertyId=commercial-248243`.
-   It prints `200 ok`, which shows that an agent can make the same call.
+9. Run `node docs/plans/01-propstar-tools/probe-op.mjs scene_get spaceId=<the Signage space>
+   --show result.objects.0.id`, then `signage_measure` with that `spaceId` and `objectId`. It
+   prints `200 ok`, which shows that an agent can read the same sign.

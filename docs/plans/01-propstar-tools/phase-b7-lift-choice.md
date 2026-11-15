@@ -7,8 +7,8 @@ Lane B, signage track, phase 2. It depends on [f4](phase-f4-equipment.md) and us
 ## Goal
 
 A model asks which lift reaches a height and gets the smallest class that does, with the margin
-and the next options. After this phase `lift_choose` answers, and [b8](phase-b8-signage-plan.md)
-can name the lift that installs a sign.
+and the next options. After this phase `lift_choose` answers, and
+[b8](phase-b8-signage-measure.md) can name the lift that reaches a sign.
 
 ## Changes
 
