@@ -26,8 +26,9 @@ The seven tools:
 3. **Area.** What a free map service would tell you about the surroundings: places, streets and
    walking distance. This tool integrates open data. It does not build a map product.
 4. **Scene.** Objects placed and driven inside a Matterport scan, such as a forklift on a factory
-   floor, a scissor lift outside a building and a model mounted on a facade. A scene holds at
-   most 30 objects.
+   floor, a scissor lift outside a building and a model mounted on a facade. An Insert tab lists
+   what can be placed. A forklift, a scissor lift and a wheelchair use licensed 3D models where
+   one is in the repo. A scene holds at most 30 objects.
 5. **Signage.** A blank sign hung on a building's outside wall in its Matterport scan. Measurement
    lines switch on and off, in the style of Matterport's own measurement mode, and show the
    sign's width, its height and its height above the ground. The tool also names the lift class

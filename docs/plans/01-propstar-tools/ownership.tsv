@@ -49,6 +49,7 @@ app/web/src/route/	lane-a	The route overlay and the Routing panel
 app/web/public/kit/	lane-a	CC0 furniture models with their licence file
 app/web/src/scene/	lane-b	The Showcase host, the collider, the vehicles, the sign and its measurement lines
 app/web/src/signage/	lane-b	The Signage panel
+app/web/public/models/	lane-b	Licensed vehicle models with their licence file
 app/web/src/area/	lane-c	The places store and the Area panel
 app/web/src/features/	lane-c	The Features panel
 app/web/src/edit/	lane-c	The panorama cube and the Edit panel
