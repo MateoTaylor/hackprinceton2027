@@ -190,8 +190,7 @@ The rules that make the API easy for a model to use:
 - **show-me-your-work** for every lane. Each lane writes its own decision log, so no two agents
   append to one file. The logs are `decisions-lane-a.tsv`, `decisions-lane-b.tsv` and
   `decisions-lane-c.tsv` in this folder.
-- `/deslop` before each commit. `/no-comments` is cut to save time, so follow the Comments rule
-  under Implementation guidance as you write. **unslop** and **technical-writing** for Log
+- `/deslop` and `/no-comments` before each commit. **unslop** and **technical-writing** for Log
   entries and commit messages.
 - The LangChain skills (`langchain-skills:deep-agents-core`) apply to the later agent plan, not
   to this one.
