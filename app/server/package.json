@@ -8,6 +8,7 @@
     "test": "node --test \"src/**/*.test.ts\"",
     "build:data": "node --env-file=../../.env pipeline/build.ts",
     "build:area": "node pipeline/area.ts",
+    "build:search": "node pipeline/search.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

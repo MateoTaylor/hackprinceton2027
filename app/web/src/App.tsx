@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PropertyKind } from '../../shared/property'
 import { fetchProperties } from './api'
+import { matches, NO_FACETS, type Facets } from './filter'
 import { FlyThrough } from './FlyThrough'
 import { Header } from './Header'
 import { MapView } from './MapView'
@@ -29,6 +30,8 @@ export function App() {
   const [sort, setSort] = useState<SortKey>('name')
   const [saved, setSaved] = useState<ReadonlySet<string>>(new Set())
   const [savedOnly, setSavedOnly] = useState(false)
+  const [query, setQuery] = useState('')
+  const [facets, setFacets] = useState<Facets>(NO_FACETS)
   const [proppyOpen, setProppyOpen] = useState(false)
   const [frameRequest, setFrameRequest] = useState(0)
   const [pins, setPins] = useState<Pins>(NO_PINS)
@@ -48,9 +51,9 @@ export function App() {
   const visible = useMemo(
     () =>
       all
-        .filter((p) => (!kind || p.kind === kind) && (!type || p.typeLabel === type) && (!savedOnly || saved.has(p.id)))
+        .filter((p) => matches(p, { query, kind, type, savedOnly, saved, facets }))
         .sort(SORTS[sort].compare),
-    [all, kind, type, savedOnly, saved, sort],
+    [all, query, kind, type, savedOnly, saved, facets, sort],
   )
 
   const selected = view.kind === 'browse' ? null : (all.find((p) => p.id === view.id) ?? null)
@@ -111,10 +114,16 @@ export function App() {
           onSelect={select}
           kind={kind}
           onKind={setKind}
+          query={query}
+          onQuery={setQuery}
+          facets={facets}
+          onFacets={setFacets}
           saved={saved}
           onToggleSaved={toggleSaved}
           onRetry={() => setReload((n) => n + 1)}
           onClearFilters={() => {
+            setQuery('')
+            setFacets(NO_FACETS)
             setKind(null)
             setType(null)
             setSavedOnly(false)

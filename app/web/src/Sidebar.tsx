@@ -1,6 +1,7 @@
-import { Bookmark, Box } from 'lucide-react'
+import { Bookmark, Box, Search, X } from 'lucide-react'
 import { memo, useEffect, useRef } from 'react'
 import type { Property, PropertyKind } from '../../shared/property'
+import { FACET_KEYS, FACETS, type Facets } from './filter'
 import { metaLine, specLine } from './property'
 import { cancelPrefetch, prefetch } from './obliques'
 import { PropertyPhoto } from './PropertyPhoto'
@@ -13,6 +14,9 @@ const KINDS: { kind: PropertyKind | null; label: string }[] = [
   { kind: 'residential', label: 'Residential' },
 ]
 
+// Options render in the OS menu, so they need the surface colours even when the chip is inverted.
+const OPTION = { background: 'var(--color-surface)', color: 'var(--color-text)' }
+
 type Props = {
   listing: Listing
   visible: Property[]
@@ -20,13 +24,17 @@ type Props = {
   onSelect: (id: string) => void
   kind: PropertyKind | null
   onKind: (kind: PropertyKind | null) => void
+  query: string
+  onQuery: (query: string) => void
+  facets: Facets
+  onFacets: (facets: Facets) => void
   saved: ReadonlySet<string>
   onToggleSaved: (id: string) => void
   onRetry: () => void
   onClearFilters: () => void
 }
 
-export function Sidebar({ listing, visible, selectedId, onSelect, kind, onKind, saved, onToggleSaved, onRetry, onClearFilters }: Props) {
+export function Sidebar({ listing, visible, selectedId, onSelect, kind, onKind, query, onQuery, facets, onFacets, saved, onToggleSaved, onRetry, onClearFilters }: Props) {
   const title =
     listing.status === 'ready' ? `${visible.length} ${visible.length === 1 ? 'property' : 'properties'}` : 'Properties'
 
@@ -34,12 +42,54 @@ export function Sidebar({ listing, visible, selectedId, onSelect, kind, onKind, 
     <aside className="sidebar">
       <div className="sidebar-head">
         <h1 className="sidebar-title">{title}</h1>
+        <label className="composer-input" style={{ height: 40, paddingRight: 4 }}>
+          <Search size={16} className="muted" aria-hidden />
+          <input
+            type="text"
+            role="searchbox"
+            aria-label="Search by name, address or type"
+            placeholder="Search name, address or type"
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && onQuery('')}
+          />
+          {query && (
+            <button className="circle" style={{ width: 32, height: 32 }} aria-label="Clear search" onClick={() => onQuery('')}>
+              <X size={14} />
+            </button>
+          )}
+        </label>
         <div className="chip-row">
           {KINDS.map((k) => (
             <button key={k.label} className="chip" aria-pressed={kind === k.kind} onClick={() => onKind(k.kind)}>
               {k.label}
             </button>
           ))}
+        </div>
+        <div className="chip-row">
+          {FACET_KEYS.map((key) => {
+            const facet = FACETS[key]
+            const index = facets[key]
+            return (
+              <select
+                key={key}
+                className="chip"
+                style={{ appearance: 'none', border: 0, cursor: 'pointer', ...(index !== null && { background: 'var(--color-text)', color: 'var(--color-bg)' }) }}
+                aria-label={facet.label}
+                value={index ?? ''}
+                onChange={(e) => onFacets({ ...facets, [key]: e.target.value === '' ? null : Number(e.target.value) })}
+              >
+                <option value="" style={OPTION}>
+                  {facet.any}
+                </option>
+                {facet.bands.map((band, i) => (
+                  <option key={band.label} value={i} style={OPTION}>
+                    {band.label}
+                  </option>
+                ))}
+              </select>
+            )
+          })}
         </div>
       </div>
 
