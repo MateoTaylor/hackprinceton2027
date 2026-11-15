@@ -20,7 +20,7 @@ test('apply adds one to version per change and sends events in order to every li
   stop()
   assert.equal(store.attached(), 1)
   store.apply({ highlights: [{ propertyId: 'p1', score: 80 }] }, 'tab-1', { lat: 1, lon: 2, zoom: 3 })
-  store.publishWrite('scene_place', 'tab-1')
+  store.publishWrite({ op: 'signage_place', by: 'tab-1', propertyId: 'p1', result: {} })
 
   assert.equal(store.get().version, 2)
   assert.deepEqual(store.get().screen, { kind: 'selected', propertyId: 'p1' })
@@ -29,7 +29,7 @@ test('apply adds one to version per change and sends events in order to every li
     [
       ['view', 1, 'op', undefined],
       ['view', 2, 'tab-1', { lat: 1, lon: 2, zoom: 3 }],
-      ['write', 'scene_place', 'tab-1'],
+      ['write', 'signage_place', 'tab-1'],
     ],
   )
   assert.equal(b.length, 1)
@@ -114,13 +114,14 @@ test('GET /api/events sends the current view first, then each change', async () 
   )
 })
 
-test('a write op that answers ok publishes a write event by the caller, and a read op does not', async () => {
-  const op = (name: string, effect: Op['effect']) => defineOp({ name, summary: 'Answers ok.', effect, input: z.object({}), output: z.object({}) })(async () => ({ result: {} }))
+test('a write op that answers ok publishes a write event with its caller, property and result, and a read op does not', async () => {
+  const op = (name: string, effect: Op['effect']) =>
+    defineOp({ name, summary: 'Answers ok.', effect, input: z.object({ propertyId: z.string() }), output: z.object({ saved: z.boolean() }) })(async () => ({ result: { saved: true } }))
   const { app, view } = appWith([op('thing_save', 'write'), op('thing_get', 'read')])
   const events: ServerEvent[] = []
   view.subscribe((e) => events.push(e))
-  const post = (name: string) => app.request(`/api/ops/${name}`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json', 'x-propstar-client': 'tab-9' } })
+  const post = (name: string) => app.request(`/api/ops/${name}`, { method: 'POST', body: '{"propertyId":"p7"}', headers: { 'content-type': 'application/json', 'x-propstar-client': 'tab-9' } })
   assert.equal((await post('thing_get')).status, 200)
   assert.equal((await post('thing_save')).status, 200)
-  assert.deepEqual(events, [{ type: 'write', op: 'thing_save', by: 'tab-9' }])
+  assert.deepEqual(events, [{ type: 'write', op: 'thing_save', by: 'tab-9', propertyId: 'p7', result: { saved: true } }])
 })

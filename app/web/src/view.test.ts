@@ -16,7 +16,7 @@ test('a view event by this tab is dropped and one by another writer is adopted w
   const after = onViewEvent(next, { type: 'view', view: { ...opened, version: 4 }, by: 'server' }, 'me')
   assert.equal(after.view.version, 4)
   assert.equal(after.move, next.move, 'an event without a move keeps the last request, so it is not applied again')
-  assert.equal(onViewEvent(after, { type: 'write', op: 'scene_place', by: 'op' }, 'me'), after)
+  assert.equal(onViewEvent(after, { type: 'write', op: 'signage_place', by: 'op', propertyId: 'p1', result: null }, 'me'), after)
 })
 
 test('two reports inside 250 ms send one merged request', async () => {

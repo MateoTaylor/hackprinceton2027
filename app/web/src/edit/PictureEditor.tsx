@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { PictureEdit, PictureEditList } from '../../../server/src/ops/edit/index.ts'
 import { OpStatus, useOp } from '../ToolPanel'
 import type { PanelProps } from '../tools'
+import { useWrites } from '../view'
 import './edit.css'
 
 type Tool = PictureEdit['tool']
@@ -12,6 +13,20 @@ const WORDS: Record<Tool, { run: string; running: string; placeholder: string }>
   erase: { run: 'Erase', running: 'Erasing', placeholder: 'What should disappear?' },
   remodel: { run: 'Remodel', running: 'Remodelling', placeholder: 'What should change, and to what?' },
 }
+
+// True when a write event's result is a picture edit of `tool`. The server checked the result
+// against the op's output schema; this keeps another tool's edit out of this panel.
+const isPictureEdit = (result: unknown, tool: Tool): result is PictureEdit =>
+  typeof result === 'object' &&
+  result !== null &&
+  'tool' in result &&
+  result.tool === tool &&
+  'editId' in result &&
+  typeof result.editId === 'string' &&
+  'command' in result &&
+  typeof result.command === 'string' &&
+  'afterUrl' in result &&
+  typeof result.afterUrl === 'string'
 
 // The picture shows the running state at least this long, so a prepared edit reads as a run.
 const RUN_MS = 1400
@@ -29,13 +44,22 @@ export function PictureEditor({ property, tool }: PanelProps & { tool: Tool }) {
   return <EditorView propertyId={property.id} tool={tool} edits={list.result.edits} />
 }
 
-type Run = { command: string; count: number }
+// A command this panel runs, or an edit Proppy or another tab applied, shown as it came.
+type Run = { count: number } & ({ command: string } | { heard: PictureEdit })
 
 function EditorView({ propertyId, tool, edits }: { propertyId: string; tool: Tool; edits: Listed[] }) {
   const [command, setCommand] = useState('')
   const [picked, setPicked] = useState(edits[0])
   const [run, setRun] = useState<Run | null>(null)
   const words = WORDS[tool]
+
+  useWrites((event) => {
+    if (event.op !== 'picture_edit_apply' || event.propertyId !== propertyId || !isPictureEdit(event.result, tool)) return
+    const heard = event.result
+    setCommand(heard.command)
+    setPicked(edits.find(({ editId }) => editId === heard.editId) ?? picked)
+    setRun({ heard, count: (run?.count ?? 0) + 1 })
+  })
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -50,7 +74,9 @@ function EditorView({ propertyId, tool, edits }: { propertyId: string; tool: Too
 
   return (
     <div className="picture-editor">
-      {run ? (
+      {run && 'heard' in run ? (
+        <Applied key={run.count} edit={run.heard} />
+      ) : run ? (
         <RunResult key={run.count} propertyId={propertyId} tool={tool} command={run.command} before={picked} running={words.running} />
       ) : (
         <Frame caption={picked.where}>
@@ -96,19 +122,7 @@ function RunResult({ propertyId, tool, command, before, running }: RunProps) {
     return () => clearTimeout(timer)
   }, [])
 
-  if (applied.status === 'ready' && waited) {
-    const { result } = applied
-    return (
-      <>
-        <Frame caption={result.where}>
-          <Compare beforeUrl={result.beforeUrl} afterUrl={result.afterUrl} />
-        </Frame>
-        <p className="picture-note">
-          {result.command}. {result.assumptions[0]}
-        </p>
-      </>
-    )
-  }
+  if (applied.status === 'ready' && waited) return <Applied edit={applied.result} />
 
   return (
     <>
@@ -122,6 +136,20 @@ function RunResult({ propertyId, tool, command, before, running }: RunProps) {
         )}
       </Frame>
       {applied.status === 'error' && <OpStatus state={applied} />}
+    </>
+  )
+}
+
+// One applied edit as a before and after compare, with the command and the edit's first assumption.
+function Applied({ edit }: { edit: PictureEdit }) {
+  return (
+    <>
+      <Frame caption={edit.where}>
+        <Compare beforeUrl={edit.beforeUrl} afterUrl={edit.afterUrl} />
+      </Frame>
+      <p className="picture-note">
+        {edit.command}. {edit.assumptions[0]}
+      </p>
     </>
   )
 }

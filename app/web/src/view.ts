@@ -16,6 +16,24 @@ export const INITIAL_VIEW: View = {
 
 const REPORT_MS = 250
 
+// Hears every write op by another writer. `useView` feeds it, and panels listen through `useWrites`.
+const writeListeners = new Set<(event: WriteEvent) => void>()
+
+// Calls `listener` on each write op by another tab, Proppy or a script, while the component is
+// mounted. The latest `listener` is the one called, so it may close over fresh state:
+//   useWrites((event) => { if (event.propertyId === property.id && event.op.startsWith('signage_')) reload() })
+export function useWrites(listener: (event: WriteEvent) => void) {
+  const latest = useRef(listener)
+  latest.current = listener
+  useEffect(() => {
+    const call = (event: WriteEvent) => latest.current(event)
+    writeListeners.add(call)
+    return () => {
+      writeListeners.delete(call)
+    }
+  }, [])
+}
+
 // The last move request with a counter, so the map applies each request once.
 export type MoveRequest = { seq: number; request: Move }
 
@@ -60,11 +78,9 @@ const put = (report: ViewReport) =>
 //   report(change)      reports the camera, bounds or filter, merged into one request per 250 ms
 //   move                the last move request, for the map to apply once
 //   requestMove(move)   asks the map to move from this tab, as a view op would
-//   onWrite(listener)   hears write ops by other writers, and returns the unsubscribe
 // EventSource reconnects on its own, and the first event after a reconnect is the server's view.
 export function useView() {
   const [state, setState] = useState<State>({ view: INITIAL_VIEW, move: null })
-  const writeListeners = useRef(new Set<(event: WriteEvent) => void>())
   const [reporter] = useState(() => createReporter(put))
 
   useEffect(() => {
@@ -72,7 +88,7 @@ export function useView() {
     source.onmessage = (message: MessageEvent<string>) => {
       const event: ServerEvent = JSON.parse(message.data)
       if (event.type === 'write') {
-        if (event.by !== clientId) for (const listener of writeListeners.current) listener(event)
+        if (event.by !== clientId) for (const listener of writeListeners) listener(event)
         return
       }
       setState((s) => onViewEvent(s, event, clientId))
@@ -90,12 +106,5 @@ export function useView() {
 
   const requestMove = useCallback((request: Move) => setState((s) => ({ ...s, move: { seq: (s.move?.seq ?? 0) + 1, request } })), [])
 
-  const onWrite = useCallback((listener: (event: WriteEvent) => void) => {
-    writeListeners.current.add(listener)
-    return () => {
-      writeListeners.current.delete(listener)
-    }
-  }, [])
-
-  return { view: state.view, move: state.move, setScreen, report: reporter.report, requestMove, onWrite }
+  return { view: state.view, move: state.move, setScreen, report: reporter.report, requestMove }
 }

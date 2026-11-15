@@ -3,6 +3,7 @@ import { bodyLimit } from 'hono/body-limit'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { OpEnvelope, OpErrorCode } from './op.ts'
 import type { Registry } from './registry.ts'
+import type { WriteEvent } from '../../../shared/view.ts'
 import { clientOf } from '../view/routes.ts'
 
 const BODY_MAX_BYTES = 64 * 1024
@@ -20,10 +21,11 @@ const STATUS = {
 // Serves a registry over HTTP under `prefix`. GET <prefix> lists its ops. POST <prefix>/:name runs
 // one with the JSON object body as its input and answers with the envelope. `?detail=full` adds
 // `detail`. The status follows the error code, and 200 means `ok`. `onWrite` runs after a `write` op
-// answers `ok`, with the op's name and the caller's `x-propstar-client` header, or `unknown`.
+// answers `ok`, with the op's name, the caller's `x-propstar-client` header or `unknown`, the
+// input's `propertyId` and the op's result.
 //   mountOps(app, publicRegistry, '/api/ops', view.publishWrite)
 //   mountOps(app, proppyRegistry, '/api/proppy/ops')
-export function mountOps(app: Hono, registry: Registry, prefix: string, onWrite: (name: string, by: string) => void = () => {}) {
+export function mountOps(app: Hono, registry: Registry, prefix: string, onWrite: (write: Omit<WriteEvent, 'type'>) => void = () => {}) {
   const badBody = (message: string): OpEnvelope => ({
     ok: false,
     error: { code: 'invalid_input', message, hint: `Send the input as one JSON object, as GET ${prefix} describes it.` },
@@ -47,7 +49,10 @@ export function mountOps(app: Hono, registry: Registry, prefix: string, onWrite:
         return c.json(badBody('body: The body is not JSON.'), STATUS.invalid_input)
       }
       const answer = await registry.run(name, input, { detail: c.req.query('detail') === 'full' })
-      if (answer.ok && registry.get(name)?.effect === 'write') onWrite(name, clientOf(c.req.header('x-propstar-client')))
+      if (answer.ok && registry.get(name)?.effect === 'write') {
+        const propertyId = input && typeof input === 'object' && 'propertyId' in input && typeof input.propertyId === 'string' ? input.propertyId : null
+        onWrite({ op: name, by: clientOf(c.req.header('x-propstar-client')), propertyId, result: answer.result })
+      }
       return c.json(answer, answer.ok ? 200 : STATUS[answer.error.code])
     },
   )

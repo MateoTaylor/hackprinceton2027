@@ -70,11 +70,28 @@ test('cameraInFrame projects through the measured camera to the true pixels', ()
   const camera = cameraInFrame(xmp, origin)
   assert.ok(camera)
   assert.equal(camera.widthPx, crop.width)
+  assert.equal(camera.groundFromPhoto, false)
   camera.centreM.forEach((value, i) => assert.ok(Math.abs(value - centre[i]) < 1, `centre axis ${i} is ${value}`))
   const m = camera.matrix
   for (const point of [[0, 0, 0], [20, -15, 0], [20, -15, 55], [-30, 10, 12]] satisfies Vec3[]) {
     const w = m[8] * point[0] + m[9] * point[1] + m[10] * point[2] + m[11]
     const seen = [0, 1].map((row) => (m[row * 4] * point[0] + m[row * 4 + 1] * point[1] + m[row * 4 + 2] * point[2] + m[row * 4 + 3]) / w)
+    const [u, v] = truePixel(point)
+    assert.ok(Math.hypot(seen[0] - (u - crop.x), seen[1] - (v - crop.y)) < 0.5, `point ${point} lands ${seen} not ${[u - crop.x, v - crop.y]}`)
+  }
+})
+
+test('cameraInFrame takes the photo ground as the base when the ground height is unknown', () => {
+  const camera = cameraInFrame(xmp, { ...origin, groundElevationM: 0 })
+  assert.ok(camera)
+  assert.equal(camera.groundFromPhoto, true)
+  assert.ok(Math.abs(camera.centreM[2] - (centre[2] - planeZ)) < 1, `camera height is ${camera.centreM[2]}`)
+  const m = camera.matrix
+  // The frame now starts at the photo ground, so every true point sits planeZ lower in it.
+  for (const point of [[0, 0, planeZ], [20, -15, planeZ + 30]] satisfies Vec3[]) {
+    const p = [point[0], point[1], point[2] - planeZ]
+    const w = m[8] * p[0] + m[9] * p[1] + m[10] * p[2] + m[11]
+    const seen = [0, 1].map((row) => (m[row * 4] * p[0] + m[row * 4 + 1] * p[1] + m[row * 4 + 2] * p[2] + m[row * 4 + 3]) / w)
     const [u, v] = truePixel(point)
     assert.ok(Math.hypot(seen[0] - (u - crop.x), seen[1] - (v - crop.y)) < 0.5, `point ${point} lands ${seen} not ${[u - crop.x, v - crop.y]}`)
   }

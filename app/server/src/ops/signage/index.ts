@@ -329,12 +329,14 @@ const signageCamera = defineOp({
       camera: camera.matrix,
       centreM: camera.centreM,
       source: 'vexcel',
-      confidence: 0.9,
+      confidence: camera.groundFromPhoto ? 0.6 : 0.9,
       assumptions: [
         "The camera stands where Vexcel measured it (camera-pos in the photo's XMP), and its view is fixed by the ground outline Vexcel gives for the photo.",
         'The lens is a pinhole. The XMP lists every distortion term as zero.',
         'The building frame is flat and ignores the curve of the earth, which shifts a point about 1 m in 4 km.',
-        "The ground is flat at the building's base height.",
+        camera.groundFromPhoto
+          ? "Vexcel gave no roof elevation for this building, so its base is taken to be at the photo's ground height (ground-z in the XMP). If the base sits higher or lower, walls and signs are drawn that much off."
+          : "The ground is flat at the building's base height.",
         'Neighbouring buildings and trees are not modelled, so they may hide a wall that looks open.',
       ],
     },

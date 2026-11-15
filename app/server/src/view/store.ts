@@ -1,4 +1,4 @@
-import type { Move, ServerEvent, View } from '../../../shared/view.ts'
+import type { Move, ServerEvent, View, WriteEvent } from '../../../shared/view.ts'
 
 export type ViewChange = Partial<Omit<View, 'version'>>
 
@@ -7,7 +7,7 @@ export interface ViewStore {
   // Merges `change`, adds 1 to `version` and sends a `view` event to every listener.
   apply(change: ViewChange, by: string, move?: Move): View
   // Sends a `write` event naming the write op that just succeeded.
-  publishWrite(op: string, by: string): void
+  publishWrite(write: Omit<WriteEvent, 'type'>): void
   // Returns the function that unsubscribes.
   subscribe(listener: (event: ServerEvent) => void): () => void
   // How many listeners are subscribed, which is the number of open tabs.
@@ -46,7 +46,7 @@ export function createViewStore(initial: View = INITIAL_VIEW): ViewStore {
       send(move ? { type: 'view', view, by, move } : { type: 'view', view, by })
       return view
     },
-    publishWrite: (op, by) => send({ type: 'write', op, by }),
+    publishWrite: (write) => send({ type: 'write', ...write }),
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)

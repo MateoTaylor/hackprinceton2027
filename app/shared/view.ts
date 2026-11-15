@@ -65,11 +65,14 @@ export interface ViewEvent {
   move?: Move
 }
 
-// A write op that just succeeded, so an open panel can reload.
+// A write op that just succeeded, so an open panel can reload. `propertyId` is the op input's, or
+// null when it has none, and `result` is what the op answered.
 export interface WriteEvent {
   type: 'write'
   op: string
   by: string
+  propertyId: string | null
+  result: unknown
 }
 
 // One message on `GET /api/events`, sent as the JSON `data` of an unnamed event.

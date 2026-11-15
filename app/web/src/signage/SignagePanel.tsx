@@ -4,6 +4,7 @@ import type { Direction, ObliqueIndex } from '../../../shared/api'
 import { callOp, getJson, OpCallError } from '../api'
 import { DIRECTIONS } from '../obliques'
 import type { PanelProps } from '../tools'
+import { useWrites } from '../view'
 import { facesCamera, fitOnWall, formatLength, hitWall, project, signCorners, wallPlaneAt, type Camera, type Placement, type Vec2, type Wall } from './facade'
 import './signage.css'
 
@@ -95,6 +96,13 @@ export default function SignagePanel({ property }: PanelProps) {
   }
 
   useEffect(() => {
+  // Proppy, another tab or a script changed the signs: read them again once this panel's own
+  // writes have landed, so the next edit goes out at the new version.
+  useWrites((event) => {
+    if (event.propertyId !== propertyId || !event.op.startsWith('signage_')) return
+    lastWrite.current = lastWrite.current.then(load)
+  })
+
     void load()
     const controller = new AbortController()
     getJson(`/api/oblique/${encodeURIComponent(propertyId)}`, controller.signal).then(
