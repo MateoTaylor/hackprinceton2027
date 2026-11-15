@@ -78,11 +78,24 @@ magic eraser.
 - **Order of work:** remove an object, then retexture (countertop, floor, pillow colour), then add
   objects.
 - **Input side:** finding the thing to edit (from a click, from the current view and a request, or
-  from a request alone) is built by Mateo-Input-Agent in `tools/edit_agent/edit_agent/find/`. It
+  from a request alone) is built by Mateo-Retexture-Agent in `tools/edit_agent/edit_agent/find/`. It
   hands a target to the edit graph. Both agents share the PC's GPU through a file lock.
+- **Retexture:** a `change` request (a new countertop, floor or pillow colour) is built by
+  Mateo-Retexture-Agent in `tools/edit_agent/edit_agent/change/`, with its cases in
+  `tools/edit_agent/cases/retexture.json`. This covers the wording of the instruction, the paste
+  rule and the checks for a change. Mateo-Agent keeps the edit graph and the second pass. One
+  writer per file: where Mateo-Agent's files must call the change code, Mateo-Agent adds the call,
+  switched on `target.kind`. A change is pasted inside the object only and keeps the photo's own
+  shadows and glows. A recolour also keeps the parts that are not the named colour. Every panorama
+  that sees the thing is edited, and each is given an earlier view's result so the new texture
+  matches.
 - **Checks:** the first pass does most of the work. A loose check reports only glaring problems,
   such as a shadow left behind or an object still there, for a second pass. More than two passes is
   the exception.
+- **Web app:** the web app on the other laptop sends edit commands to the edit API in
+  `tools/edit_api/` (Output-Agent, port 2026 on Mateo's PC, reached over the campus VPN with a key)
+  and gets back edited cube faces with their poses. The app's Hono server calls it, so the key stays
+  off the browser.
 - **Not used:** LangSmith, Defurnish and new Matterport API calls.
 
 ## Data and secrets
@@ -96,6 +109,12 @@ magic eraser.
 - Serve files through a server that binds to `localhost` and refuses dotfiles. `python -m
   http.server` from the repo root serves `.env` to the network.
 - The Matterport fetcher never calls `unlockModelBundle`. Nothing in this repo spends money.
+- Mateo decided on 2026-11-14 that Matterport panoramas may be downloaded on demand through
+  `tools/fetch_matterport.py`, for the edit API in `tools/edit_api/`. That covers the panoramas and an
+  already-unlocked MatterPak, and never an unlock.
+- Mateo decided on 2026-11-14 that edited scan pictures may go from his PC to the team's web app
+  laptop over the edit API (`tools/edit_api/`, port 2026, bearer token), and to nowhere else. The
+  API's responses carry scan pictures and geometry only, never CoStar record fields.
 
 ## Where the facts are
 
@@ -106,6 +125,9 @@ magic eraser.
 - `AGENT_COMMS.md` Shared contracts defines the scan manifest, the world frame and the panorama
   face layout.
 - `docs/design/design.md` is the design system. Read it before changing UI or UX.
+- `tools/edit_api/README.md` is the edit API's contract and the web app's way in: the `.env` names
+  `EDIT_API_URL` and `EDIT_API_TOKEN` (both from Mateo, privately), a client test and a proxy route
+  for the Hono server.
 
 ## Working together
 
@@ -116,4 +138,5 @@ magic eraser.
   blocker, or learn something the other agent needs. Small edits inside your lane need no entry.
 - **Change this file when a decision changes**, in the same step as the Log entry.
 - **Verify before you report.** Run the check and show its output. Say which checks you skipped.
-- Commit rules are in the `AGENT_COMMS.md` Protocol. Commit and push only when your human asks.
+- Changes reach `main` through pull requests. The branch and commit rules are in the
+  `AGENT_COMMS.md` Protocol. Commit, push and open a pull request only when your human asks.

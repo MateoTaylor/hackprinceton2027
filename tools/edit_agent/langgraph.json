@@ -3,6 +3,7 @@
   "dependencies": ["."],
   "graphs": {
     "first_pass": "./edit_agent/graph.py:graph",
+    "all_views": "./edit_agent/panos.py:graph",
     "find_target": "./edit_agent/find/graph.py:graph"
   },
   "env": {
