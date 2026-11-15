@@ -42,12 +42,19 @@ function label(path: string[]) {
 
 const round = (n: number) => String(Math.round(n * 100) / 100)
 
-// Every id and number in the arguments, nested objects flattened. Other strings are left out,
-// because the model writes them and the card only vouches for what the op will act on.
+// Long strings are cut here so one argument cannot push the rest of the card out of view.
+const MAX_TEXT = 120
+const clip = (text: string) => (text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT - 1)}…` : text)
+
+// Every argument the op will act on, nested objects flattened. Strings are shown too, cut to
+// MAX_TEXT, because a string such as a sign's text or an edit's command picks the effect, and the
+// user must see it before approving.
 function printable(value: unknown, path: string[]): [string, string][] {
   if (typeof value === 'number' && Number.isFinite(value)) return [[label(path), round(value)]]
-  if (typeof value === 'string' && /id$/i.test(path.at(-1) ?? '')) return [[label(path), value]]
+  if (typeof value === 'string') return [[label(path), clip(value)]]
+  if (typeof value === 'boolean') return [[label(path), value ? 'yes' : 'no']]
   if (Array.isArray(value) && value.length && value.every((n) => typeof n === 'number')) return [[label(path), value.map(round).join(', ')]]
+  if (Array.isArray(value) && value.length && value.every((s) => typeof s === 'string')) return [[label(path), clip(value.join(', '))]]
   if (isRecord(value)) return Object.entries(value).flatMap(([key, inner]) => printable(inner, [...path, key]))
   return []
 }
