@@ -9,7 +9,7 @@ depends on it must check it.
 
 ## The data on this laptop
 
-- `data/propstar/propstar.duckdb` holds 50 curated properties, all in Los Angeles. Tables
+- `data/propstar/propstar.duckdb` holds 200 curated properties, all in Los Angeles. Tables
   `properties` and `scans`. `properties` has `stories`, `building_sf` and `year_built` as raw
   numbers. It has no per-floor data and no slab height.
 - The worked example is `commercial-248243`, an office tower with a podium. Its CoStar record

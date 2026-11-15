@@ -2,7 +2,7 @@
 
 ## Build the property data
 
-`pnpm build:data` picks the 50 Los Angeles properties Propstar shows and writes them to
+`pnpm build:data` picks the 200 Los Angeles properties Propstar shows and writes them to
 `data/propstar/propstar.duckdb`.
 
 ```
@@ -17,8 +17,9 @@ The build reads these inputs:
   Matterport model ids of each property.
 - `MP_TOKEN_ID` and `MP_TOKEN_SECRET` from the repo `.env`, to check which models our token can read.
 
-The build keeps 35 commercial properties in the Los Angeles market, spread across types by the
-`COMMERCIAL_QUOTA` table, and 15 public homes by the `RESIDENTIAL_QUOTA` table. Within each type it
+The build keeps 200 properties in the Los Angeles market, about 140 commercial and 60 public homes,
+spread across types by the `COMMERCIAL_QUOTA` and `RESIDENTIAL_QUOTA` tables. When a type runs
+short, the other types fill the gap, so the total stays at 200. Within each type it
 ranks properties by how many display fields they fill and how many scans they have, and breaks ties
 by id. A property is kept only when at least one of its Matterport models is readable. It keeps at
 most four scans per property.

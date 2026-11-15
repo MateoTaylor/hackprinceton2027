@@ -29,19 +29,19 @@ const MAX_SCANS = 4
 
 // How many properties of each type to keep, in display order. Land has no building to scan.
 const COMMERCIAL_QUOTA: Record<string, { label: string; count: number }> = {
-  Multifamily: { label: 'Multi-Family', count: 12 },
-  Office: { label: 'Office', count: 10 },
-  Industrial: { label: 'Industrial', count: 4 },
-  GeneralRetail: { label: 'Retail', count: 4 },
-  Flex: { label: 'Flex', count: 2 },
-  Hospitality: { label: 'Hotel', count: 1 },
-  Specialty: { label: 'Specialty', count: 1 },
-  Healthcare: { label: 'Healthcare', count: 1 },
+  Multifamily: { label: 'Multi-Family', count: 48 },
+  Office: { label: 'Office', count: 40 },
+  Industrial: { label: 'Industrial', count: 16 },
+  GeneralRetail: { label: 'Retail', count: 16 },
+  Flex: { label: 'Flex', count: 8 },
+  Hospitality: { label: 'Hotel', count: 4 },
+  Specialty: { label: 'Specialty', count: 4 },
+  Healthcare: { label: 'Healthcare', count: 4 },
 }
 const RESIDENTIAL_QUOTA: Record<string, { label: string; count: number }> = {
-  Detached: { label: 'Single Family', count: 9 },
-  Condo: { label: 'Condo', count: 4 },
-  Townhouse: { label: 'Townhouse', count: 2 },
+  Detached: { label: 'Single Family', count: 36 },
+  Condo: { label: 'Condo', count: 16 },
+  Townhouse: { label: 'Townhouse', count: 8 },
 }
 
 const env = (name: string) => process.env[name] ?? fail(`${name} is missing from .env`)
@@ -409,33 +409,52 @@ async function fetchModel(id: string): Promise<ModelResponse> {
 
 type Skip = { id: string; reason: string }
 
-// Walks each type's candidates best first and keeps those with at least one readable scan.
+// Yields the candidates in `ranked` that Propstar can show, in order, each with up to MAX_SCANS
+// readable scans. Records each one it passes over in `skipped` as it goes.
+async function* usable(ranked: Candidate[], skipped: Skip[]) {
+  for (const candidate of ranked) {
+    if (candidate.property.facts.length < 4) {
+      skipped.push({ id: candidate.property.id, reason: `only ${candidate.property.facts.length} facts` })
+      continue
+    }
+    const scans: Property['scans'] = []
+    for (const modelId of candidate.modelIds) {
+      if (scans.length === MAX_SCANS) break
+      const model = await readableModel(modelId)
+      if (model) scans.push({ modelId: model.id, name: model.name?.trim() || model.id })
+    }
+    if (scans.length === 0) {
+      skipped.push({ id: candidate.property.id, reason: `none of ${candidate.modelIds.length} Matterport models readable` })
+      continue
+    }
+    yield { candidate, scans }
+  }
+}
+
+// Keeps each type's count of usable candidates. When a type runs short, a second pass fills the
+// shortfall from the types in quota order, so the set reaches the sum of the counts when it can.
 async function select(candidates: Candidate[], quota: Record<string, { count: number }>, skipped: Skip[]) {
   const chosen: { candidate: Candidate; scans: Property['scans'] }[] = []
-  for (const [group, { count }] of Object.entries(quota)) {
-    const ranked = candidates.filter((c) => c.group === group).sort(compareCandidates)
+  const groups = Object.entries(quota).map(([group, { count }]) => ({
+    group,
+    count,
+    next: usable(candidates.filter((c) => c.group === group).sort(compareCandidates), skipped),
+  }))
+  const take = async (next: ReturnType<typeof usable>, n: number) => {
     let kept = 0
-    for (const candidate of ranked) {
-      if (kept === count) break
-      if (candidate.property.facts.length < 4) {
-        skipped.push({ id: candidate.property.id, reason: `only ${candidate.property.facts.length} facts` })
-        continue
-      }
-      const scans: Property['scans'] = []
-      for (const modelId of candidate.modelIds) {
-        if (scans.length === MAX_SCANS) break
-        const model = await readableModel(modelId)
-        if (model) scans.push({ modelId: model.id, name: model.name?.trim() || model.id })
-      }
-      if (scans.length === 0) {
-        skipped.push({ id: candidate.property.id, reason: `none of ${candidate.modelIds.length} Matterport models readable` })
-        continue
-      }
-      chosen.push({ candidate, scans })
-      kept++
+    for (; kept < n; kept++) {
+      const step = await next.next()
+      if (step.done) break
+      chosen.push(step.value)
     }
+    return kept
+  }
+  for (const { group, count, next } of groups) {
+    const kept = await take(next, count)
     if (kept < count) skipped.push({ id: group, reason: `quota short: kept ${kept} of ${count}` })
   }
+  const target = groups.reduce((n, g) => n + g.count, 0)
+  for (const { next } of groups) await take(next, target - chosen.length)
   return chosen
 }
 
@@ -443,10 +462,11 @@ async function select(candidates: Candidate[], quota: Record<string, { count: nu
 
 await mkdir(CACHE, { recursive: true })
 const skipped: Skip[] = []
-const chosen = [
-  ...(await select(await commercialCandidates(), COMMERCIAL_QUOTA, skipped)),
-  ...(await select(await residentialCandidates(), RESIDENTIAL_QUOTA, skipped)),
-]
+const chosen = await select(
+  [...(await commercialCandidates()), ...(await residentialCandidates())],
+  { ...COMMERCIAL_QUOTA, ...RESIDENTIAL_QUOTA },
+  skipped,
+)
 
 // Build beside the live file and rename over it, so a server holding the old file keeps reading it.
 const TEMP_PATH = `${DB_PATH}.tmp`

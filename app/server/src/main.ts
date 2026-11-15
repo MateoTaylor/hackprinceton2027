@@ -23,11 +23,11 @@ const DB = fileURLToPath(new URL('propstar.duckdb', DATA))
 const properties = await loadProperties(DB)
 const buildingFacts = await loadBuildingFacts(DB)
 const MB = 1_000_000
-// Measured per entry: oblique about 2.6 MB (a 150-220 m square at full resolution), tile 48 KB,
-// parcel 119 KB, thumb 44 KB, coverage 5 KB. The oblique budget holds about 95 photos, or 24
-// properties seen from every side.
+// Measured per entry: oblique photo about 1.3 MB (a 150-220 m square at full resolution), tile
+// 48 KB, parcel 105 KB, thumb 44 KB, coverage 5 KB. A property seen from every side holds about
+// 5.8 MB of obliques, so the oblique budget holds about 250 properties, more than the 200 the build keeps.
 const cache = createDiskCache(fileURLToPath(new URL('cache/vexcel/', DATA)), {
-  oblique: 250 * MB,
+  oblique: 1500 * MB,
   tiles: 1000 * MB,
   parcel: 64 * MB,
   thumb: 32 * MB,
