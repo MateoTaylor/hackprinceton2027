@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { actionRequests, describeAction } from './approval.ts'
+import { describeAction, readInterrupt } from './approval.ts'
 
 test('a sign card prints every argument, numbers with units', () => {
   const card = describeAction({
@@ -41,9 +41,18 @@ test('an op with no line falls back to its summary, then its name', () => {
   assert.deepEqual(describeAction({ name: 'new_op', args: { position: [1.234, 2, 3] } }).args, [['position', '1.23, 2, 3']])
 })
 
-test('actionRequests reads an approval interrupt and ignores anything else', () => {
-  const value = { actionRequests: [{ name: 'scene_place', args: { spaceId: 's1' }, description: 'Place.' }, { name: 3 }], reviewConfigs: [] }
-  assert.deepEqual(actionRequests(value), [{ name: 'scene_place', args: { spaceId: 's1' }, description: 'Place.' }])
-  assert.deepEqual(actionRequests('Do you approve?'), [])
-  assert.deepEqual(actionRequests(undefined), [])
+test('readInterrupt keeps one slot per request, and an unreadable one blocks approval', () => {
+  const good = { name: 'scene_place', args: { spaceId: 's1' }, description: 'Place.' }
+  assert.deepEqual(readInterrupt({ actionRequests: [good], reviewConfigs: [] }), { requests: [good], approvable: true })
+  assert.deepEqual(readInterrupt({ actionRequests: [good, { name: 3 }] }), { requests: [good, undefined], approvable: false })
+  assert.deepEqual(readInterrupt('Do you approve?'), { requests: [], approvable: false })
+  assert.deepEqual(readInterrupt(undefined), { requests: [], approvable: false })
+})
+
+test('arrays of objects and nulls show as compact JSON', () => {
+  const card = describeAction({ name: 'new_op', args: { targets: [{ id: 'a' }, { id: 'b' }], room: null } })
+  assert.deepEqual(card.args, [
+    ['targets', '[{"id":"a"},{"id":"b"}]'],
+    ['room', 'null'],
+  ])
 })

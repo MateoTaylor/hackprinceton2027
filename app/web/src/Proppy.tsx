@@ -2,7 +2,7 @@ import { AIMessage, ToolMessage } from '@langchain/core/messages'
 import { useStream } from '@langchain/react'
 import { ArrowUp, ChevronDown, ChevronUp } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { actionRequests, describeAction, type Decision } from './approval'
+import { describeAction, readInterrupt, type Decision } from './approval'
 import mascot from './assets/proppy-mascot.png'
 import './proppy.css'
 
@@ -119,11 +119,14 @@ export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
   }, [open, healthCheck])
 
   const turns = threadItems(stream.messages)
-  const requests = actionRequests(stream.interrupt?.value)
+  // A paused run waits on the user whether or not the interrupt is an approval request this panel
+  // can read, so `waiting` (not the request count) holds the composer and shows Reject.
+  const waiting = stream.interrupt !== undefined
+  const { requests, approvable } = readInterrupt(stream.interrupt?.value)
 
   useEffect(() => {
     thread.current?.scrollTo({ top: thread.current.scrollHeight })
-  }, [turns.length, turns.at(-1)?.text, requests.length])
+  }, [turns.length, turns.at(-1)?.text, waiting, requests.length])
 
   useEffect(() => onRunning(stream.isLoading), [stream.isLoading, onRunning])
 
@@ -147,7 +150,7 @@ export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
   }, [error, errorTrouble])
 
   const trouble = online === false ? 'offline' : errorTrouble === 'offline' ? null : errorTrouble
-  const canSend = online === true && !stream.isLoading && requests.length === 0
+  const canSend = online === true && !stream.isLoading && !waiting
   const subagents = [...stream.subagents.values()]
   const running = subagents.filter((s) => s.status === 'running').length
   const done = subagents.length - running
@@ -160,11 +163,13 @@ export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
     void stream.submit({ messages: [{ type: 'human', content }] })
   }
 
-  // One decision per action request, in order, resumes the paused run.
+  // One decision per action request, in order, resumes the paused run. An interrupt that is not an
+  // approval request gets an empty list, which ends the run with an error rather than leaving it
+  // paused with no way out.
   const decide = (type: Decision['type']) =>
     void stream.respond({ decisions: requests.map((): Decision => ({ type })) }, { interruptId: stream.interrupt?.id })
 
-  if (!open && requests.length) {
+  if (!open && waiting) {
     return (
       <div className="surface-pill proppy-pill">
         <img className="pill-mascot" src={mascot} alt="" />
@@ -221,7 +226,7 @@ export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
 
   const status = trouble
     ? { dot: trouble === 'offline' ? 'off' : 'warn', text: TROUBLE[trouble].title }
-    : requests.length
+    : waiting
       ? { dot: 'warn', text: 'Waiting for your approval' }
       : stream.isLoading
       ? { dot: '', text: running ? `Analyzing · ${running} subagent${running === 1 ? '' : 's'} running` : 'Thinking' }
@@ -252,15 +257,29 @@ export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
             {t.text}
           </div>
         ))}
+        {waiting && requests.length === 0 && (
+          <div className="approval" role="group" aria-label="Proppy is waiting">
+            <strong>Proppy is waiting</strong>
+            The run paused on a question this panel cannot show. Reject it to end the run.
+          </div>
+        )}
         {requests.map((request, i) => {
+          if (!request) {
+            return (
+              <div key={i} className="approval" role="group" aria-label="Unreadable change">
+                <strong>Proppy asked for a change this panel cannot read</strong>
+                Reject it, then ask again.
+              </div>
+            )
+          }
           const { line, args } = describeAction(request)
           return (
             <div key={i} className="approval" role="group" aria-label="Approve this change">
               <strong>{line}</strong>
               {args.length > 0 && (
                 <dl>
-                  {args.map(([label, value]) => (
-                    <div key={label}>
+                  {args.map(([label, value], j) => (
+                    <div key={j}>
                       <dt>{label}</dt>
                       <dd>{value}</dd>
                     </div>
@@ -270,14 +289,16 @@ export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
             </div>
           )
         })}
-        {requests.length > 0 && (
+        {waiting && (
           <div className="approval-actions">
             <button className="button quiet" onClick={() => decide('reject')}>
               Reject
             </button>
-            <button className="button" onClick={() => decide('approve')}>
-              Approve
-            </button>
+            {approvable && (
+              <button className="button" onClick={() => decide('approve')}>
+                Approve
+              </button>
+            )}
           </div>
         )}
         {trouble && (

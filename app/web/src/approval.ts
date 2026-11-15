@@ -10,16 +10,20 @@ export type Decision = { type: 'approve' } | { type: 'reject'; message?: string 
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
-// Reads the action requests out of an interrupt's value. Anything that is not an approval
-// request gives an empty list, so the panel draws no card for it.
-//   const requests = actionRequests(stream.interrupt?.value)
-export function actionRequests(value: unknown): ActionRequest[] {
-  if (!isRecord(value) || !Array.isArray(value.actionRequests)) return []
-  return value.actionRequests.flatMap((request) =>
-    isRecord(request) && typeof request.name === 'string' && isRecord(request.args)
-      ? [{ name: request.name, args: request.args, description: typeof request.description === 'string' ? request.description : undefined }]
-      : [],
-  )
+const asRequest = (request: unknown): ActionRequest | undefined =>
+  isRecord(request) && typeof request.name === 'string' && isRecord(request.args)
+    ? { name: request.name, args: request.args, description: typeof request.description === 'string' ? request.description : undefined }
+    : undefined
+
+// Reads a paused run's interrupt. `requests` holds one slot per action request, in order, so the
+// decisions sent back always match them one to one. A slot the card cannot read is undefined, and
+// any such slot, or an interrupt that is not an approval request at all, makes the batch
+// rejectable only (`approvable` is false).
+//   const { requests, approvable } = readInterrupt(stream.interrupt?.value)
+//   stream.respond({ decisions: requests.map(() => ({ type: 'reject' })) }, ...)
+export function readInterrupt(value: unknown) {
+  const requests = isRecord(value) && Array.isArray(value.actionRequests) ? value.actionRequests.map(asRequest) : []
+  return { requests, approvable: requests.length > 0 && requests.every((r) => r !== undefined) }
 }
 
 const LINES: Record<string, string> = {
@@ -48,13 +52,14 @@ const clip = (text: string) => (text.length > MAX_TEXT ? `${text.slice(0, MAX_TE
 
 // Every argument the op will act on, nested objects flattened. Strings are shown too, cut to
 // MAX_TEXT, because a string such as a sign's text or an edit's command picks the effect, and the
-// user must see it before approving.
+// user must see it before approving. Other arrays and nulls show as compact JSON, cut the same way.
 function printable(value: unknown, path: string[]): [string, string][] {
   if (typeof value === 'number' && Number.isFinite(value)) return [[label(path), round(value)]]
   if (typeof value === 'string') return [[label(path), clip(value)]]
   if (typeof value === 'boolean') return [[label(path), value ? 'yes' : 'no']]
   if (Array.isArray(value) && value.length && value.every((n) => typeof n === 'number')) return [[label(path), value.map(round).join(', ')]]
   if (Array.isArray(value) && value.length && value.every((s) => typeof s === 'string')) return [[label(path), clip(value.join(', '))]]
+  if (Array.isArray(value) || value === null) return [[label(path), clip(JSON.stringify(value))]]
   if (isRecord(value)) return Object.entries(value).flatMap(([key, inner]) => printable(inner, [...path, key]))
   return []
 }
