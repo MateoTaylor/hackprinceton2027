@@ -1,4 +1,5 @@
 import type { Property } from '../../shared/property'
+import { clientId } from './view.ts'
 
 export async function getJson(path: string, signal?: AbortSignal): Promise<unknown> {
   const res = await fetch(path, { signal })
@@ -40,7 +41,7 @@ export async function callOp<Result, Detail = undefined>(
 ): Promise<{ result: Result; detail: Detail }> {
   const response = await fetch(`/api/ops/${encodeURIComponent(name)}${detail ? '?detail=full' : ''}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-propstar-client': clientId },
     body: JSON.stringify(input),
     signal,
   }).catch((error: unknown) => {

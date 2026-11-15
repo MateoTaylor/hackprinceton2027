@@ -5,10 +5,12 @@ import { Minus, Plus, Star } from 'lucide-react'
 import { memo, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Property } from '../../shared/property'
+import type { Bounds, Camera } from '../../shared/view'
 import { attachObliqueRig, type Rig } from './obliqueRig'
 import { cancelPrefetch, prefetch, useObliques } from './obliques'
 import { scoreBand, type PinState, type Pins } from './pins'
 import { pinLabel } from './property'
+import type { MoveRequest } from './view'
 
 // MapLibre fetches tiles from a worker, where a relative URL has no origin to resolve against.
 const STYLE: maplibregl.StyleSpecification = {
@@ -27,20 +29,22 @@ maplibregl.setWorkerUrl(workerUrl)
 
 const LOS_ANGELES: [number, number] = [-118.33, 34.05]
 const CHAT_WIDTH = 420
+const FIT_MAX_ZOOM = 17
 
 type Props = {
   properties: Property[]
   selected: Property | null
-  frameRequest: number
+  move: MoveRequest | null
   chatOpen: boolean
   pins: Pins
   onSelect: (id: string) => void
+  onCamera: (camera: Camera, bounds: Bounds) => void
 }
 
 // The map owns the camera. It swoops into `selected` and its angled photos, and frames `properties`
-// whenever nothing is selected or `frameRequest` changes. `pins` colours each property's pin with
-// Proppy's progress and score.
-export function MapView({ properties, selected, frameRequest, chatOpen, pins: pinStates, onSelect }: Props) {
+// whenever nothing is selected. It applies each `move` once, after that framing, and reports the
+// camera it reached through `onCamera` after every move. `pins` colours each property's pin.
+export function MapView({ properties, selected, move, chatOpen, pins: pinStates, onSelect, onCamera }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<maplibregl.Map | null>(null)
   const [rig, setRig] = useState<Rig | null>(null)
@@ -49,6 +53,12 @@ export function MapView({ properties, selected, frameRequest, chatOpen, pins: pi
   const framed = useRef(false)
   const chatInset = chatOpen ? CHAT_WIDTH : 0
   const frameInset = useEffectEvent(() => chatInset)
+  const applied = useRef(0)
+  const reportCamera = useEffectEvent((m: maplibregl.Map) => {
+    const { lat, lng } = m.getCenter()
+    const b = m.getBounds()
+    onCamera({ lat, lon: lng, zoom: m.getZoom() }, { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() })
+  })
 
   useEffect(() => {
     if (!container.current) return
@@ -65,6 +75,7 @@ export function MapView({ properties, selected, frameRequest, chatOpen, pins: pi
       attributionControl: false,
     })
     let attached: Rig | null = null
+    m.on('moveend', () => reportCamera(m))
     m.once('load', () => {
       attached = attachObliqueRig(m)
       setRig(attached)
@@ -114,7 +125,20 @@ export function MapView({ properties, selected, frameRequest, chatOpen, pins: pi
     if (!camera) return
     map.flyTo({ ...camera, bearing: 0, duration: framed.current ? 1400 : 0, essential: true })
     framed.current = true
-  }, [map, properties, selected, frameRequest])
+  }, [map, properties, selected])
+
+  useEffect(() => {
+    if (!map || !move || move.seq === applied.current) return
+    applied.current = move.seq
+    const { request } = move
+    if ('fit' in request) {
+      const { west, south, east, north } = request.fit
+      const camera = map.cameraForBounds([west, south, east, north], { padding: { top: 80, bottom: 80, left: 80, right: 80 + frameInset() }, maxZoom: FIT_MAX_ZOOM, absolutePadding: true })
+      if (camera) map.flyTo({ ...camera, bearing: 0, duration: 1400, essential: true })
+    } else {
+      map.easeTo({ center: [request.lon, request.lat], zoom: request.zoom, duration: 1200, essential: true })
+    }
+  }, [map, move])
 
   return (
     <>

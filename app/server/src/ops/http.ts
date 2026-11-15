@@ -3,6 +3,7 @@ import { bodyLimit } from 'hono/body-limit'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { OpEnvelope, OpErrorCode } from './op.ts'
 import type { Registry } from './registry.ts'
+import { clientOf } from '../view/routes.ts'
 
 const BODY_MAX_BYTES = 64 * 1024
 
@@ -23,8 +24,9 @@ const badBody = (message: string): OpEnvelope => ({
 
 // Serves the registry over HTTP. GET /api/ops lists every op. POST /api/ops/:name runs one with the
 // JSON object body as its input and answers with the envelope. `?detail=full` adds `detail`. The
-// status follows the error code, and 200 means `ok`.
-export function mountOps(app: Hono, registry: Registry) {
+// status follows the error code, and 200 means `ok`. `onWrite` runs after a `write` op answers `ok`,
+// with the op's name and the caller's `x-propstar-client` header, or `unknown`.
+export function mountOps(app: Hono, registry: Registry, onWrite: (name: string, by: string) => void = () => {}) {
   app.get('/api/ops', (c) => c.json({ ops: registry.manifest() }))
 
   app.post(
@@ -37,7 +39,9 @@ export function mountOps(app: Hono, registry: Registry) {
       } catch {
         return c.json(badBody('body: The body is not JSON.'), STATUS.invalid_input)
       }
-      const answer = await registry.run(c.req.param('name'), input, { detail: c.req.query('detail') === 'full' })
+      const name = c.req.param('name')
+      const answer = await registry.run(name, input, { detail: c.req.query('detail') === 'full' })
+      if (answer.ok && registry.get(name)?.effect === 'write') onWrite(name, clientOf(c.req.header('x-propstar-client')))
       return c.json(answer, answer.ok ? 200 : STATUS[answer.error.code])
     },
   )

@@ -1,30 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { PropertyKind } from '../../shared/property'
+import type { Property, PropertyKind } from '../../shared/property'
+import type { Bounds, Screen } from '../../shared/view'
 import { fetchProperties } from './api'
 import { matches, NO_FACETS, type Facets } from './filter'
 import { FlyThrough } from './FlyThrough'
 import { Header } from './Header'
 import { MapView } from './MapView'
-import { NO_PINS, type Pins } from './pins'
+import { NO_PINS, withHighlights, type Pins } from './pins'
 import { SORTS, type SortKey } from './property'
 import { Proppy } from './Proppy'
 import { QuickView } from './QuickView'
 import { Sidebar, type Listing } from './Sidebar'
 import { ToolPanel } from './ToolPanel'
-import { toolsFor, type ToolId } from './tools'
+import { toolsFor } from './tools'
+import { useView } from './view'
 
-type View =
-  | { kind: 'browse' }
-  | { kind: 'selected'; id: string }
-  | { kind: 'flythrough'; id: string; modelId: string }
-  | { kind: 'tool'; id: string; tool: ToolId }
-
-const BROWSE: View = { kind: 'browse' }
+const BROWSE: Screen = { kind: 'browse' }
 
 export function App() {
   const [listing, setListing] = useState<Listing>({ status: 'loading' })
   const [reload, setReload] = useState(0)
-  const [view, setView] = useState<View>(BROWSE)
+  const { view, setScreen, report, move, requestMove } = useView()
+  const { screen } = view
   const [kind, setKind] = useState<PropertyKind | null>(null)
   const [type, setType] = useState<string | null>(null)
   const [sort, setSort] = useState<SortKey>('name')
@@ -33,7 +30,6 @@ export function App() {
   const [query, setQuery] = useState('')
   const [facets, setFacets] = useState<Facets>(NO_FACETS)
   const [proppyOpen, setProppyOpen] = useState(false)
-  const [frameRequest, setFrameRequest] = useState(0)
   const [pins, setPins] = useState<Pins>(NO_PINS)
 
   useEffect(() => {
@@ -56,18 +52,21 @@ export function App() {
     [all, query, kind, type, savedOnly, saved, facets, sort],
   )
 
-  const selected = view.kind === 'browse' ? null : (all.find((p) => p.id === view.id) ?? null)
+  const selected = screen.kind === 'browse' ? null : (all.find((p) => p.id === screen.propertyId) ?? null)
 
-  const tool = selected && view.kind === 'tool' ? toolsFor(selected).find((t) => t.id === view.tool) : undefined
+  const tool = selected && screen.kind === 'tool' ? toolsFor(selected).find((t) => t.id === screen.tool) : undefined
 
   const select = useCallback(
-    (id: string) =>
-      setView((v) => {
-        if (v.kind !== 'browse' && v.id === id) return v
-        return v.kind === 'tool' ? { ...v, id } : { kind: 'selected', id }
-      }),
-    [],
+    (propertyId: string) => {
+      if (screen.kind !== 'browse' && screen.propertyId === propertyId) return
+      setScreen(screen.kind === 'tool' ? { ...screen, propertyId } : { kind: 'selected', propertyId })
+    },
+    [screen, setScreen],
   )
+
+  useEffect(() => report({ filter: { kind, type, sort, savedOnly } }), [report, kind, type, sort, savedOnly])
+
+  const shownPins = useMemo(() => withHighlights(pins, view.highlights), [pins, view.highlights])
 
   const toggleSaved = useCallback(
     (id: string) =>
@@ -84,11 +83,11 @@ export function App() {
       if (e.key !== 'Escape') return
       const target = e.target
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return
-      setView((v) => (v.kind === 'flythrough' || v.kind === 'tool' ? { kind: 'selected', id: v.id } : BROWSE))
+      setScreen(screen.kind === 'flythrough' || screen.kind === 'tool' ? { kind: 'selected', propertyId: screen.propertyId } : BROWSE)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [screen, setScreen])
 
   return (
     <div className="app">
@@ -99,8 +98,9 @@ export function App() {
         sort={sort}
         onSort={setSort}
         onFrame={() => {
-          setView(BROWSE)
-          setFrameRequest((n) => n + 1)
+          setScreen(BROWSE)
+          const fit = boundsOf(visible)
+          if (fit) requestMove({ fit })
         }}
         savedCount={saved.size}
         savedOnly={savedOnly}
@@ -133,34 +133,43 @@ export function App() {
           <MapView
             properties={visible}
             selected={selected}
-            frameRequest={frameRequest}
+            move={move}
             chatOpen={proppyOpen}
-            pins={pins}
+            pins={shownPins}
             onSelect={select}
+            onCamera={(camera, bounds) => report({ camera, bounds })}
           />
           <div className={`map-control attribution${selected ? ' pill' : ''}`}>Imagery © Vexcel · Data © CoStar</div>
-          {selected && (view.kind === 'selected' || (view.kind === 'tool' && !tool)) && (
+          {selected && (screen.kind === 'selected' || (screen.kind === 'tool' && !tool)) && (
             <QuickView
               property={selected}
               saved={saved.has(selected.id)}
               onToggleSaved={() => toggleSaved(selected.id)}
-              onClose={() => setView(BROWSE)}
-              onFlyThrough={() => setView({ kind: 'flythrough', id: selected.id, modelId: selected.scans[0].modelId })}
-              onTool={(toolId) => setView({ kind: 'tool', id: selected.id, tool: toolId })}
+              onClose={() => setScreen(BROWSE)}
+              onFlyThrough={() => setScreen({ kind: 'flythrough', propertyId: selected.id, modelId: selected.scans[0].modelId })}
+              onTool={(toolId) => setScreen({ kind: 'tool', propertyId: selected.id, tool: toolId })}
             />
           )}
-          {selected && view.kind === 'flythrough' && (
+          {selected && screen.kind === 'flythrough' && (
             <FlyThrough
               property={selected}
-              modelId={view.modelId}
-              onModel={(modelId) => setView({ ...view, modelId })}
-              onClose={() => setView({ kind: 'selected', id: view.id })}
+              modelId={screen.modelId}
+              onModel={(modelId) => setScreen({ ...screen, modelId })}
+              onClose={() => setScreen({ kind: 'selected', propertyId: screen.propertyId })}
             />
           )}
           <Proppy open={proppyOpen} onOpen={() => setProppyOpen(true)} onClose={() => setProppyOpen(false)} onPins={setPins} />
-          {selected && tool && <ToolPanel tool={tool} property={selected} onClose={() => setView({ kind: 'selected', id: selected.id })} />}
+          {selected && tool && <ToolPanel tool={tool} property={selected} onClose={() => setScreen({ kind: 'selected', propertyId: selected.id })} />}
         </main>
       </div>
     </div>
   )
+}
+
+// The box around `properties`, or null when there are none.
+function boundsOf(properties: readonly Property[]): Bounds | null {
+  if (properties.length === 0) return null
+  const lats = properties.map((p) => p.lat)
+  const lons = properties.map((p) => p.lon)
+  return { west: Math.min(...lons), south: Math.min(...lats), east: Math.max(...lons), north: Math.max(...lats) }
 }

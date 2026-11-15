@@ -65,6 +65,11 @@ export interface OpContext {
   call(name: string, input: unknown): Promise<{ result: unknown; detail: unknown }>
 }
 
+// What an op may change. A `read` op changes nothing. A `view` op changes only what the user's screen
+// shows, so it runs without approval. A `write` op changes stored data or starts work on another
+// machine, so a model asks the user first.
+export type OpEffect = 'read' | 'write' | 'view'
+
 // What `run` resolves to. It returns `detail` exactly when the op declares a detail schema. Both
 // are the schemas' input types, so a field with a default may be left out.
 export type OpAnswer<Out extends z.ZodType, Det extends z.ZodType> = Det extends z.ZodNever
@@ -80,7 +85,7 @@ export type OpAnswer<Out extends z.ZodType, Det extends z.ZodType> = Det extends
 export interface Op<In extends z.ZodObject = z.ZodObject, Out extends z.ZodType = z.ZodType, Det extends z.ZodType = z.ZodType | z.ZodNever> {
   name: string
   summary: string
-  effect: 'read' | 'write'
+  effect: OpEffect
   input: In
   output: Out
   detail?: Det

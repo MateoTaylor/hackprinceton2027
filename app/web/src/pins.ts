@@ -1,4 +1,9 @@
-import type { PinEvent } from '../../agent/src/contract.ts'
+import type { Highlight } from '../../shared/view'
+
+// A pin turns "scoring" when scoring starts, then "scored" or "failed".
+export type PinEvent =
+  | { type: 'pin'; propertyId: string; status: 'scoring' | 'failed' }
+  | { type: 'pin'; propertyId: string; status: 'scored'; score: number }
 
 export type PinState = { status: 'scoring' } | { status: 'scored'; score: number } | { status: 'failed' }
 export type Pins = ReadonlyMap<string, PinState>
@@ -32,3 +37,11 @@ export function settlePins(pins: Pins): Pins {
 
 // The design system's score bands: 80 and above is good, 50 to 79 is mid, under 50 is bad.
 export const scoreBand = (score: number) => (score >= 80 ? 'good' : score >= 50 ? 'mid' : 'bad')
+
+// Draws the view's highlights over Proppy's pins. A highlight with no score yet shows as scoring.
+export function withHighlights(pins: Pins, highlights: readonly Highlight[]): Pins {
+  if (highlights.length === 0) return pins
+  const next = new Map(pins)
+  for (const { propertyId, score } of highlights) next.set(propertyId, score === null ? { status: 'scoring' } : { status: 'scored', score })
+  return next
+}

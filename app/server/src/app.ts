@@ -8,6 +8,9 @@ import { mountOps } from './ops/http.ts'
 import { OPS } from './ops/index.ts'
 import type { Op } from './ops/op.ts'
 import { createRegistry, type OpBase } from './ops/registry.ts'
+import { createViewOps } from './ops/view/index.ts'
+import { mountView } from './view/routes.ts'
+import { createViewStore, type ViewStore } from './view/store.ts'
 import { isDirection, UpstreamError } from './vexcel.ts'
 
 // Vexcel's `urban` layer, the one with obliques, stops at 21.
@@ -39,13 +42,17 @@ const image = (c: Context, answer: Cached) => {
 // The Propstar HTTP API. It answers only under /api; every other path is an empty 404, so nothing
 // on disk can be served. It registers `ops` and throws when one of them is invalid. `sdkKey` is the
 // Matterport SDK key the browser's Showcase embed needs, and /api/edit/* forwards to `editLink`.
+// `view` is the one view the view ops and GET /api/events share; by default `ops` holds every op
+// plus the view ops bound to it.
 export function createApp({
   base,
-  ops = OPS,
+  view = createViewStore(),
+  ops = [...OPS, ...createViewOps(view)],
   sdkKey = null,
   editLink = {},
 }: {
   base: OpBase
+  view?: ViewStore
   ops?: readonly Op[]
   sdkKey?: string | null
   editLink?: Parameters<typeof forwardEdit>[1]
@@ -67,7 +74,8 @@ export function createApp({
 
   app.get('/api/properties', (c) => c.json([...properties.values()]))
 
-  mountOps(app, registry)
+  mountOps(app, registry, view.publishWrite)
+  mountView(app, view)
 
   app.get('/api/scene/config', (c) => {
     c.header('Cache-Control', 'no-store')

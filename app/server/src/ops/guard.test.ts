@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { z } from 'zod'
+import { createViewStore } from '../view/store.ts'
 import { OPS } from './index.ts'
+import { createViewOps } from './view/index.ts'
+
+const ALL = [...OPS, ...createViewOps(createViewStore())]
 
 const PERSONAL = /broker|contact|email|phone/i
 
@@ -14,11 +18,11 @@ function schemaKeys(schema: unknown): string[] {
   ])
 }
 
-test('the registry holds all 16 ops', () => {
-  assert.equal(OPS.length, 16)
+test('no two ops share a name', () => {
+  assert.equal(new Set(ALL.map((op) => op.name)).size, ALL.length)
 })
 
-for (const op of OPS) {
+for (const op of ALL) {
   test(`${op.name} has a valid name, a short summary and schemas a model can read`, () => {
     assert.match(op.name, /^[a-z][a-z0-9_]{2,40}$/)
     assert.ok(op.summary.length > 0 && op.summary.length <= 160, `summary is ${op.summary.length} characters`)
