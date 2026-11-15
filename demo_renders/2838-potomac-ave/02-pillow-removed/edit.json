@@ -1,0 +1,338 @@
+{
+ "job_id": "20261115-041955-700811",
+ "stub": false,
+ "model_id": "ttiRpR6oEKM",
+ "command": "remove the red throw pillow from the round armchair",
+ "has_mesh": true,
+ "frame": {
+  "world": "right-handed, Z up, metres; the frame of the MatterPak OBJ",
+  "rotation": "quaternion [x, y, z, w]; rotates pano-local directions into world, used as given",
+  "faces": "0 up (+Z), 1 +X, 2 -Y, 3 -X, 4 +Y, 5 down (-Z), in the panorama's own frame",
+  "face_basis": {
+   "0": {
+    "forward": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "up": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "right": [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   },
+   "1": {
+    "forward": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   },
+   "2": {
+    "forward": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     -1.0,
+     0.0,
+     0.0
+    ]
+   },
+   "3": {
+    "forward": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     0.0,
+     1.0,
+     0.0
+    ]
+   },
+   "4": {
+    "forward": [
+     0.0,
+     1.0,
+     0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     1.0,
+     0.0,
+     0.0
+    ]
+   },
+   "5": {
+    "forward": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "up": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "right": [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   }
+  },
+  "face_pixel": "pixel (i, j) of a face of size s looks along forward + a*right + b*up, a = (i + 0.5) / s * 2 - 1, b = 1 - (j + 0.5) / s * 2 (i is the column, j the row)",
+  "yaw_pitch": "yaw = atan2(forward.y, forward.x) in degrees, from +X towards +Y; pitch = degrees up from level; both in the world frame"
+ },
+ "start": {
+  "pano_id": "m08g3sayuscznrxiiqgdaumkc",
+  "index": 23,
+  "yaw": 78.2,
+  "pitch": -21.3,
+  "fov": 70.0
+ },
+ "panos": [
+  {
+   "id": "m08g3sayuscznrxiiqgdaumkc",
+   "location_id": "m08g3sayuscznrxiiqgdaumkc",
+   "index": 23,
+   "position": [
+    3.096910238265991,
+    0.028908487409353256,
+    1.369273066520691
+   ],
+   "rotation": [
+    -0.0011061541736125946,
+    0.00014447988360188901,
+    0.8159626722335815,
+    0.5781034827232361
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/0.jpg",
+    "p23_f1.jpg",
+    "p23_f2.jpg",
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/3.jpg",
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/4.jpg",
+    "p23_f5.jpg"
+   ],
+   "changed": [
+    1,
+    2,
+    5
+   ],
+   "verdict": "pass",
+   "views": [
+    {
+     "yaw": 78.2,
+     "pitch": -21.3,
+     "fov": 70.0,
+     "width": 1024,
+     "height": 1024,
+     "before": "p23_v0_before.jpg",
+     "edited": "p23_v0_edited.jpg",
+     "mask": "p23_v0_mask.png",
+     "report": {
+      "verdict": "pass",
+      "issues": [],
+      "notes": [],
+      "summary": "No glaring problems found."
+     }
+    }
+   ]
+  },
+  {
+   "id": "d3exr9u9fzkqq3xf74wq8eyma",
+   "location_id": "d3exr9u9fzkqq3xf74wq8eyma",
+   "index": 4,
+   "position": [
+    -0.27807167172431946,
+    -1.2690509557724,
+    1.356197714805603
+   ],
+   "rotation": [
+    -0.008630131371319294,
+    -0.002532950136810541,
+    0.5264844298362732,
+    0.8501371741294861
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/0.jpg",
+    "p4_f1.jpg",
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/2.jpg",
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/3.jpg",
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/4.jpg",
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/5.jpg"
+   ],
+   "changed": [
+    1
+   ],
+   "verdict": "pass",
+   "views": [
+    {
+     "yaw": 39.49,
+     "pitch": -9.14,
+     "fov": 35.0,
+     "width": 1024,
+     "height": 1024,
+     "before": "p4_v1_before.jpg",
+     "edited": "p4_v1_edited.jpg",
+     "mask": "p4_v1_mask.png",
+     "report": {
+      "verdict": "pass",
+      "issues": [],
+      "notes": [],
+      "summary": "No glaring problems found."
+     }
+    }
+   ]
+  },
+  {
+   "id": "06zehmuifehufx50xdstxcwbc",
+   "location_id": "06zehmuifehufx50xdstxcwbc",
+   "index": 13,
+   "position": [
+    2.2931673526763916,
+    1.499385952949524,
+    1.3477412462234497
+   ],
+   "rotation": [
+    -0.025590403005480766,
+    -0.01682816445827484,
+    0.051181040704250336,
+    0.9982196092605591
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/0.jpg",
+    "p13_f1.jpg",
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/2.jpg",
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/3.jpg",
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/4.jpg",
+    "p13_f5.jpg"
+   ],
+   "changed": [
+    1,
+    5
+   ],
+   "verdict": "pass",
+   "views": [
+    {
+     "yaw": 11.72,
+     "pitch": -35.93,
+     "fov": 55.46,
+     "width": 1024,
+     "height": 1024,
+     "before": "p13_v2_before.jpg",
+     "edited": "p13_v2_edited.jpg",
+     "mask": "p13_v2_mask.png",
+     "report": {
+      "verdict": "pass",
+      "issues": [],
+      "notes": [],
+      "summary": "No glaring problems found."
+     }
+    }
+   ]
+  },
+  {
+   "id": "czrr5tq1kurs8fb3gcmq09mcd",
+   "location_id": "czrr5tq1kurs8fb3gcmq09mcd",
+   "index": 16,
+   "position": [
+    -0.023344995453953743,
+    0.07717431336641312,
+    1.344104290008545
+   ],
+   "rotation": [
+    -0.009209842421114445,
+    0.002205838682129979,
+    0.9884567260742188,
+    0.15120738744735718
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/czrr5tq1kurs8fb3gcmq09mcd/0.jpg",
+    "original:data/ttiRpR6oEKM/panos/czrr5tq1kurs8fb3gcmq09mcd/1.jpg",
+    "p16_f2.jpg",
+    "p16_f3.jpg",
+    "original:data/ttiRpR6oEKM/panos/czrr5tq1kurs8fb3gcmq09mcd/4.jpg",
+    "original:data/ttiRpR6oEKM/panos/czrr5tq1kurs8fb3gcmq09mcd/5.jpg"
+   ],
+   "changed": [
+    2,
+    3
+   ],
+   "verdict": "pass",
+   "views": [
+    {
+     "yaw": 25.79,
+     "pitch": -11.39,
+     "fov": 35.0,
+     "width": 1024,
+     "height": 1024,
+     "before": "p16_v3_before.jpg",
+     "edited": "p16_v3_edited.jpg",
+     "mask": "p16_v3_mask.png",
+     "report": {
+      "verdict": "pass",
+      "issues": [],
+      "notes": [],
+      "summary": "No glaring problems found."
+     }
+    }
+   ]
+  }
+ ],
+ "report": {
+  "verdict": "pass",
+  "issues": [],
+  "notes": [],
+  "summary": "4 views edited. pano 23: pass; pano 4: pass; pano 13: pass; pano 16: pass."
+ },
+ "preview": "preview.jpg",
+ "skipped": [],
+ "single_view": null,
+ "job": {
+  "job_id": "20261115-041955-700811",
+  "created": "2026-11-15T04:19:55-0500",
+  "started": "2026-11-15T04:32:29-0500",
+  "finished": "2026-11-15T04:39:27-0500",
+  "command": "remove the red throw pillow from the round armchair",
+  "start": {
+   "pano_id": "m08g3sayuscznrxiiqgdaumkc",
+   "yaw": 78.2,
+   "pitch": -21.3,
+   "fov": 70.0,
+   "index": 23
+  }
+ }
+}

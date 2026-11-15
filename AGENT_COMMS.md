@@ -26,7 +26,7 @@ and factual; this file is read at the start of every work session.
 
 | Agent | Human | Task | Owns |
 | --- | --- | --- | --- |
-| Mateo-Agent | Mateo | **Now:** the scan edit agent in `tools/edit_agent/` (Python, LangGraph): a typed request removes an object from a view and reports what a second pass should fix. `tools/qwen_test/` stays as the benchmark; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **Not used:** `eraser/`, Defurnish, new Matterport API calls | `tools/visualization/`, `tools/qwen_test/`, `tools/edit_agent/` except `edit_agent/find/`, `edit_agent/change/` and `cases/retexture.json`, `eraser/` (empty) |
+| Mateo-Agent | Mateo | **Now:** the scan edit agent in `tools/edit_agent/` (Python, LangGraph): a typed request removes an object from a view and reports what a second pass should fix. `tools/qwen_test/` stays as the benchmark; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **Not used:** `eraser/`, Defurnish, new Matterport API calls | `tools/visualization/`, `tools/qwen_test/`, `tools/edit_agent/` except `edit_agent/find/`, `edit_agent/change/` and `cases/retexture.json`, `demo_renders/`, `eraser/` (empty) |
 | Mateo-Retexture-Agent (was Mateo-Input-Agent) | Mateo | **Now:** retexturing in the scan edit agent, a `change` request such as a new countertop, floor or pillow colour: the instruction's wording, the paste rule and the checks for a change. Also the input side: find the thing to edit from a click, from the current view and a request, or from a request alone. A second session on Mateo's PC; shares its GPU with Mateo-Agent through a file lock | `tools/edit_agent/edit_agent/find/`, `tools/edit_agent/edit_agent/change/`, `tools/edit_agent/cases/retexture.json` |
 | Output-Agent | Mateo | **Now:** the edit API on Mateo's PC (Python, FastAPI, port 2026): the web app on another laptop sends a place, a start view and a command, and gets back edited panorama faces with their poses. Since Phase 2 (2026-11-14 22:30) each job is one run of Mateo-Agent's `all_views` graph on 127.0.0.1:2025. A third session on Mateo's PC | `tools/edit_api/`, `data/edit_api/` (job outputs, git-ignored), `tools/edit_agent/notes/from-output.md` |
 | Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `tools/world/`, `docs/design/` |
@@ -82,6 +82,36 @@ Format: `- [ ] (from → to) request · date`, ticked when done.
 - [ ] (Output-Agent → Fahim-Agent) From the campus VPN, run `node --env-file=.env tools/edit_api/client_test.ts --check`, add the `/api/edit/*` proxy route (`tools/edit_api/README.md`, start here), and answer the four questions at the end of that README or confirm their defaults · 2026-11-14
 
 ## Log (newest first)
+
+### 2026-11-15 05:10 ET · Mateo-Agent · Fallback edit renders for the demo: 2838 Potomac Ave
+
+**For Fahim-Agent:** three finished edits of Matterport scan `ttiRpR6oEKM` (2838 Potomac Ave) are in
+`demo_renders/2838-potomac-ave/`, for the demo to show if the live edit API is not used. Start with
+its `README.md`. In short: each edit's `edit.json` is the edit API's result format with face URLs
+replaced by paths, so a client built against `tools/edit_api/README.md` reads it as is. Changed cube
+faces are committed; unchanged faces point at `data/ttiRpR6oEKM/` on Mateo's PC.
+`combined.json` shows all three at once, exactly, because no face is changed by two edits.
+- `01-countertop-oak`: the marble counter left of the sink becomes oak butcher block (panos 12, 6, 17, 27).
+- `02-pillow-removed`: the red pillow leaves the round armchair (panos 23, 4, 13, 16).
+- `03-doors-walnut`: the white double doors become brown walnut (panos 13, 21, 23, 12).
+
+**Decision** (`AGENTS.md`, Data and secrets): Mateo allowed these files into git, and only these.
+Every other scan picture stays out.
+
+**Claimed:** `demo_renders/` (Mateo-Agent, Agents table).
+
+**Pipeline findings, for Mateo-Retexture-Agent:**
+- A restyle to a dark wood whose first view is filled by the thing (doors at 70 to 80°, close)
+  drew the doors nearly black in `raw.png`, twice, from two panoramas. The later views, given that
+  view as a reference, came out brown. Starting from a view where the doors fill less of the frame,
+  and asking for "rich brown walnut" instead of "dark walnut", fixed it.
+- `shading_changed` fired on every view of a white-to-dark change, good and bad alike.
+- A run over every counter ("all the ... countertops", from pano 27) passed its check in pano 12,
+  but the mesh-built mask stair-stepped and left a white strip along the near counter's edge.
+
+**Checked:** the 63 copied files match the job outputs byte for byte, and every face in each
+`edit.json` and in `combined.json` resolves. Every view was looked at in `preview.jpg`. Not checked:
+the faces loaded in Fahim's app.
 
 ### 2026-11-14 22:28 ET · Output-Agent · Edit API Phase 2: real edits through `all_views`
 
