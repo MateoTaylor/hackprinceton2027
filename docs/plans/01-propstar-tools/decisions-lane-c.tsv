@@ -1,0 +1,4 @@
+ts	phase	decision	why	evidence	result
+2026-11-15T07:45:31Z	c1	Overture paths are s3://overturemaps-us-west-2/release/2026-10-21.0/theme=transportation/type=segment/* and theme=places/type=place/*	The phase file says to take the path from Overture's docs	docs.overturemaps.org/getting-data/duckdb, fetched 2026-11-15	DESCRIBE on one file each: segment has id names subtype class geometry bbox; place has id names basic_category taxonomy geometry bbox
+2026-11-15T07:45:31Z	c1	Keep EPSG:32611 for geom_utm	A Houston property would sit far outside zone 11	All 200 properties in propstar.duckdb fall in UTM zone 11 (floor((lon+180)/6)+1)	No per-zone projection needed
+2026-11-15T07:45:31Z	c1	coverCells reuses toLatLon from model/geo.ts to find each 1 km box	One projection for the whole server	cells.test.ts	200 properties cover 128 cells
