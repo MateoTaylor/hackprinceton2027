@@ -62,7 +62,7 @@ export function createViewOps(store: ViewStore): Op[] {
       inView: z
         .object({ count: z.number().int(), propertyIds: z.array(z.string()).describe(`The first ${LIST_MAX}.`) })
         .nullable()
-        .describe('The properties inside bounds, null while bounds is null.'),
+        .describe("The properties inside bounds that the user's search and filters show, plus highlighted ones; null while bounds is null."),
       filter: FilterSchema,
       highlightCount: z.number().int(),
       highlights: z.array(HighlightSchema).describe(`The first ${LIST_MAX}.`),
@@ -72,7 +72,8 @@ export function createViewOps(store: ViewStore): Op[] {
   })(async (ctx) => {
     const view = store.get()
     const { bounds } = view
-    const ids = bounds ? [...ctx.properties.values()].filter((p) => inside(bounds, p)).map((p) => p.id) : null
+    const shown = view.shown && new Set([...view.shown, ...view.highlights.map((h) => h.propertyId)])
+    const ids = bounds ? [...ctx.properties.values()].filter((p) => inside(bounds, p) && (!shown || shown.has(p.id))).map((p) => p.id) : null
     return {
       result: {
         version: view.version,

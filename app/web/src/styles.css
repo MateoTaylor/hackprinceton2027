@@ -696,6 +696,16 @@ button:disabled {
   gap: 12px;
 }
 
+/* An open tool panel stops 12px short of Proppy's chat, and Proppy's button floats above the panel. */
+.map-frame:has(> .chat) > .tool-panel {
+  right: 432px;
+}
+
+.map-frame > .proppy-fab,
+.map-frame > .proppy-pill {
+  z-index: 5;
+}
+
 .ring {
   position: relative;
   width: 48px;

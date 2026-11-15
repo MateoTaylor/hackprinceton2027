@@ -127,6 +127,14 @@ test('view_highlight replaces, upserts and clears, and caps the list at 200', as
   assert.equal((await ok('view_highlight', { mode: 'clear' })).highlightCount, 0)
 })
 
+test('view_get counts only what the search shows, plus highlighted properties', async () => {
+  const { store, ok } = setup()
+  store.apply({ bounds: { west: -118.0025, south: 34, east: -118, north: 34.0025 }, shown: [] }, 'tab')
+  assert.deepEqual((await ok('view_get')).inView, { count: 0, propertyIds: [] })
+  await ok('view_highlight', { mode: 'replace', items: [{ propertyId: 'residential-2', score: 70 }] })
+  assert.deepEqual((await ok('view_get')).inView, { count: 1, propertyIds: ['residential-2'] })
+})
+
 test('view_get fits 200 highlights, lists the first 20 and counts what is in bounds', async () => {
   const { store, ok, run } = setup()
   assert.equal((await ok('view_get')).inView, null)

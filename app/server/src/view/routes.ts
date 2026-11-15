@@ -6,7 +6,8 @@ import { ViewReportSchema } from './schema.ts'
 import type { ViewStore } from './store.ts'
 
 const BODY_MAX_BYTES = 64 * 1024
-const KEEPALIVE_MS = 20_000
+// Every tab expects a `ping` this often and reopens a stream that stays silent past STALE_MS in web/src/view.ts.
+const HEARTBEAT_MS = 10_000
 const CLIENT_ID = /^[A-Za-z0-9-]{1,64}$/
 
 // Who sent a request: the tab id in `x-propstar-client`, or `unknown`.
@@ -15,7 +16,7 @@ export function clientOf(header: string | undefined) {
 }
 
 // GET /api/events streams the view to one tab: the current view first (by `server`), then every
-// event as the JSON `data` of an unnamed message, with a comment line every 20 s.
+// event as the JSON `data` of an unnamed message, with an empty `ping` event every 10 s.
 // PUT /api/view takes a ViewReport from a tab and answers `{version}`, or 400 when the body fails.
 export function mountView(app: Hono, store: ViewStore) {
   app.get('/api/events', (c) =>
@@ -23,9 +24,9 @@ export function mountView(app: Hono, store: ViewStore) {
       const send = (event: ServerEvent) => void stream.writeSSE({ data: JSON.stringify(event) }).catch(() => stream.abort())
       send({ type: 'view', view: store.get(), by: 'server' })
       const unsubscribe = store.subscribe(send)
-      const keepalive = setInterval(() => void stream.write(': keepalive\n\n').catch(() => stream.abort()), KEEPALIVE_MS)
+      const heartbeat = setInterval(() => void stream.writeSSE({ event: 'ping', data: '' }).catch(() => stream.abort()), HEARTBEAT_MS)
       await new Promise<void>((resolve) => stream.onAbort(resolve))
-      clearInterval(keepalive)
+      clearInterval(heartbeat)
       unsubscribe()
     }),
   )

@@ -199,9 +199,9 @@ test('routes reject bad input without calling Vexcel and serve repeat misses fro
 
   for (let i = 0; i < 2; i++) {
     const res = await app.request('/api/tiles/21/0/0')
-    assert.equal(res.status, 404)
+    assert.equal(res.status, 204)
     assert.equal(res.headers.get('cache-control'), 'private, max-age=86400')
-    assert.deepEqual(await res.json(), { error: 'No imagery here' })
+    assert.equal(await res.text(), '')
   }
   assert.equal(calls.length, 1)
 })

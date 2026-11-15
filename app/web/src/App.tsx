@@ -65,6 +65,9 @@ export function App() {
   )
 
   useEffect(() => report({ filter: { kind, type, sort, savedOnly } }), [report, kind, type, sort, savedOnly])
+  useEffect(() => {
+    if (listing.status === 'ready') report({ shown: visible.map((p) => p.id) })
+  }, [report, listing.status, visible])
 
   const shownPins = useMemo(() => pinsFromHighlights(view.highlights, proppyRunning), [view.highlights, proppyRunning])
 
@@ -132,6 +135,7 @@ export function App() {
         <main className="map-frame">
           <MapView
             properties={visible}
+            all={all}
             selected={selected}
             move={move}
             chatOpen={proppyOpen}

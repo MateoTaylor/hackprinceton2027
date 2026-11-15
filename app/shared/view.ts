@@ -42,14 +42,16 @@ export interface Highlight {
   note?: string
 }
 
-// `camera` and `bounds` are what the map last reported, null until a tab reports. `version` goes up
-// by one on every change.
+// `camera` and `bounds` are what the map last reported, null until a tab reports. `shown` is the ids
+// the tab's search and filters let through, null until a tab reports; a highlighted property also
+// keeps its pin. `version` goes up by one on every change.
 export interface View {
   version: number
   screen: Screen
   camera: Camera | null
   bounds: Bounds | null
   filter: ViewFilter
+  shown: string[] | null
   highlights: Highlight[]
 }
 
@@ -84,4 +86,5 @@ export interface ViewReport {
   camera?: Camera
   bounds?: Bounds
   filter?: ViewFilter
+  shown?: string[]
 }

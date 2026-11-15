@@ -95,7 +95,10 @@ export function createApp({
   app.get('/api/tiles/:z/:x/:y', async (c) => {
     const tile = parseTile(c.req.param('z'), c.req.param('x'), c.req.param('y'))
     if (!tile) return error(c, 400, 'Tile coordinates must be integers inside the grid of a zoom from 0 to 21')
-    return image(c, await vexcel.tile(tile.z, tile.x, tile.y))
+    const answer = await vexcel.tile(tile.z, tile.x, tile.y)
+    // Vexcel has no imagery over the ocean; MapLibre draws an empty 204 as a blank tile without logging an error.
+    if (answer.status === 404) return c.body(null, 204, { 'Cache-Control': IMAGE_CACHE })
+    return image(c, answer)
   })
 
   app.get('/api/thumb/:id', async (c) => {

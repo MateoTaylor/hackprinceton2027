@@ -6,6 +6,8 @@ export const HIGHLIGHTS_MAX = 200
 export const ToolIdSchema = z.enum(['dollhouse', 'route', 'signage', 'edit', 'remodel']) satisfies z.ZodType<ToolId>
 
 const PropertyId = z.string().min(1).max(64)
+// More than the kit's properties, and small enough that a report fits the 64 KiB body limit.
+const SHOWN_MAX = 900
 
 export const ScreenSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('browse') }),
@@ -41,6 +43,7 @@ export const ViewSchema = z.object({
   camera: CameraSchema.nullable(),
   bounds: BoundsSchema.nullable(),
   filter: FilterSchema,
+  shown: z.array(PropertyId).max(SHOWN_MAX).nullable(),
   highlights: z.array(HighlightSchema).max(HIGHLIGHTS_MAX),
 }) satisfies z.ZodType<View>
 
@@ -49,4 +52,5 @@ export const ViewReportSchema = z.strictObject({
   camera: CameraSchema.optional(),
   bounds: BoundsSchema.optional(),
   filter: FilterSchema.optional(),
+  shown: z.array(PropertyId).max(SHOWN_MAX).optional(),
 }) satisfies z.ZodType<ViewReport>

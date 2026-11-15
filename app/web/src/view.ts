@@ -11,10 +11,16 @@ export const INITIAL_VIEW: View = {
   camera: null,
   bounds: null,
   filter: { kind: null, type: null, sort: 'name', savedOnly: false },
+  shown: null,
   highlights: [],
 }
 
 const REPORT_MS = 250
+// The server pings every 10 s. A stream silent for longer than this is stalled, as one through the
+// Vite proxy is after the API restarts, so the tab reopens it.
+const STALE_MS = 25_000
+// How long the tab waits to reopen after an error, such as the proxy's 502 while the API is down.
+const RETRY_MS = 1000
 
 // Hears every write op by another writer. `useView` feeds it, and panels listen through `useWrites`.
 const writeListeners = new Set<(event: WriteEvent) => void>()
@@ -78,14 +84,26 @@ const put = (report: ViewReport) =>
 //   report(change)      reports the camera, bounds or filter, merged into one request per 250 ms
 //   move                the last move request, for the map to apply once
 //   requestMove(move)   asks the map to move from this tab, as a view op would
-// EventSource reconnects on its own, and the first event after a reconnect is the server's view.
+// The tab reopens the stream after an error or a missed heartbeat, and the first event after that is
+// the server's view.
 export function useView() {
   const [state, setState] = useState<State>({ view: INITIAL_VIEW, move: null })
   const [reporter] = useState(() => createReporter(put))
 
   useEffect(() => {
-    const source = new EventSource('/api/events')
-    source.onmessage = (message: MessageEvent<string>) => {
+    let source: EventSource
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const reopen = (delay: number) => {
+      clearTimeout(timer)
+      source.close()
+      timer = setTimeout(open, delay)
+    }
+    const alive = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => reopen(0), STALE_MS)
+    }
+    const onMessage = (message: MessageEvent<string>) => {
+      alive()
       const event: ServerEvent = JSON.parse(message.data)
       if (event.type === 'write') {
         if (event.by !== clientId) for (const listener of writeListeners) listener(event)
@@ -93,7 +111,16 @@ export function useView() {
       }
       setState((s) => onViewEvent(s, event, clientId))
     }
+    const open = () => {
+      source = new EventSource('/api/events')
+      source.onmessage = onMessage
+      source.addEventListener('ping', alive)
+      source.onerror = () => reopen(RETRY_MS)
+      alive()
+    }
+    open()
     return () => {
+      clearTimeout(timer)
       source.close()
       reporter.flush()
     }

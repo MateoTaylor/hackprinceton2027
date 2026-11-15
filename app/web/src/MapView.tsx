@@ -2,7 +2,7 @@ import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { Minus, Plus, Star } from 'lucide-react'
-import { memo, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { memo, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Property } from '../../shared/property'
 import type { Bounds, Camera } from '../../shared/view'
@@ -30,9 +30,13 @@ maplibregl.setWorkerUrl(workerUrl)
 const LOS_ANGELES: [number, number] = [-118.33, 34.05]
 const CHAT_WIDTH = 420
 const FIT_MAX_ZOOM = 17
+// Keeps a framed pin's centre clear of the map controls and the floating Proppy button: 20px edge,
+// a 40px control, a 12px gap and half of a wide price pin.
+const FIT_PADDING = { top: 96, bottom: 96, left: 128, right: 128 }
 
 type Props = {
   properties: Property[]
+  all: Property[]
   selected: Property | null
   move: MoveRequest | null
   chatOpen: boolean
@@ -42,9 +46,10 @@ type Props = {
 }
 
 // The map owns the camera. It swoops into `selected` and its angled photos, and frames `properties`
-// whenever nothing is selected. It applies each `move` once, after that framing, and reports the
+// whenever nothing is selected. A property in `pins` keeps its pin from `all` even when `properties`
+// leaves it out, but framing ignores it. It applies each `move` once, after that framing, and reports the
 // camera it reached through `onCamera` after every move. `pins` colours each property's pin.
-export function MapView({ properties, selected, move, chatOpen, pins: pinStates, onSelect, onCamera }: Props) {
+export function MapView({ properties, all, selected, move, chatOpen, pins: pinStates, onSelect, onCamera }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<maplibregl.Map | null>(null)
   const [rig, setRig] = useState<Rig | null>(null)
@@ -52,7 +57,12 @@ export function MapView({ properties, selected, move, chatOpen, pins: pinStates,
   const markers = useRef(new Map<string, maplibregl.Marker>())
   const framed = useRef(false)
   const chatInset = chatOpen ? CHAT_WIDTH : 0
-  const frameInset = useEffectEvent(() => chatInset)
+  const fitPadding = useEffectEvent(() => ({ ...FIT_PADDING, right: FIT_PADDING.right + chatInset }))
+  const shown = useMemo(() => {
+    const ids = new Set(properties.map((p) => p.id))
+    const held = all.filter((p) => pinStates.has(p.id) && !ids.has(p.id))
+    return held.length === 0 ? properties : [...properties, ...held]
+  }, [properties, all, pinStates])
   const applied = useRef(0)
   const reportCamera = useEffectEvent((m: maplibregl.Map) => {
     const { lat, lng } = m.getCenter()
@@ -95,17 +105,17 @@ export function MapView({ properties, selected, move, chatOpen, pins: pinStates,
   useEffect(() => {
     if (!map) return
     const live = markers.current
-    const ids = new Set(properties.map((p) => p.id))
+    const ids = new Set(shown.map((p) => p.id))
     for (const [id, marker] of live) {
       if (ids.has(id)) continue
       marker.remove()
       live.delete(id)
     }
-    for (const p of properties) {
+    for (const p of shown) {
       if (!live.has(p.id)) live.set(p.id, new maplibregl.Marker({ element: document.createElement('div') }).setLngLat([p.lon, p.lat]).addTo(map))
     }
     setPins(new Map(live))
-  }, [map, properties])
+  }, [map, shown])
 
   useEffect(() => {
     if (!selected) return
@@ -121,7 +131,7 @@ export function MapView({ properties, selected, move, chatOpen, pins: pinStates,
     const bounds = new maplibregl.LngLatBounds()
     for (const p of properties) bounds.extend([p.lon, p.lat])
     // A photo flight leaves its padding on the map, so the padding here replaces it rather than adding to it.
-    const camera = map.cameraForBounds(bounds, { padding: { top: 80, bottom: 80, left: 80, right: 80 + frameInset() }, maxZoom: 16, absolutePadding: true })
+    const camera = map.cameraForBounds(bounds, { padding: fitPadding(), maxZoom: 16, absolutePadding: true })
     if (!camera) return
     map.flyTo({ ...camera, bearing: 0, duration: framed.current ? 1400 : 0, essential: true })
     framed.current = true
@@ -133,7 +143,7 @@ export function MapView({ properties, selected, move, chatOpen, pins: pinStates,
     const { request } = move
     if ('fit' in request) {
       const { west, south, east, north } = request.fit
-      const camera = map.cameraForBounds([west, south, east, north], { padding: { top: 80, bottom: 80, left: 80, right: 80 + frameInset() }, maxZoom: FIT_MAX_ZOOM, absolutePadding: true })
+      const camera = map.cameraForBounds([west, south, east, north], { padding: fitPadding(), maxZoom: FIT_MAX_ZOOM, absolutePadding: true })
       if (camera) map.flyTo({ ...camera, bearing: 0, duration: 1400, essential: true })
     } else {
       map.easeTo({ center: [request.lon, request.lat], zoom: request.zoom, duration: 1200, essential: true })
@@ -144,7 +154,7 @@ export function MapView({ properties, selected, move, chatOpen, pins: pinStates,
     <>
       <div ref={container} className="map" />
       <RigFeed rig={rig} subject={selected} chatInset={chatInset} />
-      {properties.map((p) => {
+      {shown.map((p) => {
         const marker = pins.get(p.id)
         return marker && createPortal(<Pin property={p} selected={p.id === selected?.id} state={pinStates.get(p.id)} onSelect={onSelect} />, marker.getElement(), p.id)
       })}

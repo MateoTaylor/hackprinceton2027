@@ -20,6 +20,7 @@ export const INITIAL_VIEW: View = {
   camera: null,
   bounds: null,
   filter: { kind: null, type: null, sort: 'name', savedOnly: false },
+  shown: null,
   highlights: [],
 }
 
