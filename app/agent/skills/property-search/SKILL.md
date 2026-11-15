@@ -36,8 +36,9 @@ show them, so say what they found. Use them for one property, or for the few bes
 query. Read each op's description for the fields it returns, and quote those fields by name.
 
 - Start with `area_summary`. It counts the nearby places by group, names the nearest of each
-  group and gives the street the property fronts. When its description mentions a highway or
-  motorway, use it for "how far is the nearest highway".
+  group and gives the street the property fronts.
+- Use `area_roads` with `roadClass: 'motorway'` for "how far is the nearest highway". Raise
+  `radiusM` when nothing comes back, and say the radius you searched.
 - Use `area_places` with one `group` for names, such as nearby restaurants, schools or parks. It
   lists them nearest first, with distance and bearing.
 - Every distance is straight-line metres, not a walking or driving route. Say so.

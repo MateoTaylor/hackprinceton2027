@@ -19,7 +19,8 @@ height, not from a scan.
    - The user names no wall: take the longest wall and say which way it faces.
 4. `signage_place` hangs the sign. It is a write op, so the user approves it first. Pass the size
    in metres when the user gives one. Otherwise leave it out and say the sign is 3 m by 1 m.
-5. `signage_measure` with the new `signId` gives the size, the bottom and top above the ground
+5. `signage_measure` with the `propertyId` and the new sign's id (`sign.id` from `signage_place`)
+   as `signId` gives the size, the bottom and top above the ground
    and the smallest lift that reaches the top.
 6. `view_open` with `panel: 'signage'` so the user sees the sign on the building.
 

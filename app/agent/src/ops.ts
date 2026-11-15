@@ -44,7 +44,7 @@ const Envelope = z.union([
 ])
 
 // The two op routes. The public one serves the app and any client. The Proppy one holds the ops
-// only Proppy uses (the area, features and property query ops), with the same manifest and envelope.
+// only Proppy uses (the area ops), with the same manifest and envelope.
 const ROUTES = ['/api/ops', '/api/proppy/ops'] as const
 
 // Reads one manifest under a 3 s timeout, or undefined when the route is off or answers badly.
@@ -107,6 +107,7 @@ export const VIEW_UNAVAILABLE = '\n\nThe view is unavailable.\n\n'
 const ViewNote = z.object({
   screen: z.unknown(),
   camera: z.unknown(),
+  bounds: z.unknown(),
   inView: z.unknown(),
   filter: z.unknown(),
   highlightCount: z.number(),
