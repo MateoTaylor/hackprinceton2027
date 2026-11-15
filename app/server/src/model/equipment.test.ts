@@ -33,7 +33,11 @@ test('equipment_list returns every row within the result limit', async () => {
     properties: new Map(),
     vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(unusedDir) }),
     matterport: null,
+    buildingFacts: new Map(),
     dataDir: unusedDir,
+    edit: async () => {
+      throw new Error('no op calls the edit API here')
+    },
     call: async () => {
       throw new Error('equipment_list calls no other op')
     },

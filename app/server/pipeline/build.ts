@@ -9,6 +9,9 @@
 //     year_built, building_sf, units, stories, beds, baths,                 raw numbers for SQL,
 //     price_usd, rent_usd_month                                             null when missing
 //   scans  property_id, model_id, name                                      one row per readable model
+//   building_facts  one row per property, the CoStar fields a building model needs
+//     property_id, stories, slab_to_slab_ft, building_sf                   null when missing
+//     floors  STRUCT(code INTEGER, size_sf DOUBLE)[]                        CoStar FloorName codes
 import { DuckDBInstance } from '@duckdb/node-api'
 import { createReadStream } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
@@ -58,6 +61,11 @@ type CommercialRecord = {
   grossBuildingAreaSquareFeet?: number | null
   rentableBuildingAreaSquareFeet?: number | null
   numStoriesAboveGrade?: number | null
+  floors?: { floorName: number; floorSize?: { squareFeet?: number | null } | null }[] | null
+  propertyOffice?: Structural
+  propertyRetail?: (Structural & { grossLeasableAreaSquareFeet?: number | null }) | null
+  propertyIndustrial?: Structural
+  propertyFlex?: Structural
   constructionEvents?: { eventType: number; year?: number | null }[] | null
   buildingConstructionMaterial?: number | null
   lotSize?: number | null
@@ -65,7 +73,6 @@ type CommercialRecord = {
   parkingRatio?: number | null
   primaryPhoto?: { attachmentUri?: string | null } | null
   propertyApartment?: { totalNumUnits?: number | null; apartmentStyleType?: number | null } | null
-  propertyRetail?: { grossLeasableAreaSquareFeet?: number | null } | null
   propertyHospitality?: { numUnits?: number | null } | null
   primaryAddress?: {
     streetNumber?: string | null
@@ -81,6 +88,8 @@ type CommercialRecord = {
     researchMarketId?: number | null
   } | null
 }
+
+type Structural = { structural?: { slabToSlabHeightFeet?: number | null } | null } | null
 
 type ResidentialRecord = {
   id: number
@@ -177,6 +186,12 @@ type Candidate = {
     price_usd: number | null
     rent_usd_month: number | null
   }
+  building: {
+    stories: number | null
+    slab_to_slab_ft: number | null
+    building_sf: number | null
+    floors: { code: number; size_sf: number | null }[]
+  }
 }
 
 // Points for each display field a property fills, so the curated set shows well on the map and in the
@@ -244,6 +259,13 @@ async function commercialCandidates() {
         baths: null,
         price_usd: null,
         rent_usd_month: null,
+      },
+      building: {
+        stories: present(r.numStoriesAboveGrade) ? r.numStoriesAboveGrade : null,
+        slab_to_slab_ft:
+          [r.propertyOffice, r.propertyRetail, r.propertyIndustrial, r.propertyFlex].map((t) => t?.structural?.slabToSlabHeightFeet).find(present) ?? null,
+        building_sf: present(r.grossBuildingAreaSquareFeet) ? r.grossBuildingAreaSquareFeet : null,
+        floors: (r.floors ?? []).map((f) => ({ code: f.floorName, size_sf: f.floorSize?.squareFeet || null })),
       },
     })
   }
@@ -319,6 +341,12 @@ async function residentialCandidates() {
         baths: present(p.bathsMin) ? p.bathsMin : null,
         price_usd: !rental && present(price) ? price : null,
         rent_usd_month: rental && present(price) ? price : null,
+      },
+      building: {
+        stories: present(p.stories) ? p.stories : null,
+        slab_to_slab_ft: null,
+        building_sf: present(p.sqftMin) ? p.sqftMin : null,
+        floors: [],
       },
     }
     // One listing per home: the primary listing wins, then the better-ranked one, then the lower id.
@@ -437,8 +465,13 @@ await connection.run(`
     price_usd DOUBLE, rent_usd_month DOUBLE
   )`)
 await connection.run(`CREATE TABLE scans (property_id VARCHAR NOT NULL, model_id VARCHAR NOT NULL, name VARCHAR NOT NULL)`)
+await connection.run(`
+  CREATE TABLE building_facts (
+    property_id VARCHAR PRIMARY KEY, stories INTEGER, slab_to_slab_ft DOUBLE, building_sf DOUBLE,
+    floors STRUCT(code INTEGER, size_sf DOUBLE)[] NOT NULL
+  )`)
 
-for (const { candidate: { property: p, raw }, scans } of chosen) {
+for (const { candidate: { property: p, raw, building }, scans } of chosen) {
   await connection.run(
     `INSERT INTO properties VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
       CAST($10::JSON AS STRUCT(label VARCHAR, value VARCHAR)[]), CAST($11::JSON AS STRUCT(model_id VARCHAR, name VARCHAR)[]),
@@ -450,6 +483,10 @@ for (const { candidate: { property: p, raw }, scans } of chosen) {
     ],
   )
   for (const scan of scans) await connection.run(`INSERT INTO scans VALUES ($1, $2, $3)`, [p.id, scan.modelId, scan.name])
+  await connection.run(
+    `INSERT INTO building_facts VALUES ($1, $2, $3, $4, CAST($5::JSON AS STRUCT(code INTEGER, size_sf DOUBLE)[]))`,
+    [p.id, building.stories, building.slab_to_slab_ft, building.building_sf, JSON.stringify(building.floors)],
+  )
 }
 await connection.run('COMMIT')
 await connection.run('CHECKPOINT')
@@ -464,6 +501,7 @@ console.log(`Wrote ${chosen.length} properties to ${DB_PATH}`)
 console.log(`  commercial ${byKind('commercial')}, residential ${byKind('residential')}`)
 for (const [label, n] of tally) console.log(`  ${label}: ${n}`)
 console.log(`Scans: ${chosen.reduce((n, c) => n + c.scans.length, 0)}`)
+console.log(`Building facts: ${chosen.length} rows, ${chosen.filter((c) => c.candidate.building.floors.length > 0).length} with floors`)
 console.log(`Matterport calls: ${calls} (the rest came from ${fileURLToPath(CACHE)})`)
 console.log(`Skipped ${skipped.length}:`)
 for (const s of skipped) console.log(`  ${s.id}: ${s.reason}`)

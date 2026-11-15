@@ -14,9 +14,24 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.8
         version: 2.1.8(hono@4.13.18)
+      clipper2-ts:
+        specifier: 2.0.1-19
+        version: 2.0.1-19
       hono:
         specifier: ^4.13.18
         version: 4.13.18
+      ngraph.graph:
+        specifier: 20.1.2
+        version: 20.1.2
+      ngraph.path:
+        specifier: 1.6.1
+        version: 1.6.1
+      three:
+        specifier: 0.187.0
+        version: 0.187.0
+      three-mesh-bvh:
+        specifier: 0.9.18
+        version: 0.9.18(three@0.187.0)
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -24,11 +39,17 @@ importers:
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      '@types/three':
+        specifier: 0.187.0
+        version: 0.187.0
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
 
 packages:
+
+  '@dimforge/rapier3d-compat@0.12.0':
+    resolution: {integrity: sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow==}
 
   '@duckdb/node-api@1.4.5-r.1':
     resolution: {integrity: sha512-lXPfeJclmhTGhBBnfVXy4siuGNpa8QaUIQGAWlDirC92Dq5fELdITI/LihiFDh5Gz7aM8AN9stCGIH891uv1oQ==}
@@ -72,8 +93,20 @@ packages:
     peerDependencies:
       hono: ^4 || ^5.0.0-0
 
+  '@tweenjs/tween.js@23.1.3':
+    resolution: {integrity: sha512-vJmvvwFxYuGnF2axRtPYocag6Clbb5YS7kLL+SO/TeVFzHqDIWrNKYtcsPMibjDx9O+bu+psAy9NKfWklassUA==}
+
   '@types/node@26.6.6':
     resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
+
+  '@types/stats.js@0.17.4':
+    resolution: {integrity: sha512-jIBvWWShCvlBqBNIZt0KAshWpvSjhkwkEu4ZUcASoAvhmrgAUI2t1dXrjSL4xXVLB4FznPrIsX3nKXFl/Dt4vA==}
+
+  '@types/three@0.187.0':
+    resolution: {integrity: sha512-v+vKNarUtk4n2QRZ4+CN5ygMM0ARUjXjIQl0R/unMUfmStFeVqGbgqarbrpoGTXRZoulSH16ePrVJVxPJEbMUA==}
+
+  '@types/webxr@0.5.24':
+    resolution: {integrity: sha512-h8fgEd/DpoS9CBrjEQXR+dIDraopAEfu4wYVNY2tEPwk60stPWhvZMf4Foo5FakuQ7HFZoa8WceaWFervK2Ovg==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -195,9 +228,36 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  clipper2-ts@2.0.1-19:
+    resolution: {integrity: sha512-hBdoBBda/a/iLdpDckbDjEGAq5GRhHTRAv/Ys9f2oTBuixRy9uLZukG8pO5txtbf9wZTpBD3KFHuoLrEkI3r7g==}
+    engines: {node: '>=14.0.0'}
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
+
   hono@4.13.18:
     resolution: {integrity: sha512-H9q/E1XizaWstJxUW881dmLxEj+t/TrGGnyxINkm4+sK0qUwsMtFdo2BWI9Vs3cIS19MU6b6iCijoUoEf4f3DA==}
     engines: {node: '>=16.9.0'}
+
+  meshoptimizer@1.1.1:
+    resolution: {integrity: sha512-oRFNWJRDA/WTrVj7NWvqa5HqE1t9MYDj2VaWirQCzCCrAd2GHrqR/sQezCxiWATPNlKTcRaPRHPJwIRoPBAp5g==}
+
+  ngraph.events@1.4.0:
+    resolution: {integrity: sha512-NeDGI4DSyjBNBRtA86222JoYietsmCXbs8CEB0dZ51Xeh4lhVl1y3wpWLumczvnha8sFQIW4E0vvVWwgmX2mGw==}
+
+  ngraph.graph@20.1.2:
+    resolution: {integrity: sha512-W/G3GBR3Y5UxMLHTUCPP9v+pbtpzwuAEIqP5oZV+9IwgxAIEZwh+Foc60iPc1idlnK7Zxu0p3puxAyNmDvBd0Q==}
+
+  ngraph.path@1.6.1:
+    resolution: {integrity: sha512-NiA52wAoRo/t36/1dBAZkXPeX+rQ1mn82bc9LSfnfywGY9TxH/jXw3x3fZ1mOCblyln26lHtfHHEzssjjyX+aw==}
+
+  three-mesh-bvh@0.9.18:
+    resolution: {integrity: sha512-S76hOBnsSG4jsuEyCu98K63klONG4NwJANabPY1LUD5l7oUgu2xtKC0IwnX/XyPzo4YZ1D7ZU+gHVA479UdQmA==}
+    peerDependencies:
+      three: '>= 0.159.0'
+
+  three@0.187.0:
+    resolution: {integrity: sha512-Qiu7R+Cmh8CstZsY1uJOSWnVlfo7ZtNLV7mF8Jltk3LB3AtDu9cRZlcnRKkAk8Y4z6KKw35z7Y7Urd7jWY8etA==}
 
   typescript@7.0.2:
     resolution: {integrity: sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==}
@@ -211,6 +271,8 @@ packages:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
 snapshots:
+
+  '@dimforge/rapier3d-compat@0.12.0': {}
 
   '@duckdb/node-api@1.4.5-r.1':
     dependencies:
@@ -247,9 +309,24 @@ snapshots:
     dependencies:
       hono: 4.13.18
 
+  '@tweenjs/tween.js@23.1.3': {}
+
   '@types/node@26.6.6':
     dependencies:
       undici-types: 8.9.0
+
+  '@types/stats.js@0.17.4': {}
+
+  '@types/three@0.187.0':
+    dependencies:
+      '@dimforge/rapier3d-compat': 0.12.0
+      '@tweenjs/tween.js': 23.1.3
+      '@types/stats.js': 0.17.4
+      '@types/webxr': 0.5.24
+      fflate: 0.8.3
+      meshoptimizer: 1.1.1
+
+  '@types/webxr@0.5.24': {}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -311,7 +388,27 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
+  clipper2-ts@2.0.1-19: {}
+
+  fflate@0.8.3: {}
+
   hono@4.13.18: {}
+
+  meshoptimizer@1.1.1: {}
+
+  ngraph.events@1.4.0: {}
+
+  ngraph.graph@20.1.2:
+    dependencies:
+      ngraph.events: 1.4.0
+
+  ngraph.path@1.6.1: {}
+
+  three-mesh-bvh@0.9.18(three@0.187.0):
+    dependencies:
+      three: 0.187.0
+
+  three@0.187.0: {}
 
   typescript@7.0.2:
     optionalDependencies:

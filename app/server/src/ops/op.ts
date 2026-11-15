@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Property } from '../../../shared/property.ts'
 import type { Matterport } from '../matterport.ts'
+import type { BuildingFacts } from '../properties.ts'
 import type { Vexcel } from '../vexcel.ts'
 
 // The longest `JSON.stringify(result)` that runOp lets through. Geometry and long lists go in
@@ -46,6 +47,11 @@ export class OpError extends Error {
 // What every op can reach. `matterport` is null when the Matterport keys are missing. Reach it
 // through requireMatterport.
 //
+// `edit` sends one request to the edit API on Mateo's PC, the same way the browser's /api/edit/*
+// requests go, so no op holds the token. `path` is the edit API's own path. Without EDIT_API_URL
+// and EDIT_API_TOKEN it answers 503 with the code `edit_api_not_configured`:
+//   const res = await ctx.edit(`/places/${modelId}`)
+//
 // `call` runs another op by name with detail on. It resolves to that op's checked result and
 // detail as `unknown` and rejects with that op's OpError:
 //   const { detail } = await ctx.call('building_get', { propertyId })
@@ -53,7 +59,9 @@ export interface OpContext {
   properties: ReadonlyMap<string, Property>
   vexcel: Vexcel
   matterport: Matterport | null
+  buildingFacts: ReadonlyMap<string, BuildingFacts>
   dataDir: string
+  edit(path: string, init?: RequestInit): Promise<Response>
   call(name: string, input: unknown): Promise<{ result: unknown; detail: unknown }>
 }
 
@@ -90,6 +98,14 @@ export interface Op<In extends z.ZodObject = z.ZodObject, Out extends z.ZodType 
 export const defineOp =
   <In extends z.ZodObject, Out extends z.ZodType, Det extends z.ZodType = z.ZodNever>(meta: Omit<Op<In, Out, Det>, 'run'>) =>
   (run: Op<In, Out, Det>['run']): Op<In, Out, Det> => ({ ...meta, run })
+
+// An op whose name, summary, effect and input are final but whose `run` is not written yet. It
+// answers `not_ready` and has an empty output. Replace it with a defineOp call when the op is built:
+//   const buildingGet = stubOp({ name: 'building_get', summary, effect: 'read', input })
+export const stubOp = <In extends z.ZodObject>(meta: Pick<Op<In>, 'name' | 'summary' | 'effect' | 'input'>) =>
+  defineOp({ ...meta, output: z.object({}) })(async () => {
+    throw new OpError('not_ready', `${meta.name} is not built yet.`, 'This op is not built yet.')
+  })
 
 // What runOp resolves to.
 export type OpEnvelope<Result = unknown, Detail = unknown> =

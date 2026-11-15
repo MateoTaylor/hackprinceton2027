@@ -105,8 +105,52 @@ const property: Property = {
   typeLabel: 'Office', facts: [], photoUrl: null, scans: [],
 }
 
-const appWith = async (vexcel: Vexcel) =>
-  createApp({ base: { properties: new Map([[property.id, property]]), vexcel, matterport: null, dataDir: await tempRoot() } })
+const appWith = async (vexcel: Vexcel, options: Omit<Parameters<typeof createApp>[0], 'base'> = {}) =>
+  createApp({
+    base: {
+      properties: new Map([[property.id, property]]),
+      vexcel,
+      matterport: null,
+      buildingFacts: new Map(),
+      dataDir: await tempRoot(),
+      edit: async () => {
+        throw new Error('no op calls the edit API here')
+      },
+    },
+    ...options,
+  })
+
+const unusedVexcel = async () => createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()) })
+
+test('the scene config answers 503 without a key, is never cached and keeps the key out of the op manifest', async () => {
+  const off = await (await appWith(await unusedVexcel())).request('/api/scene/config')
+  assert.equal(off.status, 503)
+  assert.equal(off.headers.get('cache-control'), 'no-store')
+
+  const app = await appWith(await unusedVexcel(), { sdkKey: 'invented-key' })
+  const on = await app.request('/api/scene/config')
+  assert.equal(on.status, 200)
+  assert.equal(on.headers.get('cache-control'), 'no-store')
+  assert.deepEqual(await on.json(), { sdkKey: 'invented-key' })
+  assert.ok(!(await (await app.request('/api/ops')).text()).includes('invented-key'), 'the op manifest holds the SDK key')
+})
+
+test('the edit proxy is an unchanged copy of the one in tools/edit_api', async () => {
+  const [copy, original] = await Promise.all([
+    readFile(new URL('./editProxy.ts', import.meta.url)),
+    readFile(new URL('../../../tools/edit_api/proxy.ts', import.meta.url)),
+  ])
+  assert.ok(copy.equals(original), 'app/server/src/editProxy.ts differs from tools/edit_api/proxy.ts; copy it again')
+})
+
+test('the edit proxy answers 503 without a link and sits behind the host and cross-site checks', async () => {
+  const app = await appWith(await unusedVexcel())
+  const res = await app.request('/api/edit/health')
+  assert.equal(res.status, 503)
+  assert.equal(((await res.json()) as { error: { code: string } }).error.code, 'edit_api_not_configured')
+  assert.equal((await app.request('http://rebound.example/api/edit/health')).status, 403)
+  assert.equal((await app.request('/api/edit/health', { headers: { 'sec-fetch-site': 'cross-site' } })).status, 403)
+})
 
 test('only requests for this machine from the same site get through', async () => {
   const app = await appWith(createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()) }))

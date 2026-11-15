@@ -27,7 +27,11 @@ const ctx: OpContext = {
   properties: new Map([[property.id, property]]),
   vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(unusedDir) }),
   matterport: null,
+  buildingFacts: new Map(),
   dataDir: unusedDir,
+  edit: async () => {
+    throw new Error('no op calls the edit API here')
+  },
   call: async () => {
     throw new Error('no op calls another here')
   },

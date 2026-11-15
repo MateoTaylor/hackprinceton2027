@@ -32,21 +32,53 @@ const Row = z
     }),
   )
 
-// Reads every curated property, ordered by id, and closes the database so `pnpm build:data` can
-// rewrite it. The server holds the result for its lifetime; restart it after a rebuild.
-export async function loadProperties(dbPath: string) {
+const FactsRow = z
+  .object({
+    property_id: z.string(),
+    stories: z.number().nullable(),
+    slab_to_slab_ft: z.number().nullable(),
+    building_sf: z.number().nullable(),
+    floors: z.array(z.object({ code: z.number(), size_sf: z.number().nullable() })),
+  })
+  .transform((row) => ({
+    propertyId: row.property_id,
+    stories: row.stories,
+    slabToSlabFt: row.slab_to_slab_ft,
+    buildingSf: row.building_sf,
+    floors: row.floors.map((f) => ({ code: f.code, sizeSf: f.size_sf })),
+  }))
+
+// The CoStar fields a building model needs. `floors` lists CoStar FloorName codes with each floor's
+// gross area, which is null when CoStar has none.
+export type BuildingFacts = z.output<typeof FactsRow>
+
+// Closes the database after the query, so `pnpm build:data` can rewrite it while the server holds
+// the result.
+async function readAll(dbPath: string, sql: string) {
   const db = await DuckDBInstance.create(dbPath, { access_mode: 'READ_ONLY' })
   try {
     const connection = await db.connect()
     try {
-      const reader = await connection.runAndReadAll(
-        'SELECT id, kind, costar_id, name, address, lat, lon, type_label, photo_url, facts, scans FROM properties ORDER BY id',
-      )
-      return z.array(Row).parse(reader.getRowObjectsJS())
+      return (await connection.runAndReadAll(sql)).getRowObjectsJS()
     } finally {
       connection.closeSync()
     }
   } finally {
     db.closeSync()
   }
+}
+
+// Reads every curated property, ordered by id. The server holds the result for its lifetime;
+// restart it after a rebuild.
+export async function loadProperties(dbPath: string) {
+  const rows = await readAll(
+    dbPath,
+    'SELECT id, kind, costar_id, name, address, lat, lon, type_label, photo_url, facts, scans FROM properties ORDER BY id',
+  )
+  return z.array(Row).parse(rows)
+}
+
+export async function loadBuildingFacts(dbPath: string): Promise<ReadonlyMap<string, BuildingFacts>> {
+  const rows = await readAll(dbPath, 'SELECT property_id, stories, slab_to_slab_ft, building_sf, floors FROM building_facts')
+  return new Map(z.array(FactsRow).parse(rows).map((facts) => [facts.propertyId, facts]))
 }

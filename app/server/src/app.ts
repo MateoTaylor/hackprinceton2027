@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono'
 import { logger } from 'hono/logger'
 import type { ApiError } from '../../shared/api.ts'
 import type { Cached } from './cache.ts'
+import { forwardEdit } from './editProxy.ts'
 import { mountOps } from './ops/http.ts'
 import { OPS } from './ops/index.ts'
 import type { Op } from './ops/op.ts'
@@ -35,8 +36,19 @@ const image = (c: Context, answer: Cached) => {
 }
 
 // The Propstar HTTP API. It answers only under /api; every other path is an empty 404, so nothing
-// on disk can be served. It registers `ops` and throws when one of them is invalid.
-export function createApp({ base, ops = OPS }: { base: OpBase; ops?: readonly Op[] }) {
+// on disk can be served. It registers `ops` and throws when one of them is invalid. `sdkKey` is the
+// Matterport SDK key the browser's Showcase embed needs, and /api/edit/* forwards to `editLink`.
+export function createApp({
+  base,
+  ops = OPS,
+  sdkKey = null,
+  editLink = {},
+}: {
+  base: OpBase
+  ops?: readonly Op[]
+  sdkKey?: string | null
+  editLink?: Parameters<typeof forwardEdit>[1]
+}) {
   const { properties, vexcel } = base
   const registry = createRegistry(ops, base)
   const app = new Hono()
@@ -55,6 +67,14 @@ export function createApp({ base, ops = OPS }: { base: OpBase; ops?: readonly Op
   app.get('/api/properties', (c) => c.json([...properties.values()]))
 
   mountOps(app, registry)
+
+  app.get('/api/scene/config', (c) => {
+    c.header('Cache-Control', 'no-store')
+    if (!sdkKey) return error(c, 503, 'MP_SDK_KEY is missing from the repo-root .env')
+    return c.json({ sdkKey })
+  })
+
+  app.all('/api/edit/*', (c) => forwardEdit(c.req.raw, editLink))
 
   app.get('/api/tiles/:z/:x/:y', async (c) => {
     const tile = parseTile(c.req.param('z'), c.req.param('x'), c.req.param('y'))

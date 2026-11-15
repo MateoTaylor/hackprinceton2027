@@ -13,7 +13,11 @@ const base: OpBase = {
   properties: new Map(),
   vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(unusedDir) }),
   matterport: null,
+  buildingFacts: new Map(),
   dataDir: unusedDir,
+  edit: async () => {
+    throw new Error('no op calls the edit API here')
+  },
 }
 
 const area = defineOp({

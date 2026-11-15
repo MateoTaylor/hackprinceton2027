@@ -7,16 +7,23 @@
     "start": "node --env-file=../../.env src/main.ts",
     "test": "node --test \"src/**/*.test.ts\"",
     "build:data": "node --env-file=../../.env pipeline/build.ts",
+    "build:area": "node pipeline/area.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@duckdb/node-api": "1.4.5-r.1",
     "@hono/node-server": "^2.1.8",
+    "clipper2-ts": "2.0.1-19",
     "hono": "^4.13.18",
+    "ngraph.graph": "20.1.2",
+    "ngraph.path": "1.6.1",
+    "three": "0.187.0",
+    "three-mesh-bvh": "0.9.18",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "@types/three": "0.187.0",
     "typescript": "^7.0.2"
   }
 }

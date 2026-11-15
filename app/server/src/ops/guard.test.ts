@@ -14,6 +14,10 @@ function schemaKeys(schema: unknown): string[] {
   ])
 }
 
+test('the registry holds all 16 ops', () => {
+  assert.equal(OPS.length, 16)
+})
+
 for (const op of OPS) {
   test(`${op.name} has a valid name, a short summary and schemas a model can read`, () => {
     assert.match(op.name, /^[a-z][a-z0-9_]{2,40}$/)

@@ -4,8 +4,9 @@ import { serve } from '@hono/node-server'
 import { fileURLToPath } from 'node:url'
 import { createApp } from './app.ts'
 import { createDiskCache } from './cache.ts'
+import { forwardEdit, PREFIX } from './editProxy.ts'
 import { createMatterport } from './matterport.ts'
-import { loadProperties } from './properties.ts'
+import { loadBuildingFacts, loadProperties } from './properties.ts'
 import { createVexcel } from './vexcel.ts'
 
 const HOST = '127.0.0.1'
@@ -18,7 +19,9 @@ if (!apiKey) {
   process.exit(1)
 }
 
-const properties = await loadProperties(fileURLToPath(new URL('propstar.duckdb', DATA)))
+const DB = fileURLToPath(new URL('propstar.duckdb', DATA))
+const properties = await loadProperties(DB)
+const buildingFacts = await loadBuildingFacts(DB)
 const MB = 1_000_000
 // Measured per entry: oblique about 2.6 MB (a 150-220 m square at full resolution), tile 48 KB,
 // parcel 119 KB, thumb 44 KB, coverage 5 KB. The oblique budget holds about 95 photos, or 24
@@ -39,13 +42,18 @@ const matterport =
   tokenId && tokenSecret
     ? createMatterport({ tokenId, tokenSecret, cache: createDiskCache(fileURLToPath(new URL('cache/matterport-api/', DATA)), { graphql: 64 * MB }) })
     : null
+const editLink = { base: process.env.EDIT_API_URL, key: process.env.EDIT_API_TOKEN }
 const app = createApp({
   base: {
     properties: new Map(properties.map((p) => [p.id, p])),
     vexcel: createVexcel({ apiKey, cache }),
     matterport,
+    buildingFacts,
     dataDir: fileURLToPath(DATA),
+    edit: (path, init) => forwardEdit(new Request(`http://127.0.0.1${PREFIX}${path}`, init), editLink),
   },
+  sdkKey: process.env.MP_SDK_KEY?.trim() || null,
+  editLink,
 })
 
 serve({ fetch: app.fetch, hostname: HOST, port: PORT }, () => {
