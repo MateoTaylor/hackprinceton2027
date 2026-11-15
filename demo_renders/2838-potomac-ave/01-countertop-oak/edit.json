@@ -1,0 +1,364 @@
+{
+ "job_id": "20261115-041954-2d3c0c",
+ "stub": false,
+ "model_id": "ttiRpR6oEKM",
+ "command": "change the countertop from white marble to warm oak butcher block wood",
+ "has_mesh": true,
+ "frame": {
+  "world": "right-handed, Z up, metres; the frame of the MatterPak OBJ",
+  "rotation": "quaternion [x, y, z, w]; rotates pano-local directions into world, used as given",
+  "faces": "0 up (+Z), 1 +X, 2 -Y, 3 -X, 4 +Y, 5 down (-Z), in the panorama's own frame",
+  "face_basis": {
+   "0": {
+    "forward": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "up": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "right": [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   },
+   "1": {
+    "forward": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   },
+   "2": {
+    "forward": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     -1.0,
+     0.0,
+     0.0
+    ]
+   },
+   "3": {
+    "forward": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     0.0,
+     1.0,
+     0.0
+    ]
+   },
+   "4": {
+    "forward": [
+     0.0,
+     1.0,
+     0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     1.0,
+     0.0,
+     0.0
+    ]
+   },
+   "5": {
+    "forward": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "up": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "right": [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   }
+  },
+  "face_pixel": "pixel (i, j) of a face of size s looks along forward + a*right + b*up, a = (i + 0.5) / s * 2 - 1, b = 1 - (j + 0.5) / s * 2 (i is the column, j the row)",
+  "yaw_pitch": "yaw = atan2(forward.y, forward.x) in degrees, from +X towards +Y; pitch = degrees up from level; both in the world frame"
+ },
+ "start": {
+  "pano_id": "w6snx3qcyumnqnx797uiyfuac",
+  "index": 12,
+  "yaw": 63.7,
+  "pitch": -25.6,
+  "fov": 70.0
+ },
+ "panos": [
+  {
+   "id": "w6snx3qcyumnqnx797uiyfuac",
+   "location_id": "w6snx3qcyumnqnx797uiyfuac",
+   "index": 12,
+   "position": [
+    5.31668758392334,
+    1.6549937725067139,
+    1.3586995601654053
+   ],
+   "rotation": [
+    -0.0019754446111619473,
+    0.010225631296634674,
+    0.9524580836296082,
+    -0.3044915795326233
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/w6snx3qcyumnqnx797uiyfuac/0.jpg",
+    "original:data/ttiRpR6oEKM/panos/w6snx3qcyumnqnx797uiyfuac/1.jpg",
+    "p12_f2.jpg",
+    "p12_f3.jpg",
+    "original:data/ttiRpR6oEKM/panos/w6snx3qcyumnqnx797uiyfuac/4.jpg",
+    "p12_f5.jpg"
+   ],
+   "changed": [
+    2,
+    3,
+    5
+   ],
+   "verdict": "pass",
+   "views": [
+    {
+     "yaw": 63.7,
+     "pitch": -25.6,
+     "fov": 70.0,
+     "width": 1024,
+     "height": 1024,
+     "before": "p12_v0_before.jpg",
+     "edited": "p12_v0_edited.jpg",
+     "mask": "p12_v0_mask.png",
+     "report": {
+      "verdict": "pass",
+      "issues": [],
+      "notes": [],
+      "summary": "No glaring problems found."
+     }
+    }
+   ]
+  },
+  {
+   "id": "bmcq4s5gqhcdzy0dq9w5wee3d",
+   "location_id": "bmcq4s5gqhcdzy0dq9w5wee3d",
+   "index": 6,
+   "position": [
+    7.21763277053833,
+    1.7886197566986084,
+    1.3659993410110474
+   ],
+   "rotation": [
+    -0.0009183892398141325,
+    0.021423162892460823,
+    0.9730127453804016,
+    0.22975294291973114
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/bmcq4s5gqhcdzy0dq9w5wee3d/0.jpg",
+    "p6_f1.jpg",
+    "p6_f2.jpg",
+    "original:data/ttiRpR6oEKM/panos/bmcq4s5gqhcdzy0dq9w5wee3d/3.jpg",
+    "original:data/ttiRpR6oEKM/panos/bmcq4s5gqhcdzy0dq9w5wee3d/4.jpg",
+    "p6_f5.jpg"
+   ],
+   "changed": [
+    1,
+    2,
+    5
+   ],
+   "verdict": "pass",
+   "views": [
+    {
+     "yaw": 141.83,
+     "pitch": -28.8,
+     "fov": 94.83,
+     "width": 1024,
+     "height": 1024,
+     "before": "p6_v1_before.jpg",
+     "edited": "p6_v1_edited.jpg",
+     "mask": "p6_v1_mask.png",
+     "report": {
+      "verdict": "pass",
+      "issues": [],
+      "notes": [
+       {
+        "kind": "light_left",
+        "severity": 1,
+        "evidence": "the image model made the area next to it darker (7.7% of the picture); the photo's own light there was kept"
+       }
+      ],
+      "summary": "No glaring problems found."
+     }
+    }
+   ]
+  },
+  {
+   "id": "ff150hq1nu690m9mcpytnbp2b",
+   "location_id": "ff150hq1nu690m9mcpytnbp2b",
+   "index": 17,
+   "position": [
+    5.65367317199707,
+    -0.16961492598056793,
+    1.3692854642868042
+   ],
+   "rotation": [
+    0.0016379901207983494,
+    -0.004996127914637327,
+    0.27621638774871826,
+    0.9610810875892639
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/ff150hq1nu690m9mcpytnbp2b/0.jpg",
+    "p17_f1.jpg",
+    "original:data/ttiRpR6oEKM/panos/ff150hq1nu690m9mcpytnbp2b/2.jpg",
+    "original:data/ttiRpR6oEKM/panos/ff150hq1nu690m9mcpytnbp2b/3.jpg",
+    "p17_f4.jpg",
+    "original:data/ttiRpR6oEKM/panos/ff150hq1nu690m9mcpytnbp2b/5.jpg"
+   ],
+   "changed": [
+    1,
+    4
+   ],
+   "verdict": "pass",
+   "views": [
+    {
+     "yaw": 81.65,
+     "pitch": -10.96,
+     "fov": 66.24,
+     "width": 1024,
+     "height": 1024,
+     "before": "p17_v2_before.jpg",
+     "edited": "p17_v2_edited.jpg",
+     "mask": "p17_v2_mask.png",
+     "report": {
+      "verdict": "pass",
+      "issues": [],
+      "notes": [],
+      "summary": "No glaring problems found."
+     }
+    }
+   ]
+  },
+  {
+   "id": "w9ew7het212735e6cux126w5a",
+   "location_id": "w9ew7het212735e6cux126w5a",
+   "index": 27,
+   "position": [
+    7.073416233062744,
+    -0.7936891913414001,
+    1.3766577243804932
+   ],
+   "rotation": [
+    0.003961616661399603,
+    -0.0003134924336336553,
+    0.06015141308307648,
+    0.9981813430786133
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/0.jpg",
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/1.jpg",
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/2.jpg",
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/3.jpg",
+    "p27_f4.jpg",
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/5.jpg"
+   ],
+   "changed": [
+    4
+   ],
+   "verdict": "pass",
+   "views": [
+    {
+     "yaw": 106.56,
+     "pitch": -9.21,
+     "fov": 57.15,
+     "width": 1024,
+     "height": 1024,
+     "before": "p27_v3_before.jpg",
+     "edited": "p27_v3_edited.jpg",
+     "mask": "p27_v3_mask.png",
+     "report": {
+      "verdict": "pass",
+      "issues": [],
+      "notes": [
+       {
+        "kind": "light_left",
+        "severity": 1,
+        "evidence": "the image model made the area next to it darker (2.5% of the picture); the photo's own light there was kept"
+       }
+      ],
+      "summary": "No glaring problems found."
+     }
+    }
+   ]
+  }
+ ],
+ "report": {
+  "verdict": "pass",
+  "issues": [],
+  "notes": [
+   {
+    "kind": "light_left",
+    "severity": 1,
+    "evidence": "the image model made the area next to it darker (7.7% of the picture); the photo's own light there was kept",
+    "pano": 6
+   },
+   {
+    "kind": "light_left",
+    "severity": 1,
+    "evidence": "the image model made the area next to it darker (2.5% of the picture); the photo's own light there was kept",
+    "pano": 27
+   }
+  ],
+  "summary": "4 views edited. pano 12: pass; pano 6: pass; pano 17: pass; pano 27: pass."
+ },
+ "preview": "preview.jpg",
+ "skipped": [],
+ "single_view": null,
+ "job": {
+  "job_id": "20261115-041954-2d3c0c",
+  "created": "2026-11-15T04:19:54-0500",
+  "started": "2026-11-15T04:25:05-0500",
+  "finished": "2026-11-15T04:32:29-0500",
+  "command": "change the countertop from white marble to warm oak butcher block wood",
+  "start": {
+   "pano_id": "w6snx3qcyumnqnx797uiyfuac",
+   "yaw": 63.7,
+   "pitch": -25.6,
+   "fov": 70.0,
+   "index": 12
+  }
+ }
+}

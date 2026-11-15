@@ -1,0 +1,69 @@
+{
+ "model_id": "ttiRpR6oEKM",
+ "name": "2838 Potomac Ave",
+ "edits": [
+  {
+   "name": "01-countertop-oak",
+   "job_id": "20261115-041954-2d3c0c",
+   "command": "change the countertop from white marble to warm oak butcher block wood",
+   "start": {
+    "pano_id": "w6snx3qcyumnqnx797uiyfuac",
+    "index": 12,
+    "yaw": 63.7,
+    "pitch": -25.6,
+    "fov": 70.0
+   },
+   "verdict": "pass",
+   "panos": [
+    12,
+    6,
+    17,
+    27
+   ],
+   "skipped": [],
+   "files": 22
+  },
+  {
+   "name": "02-pillow-removed",
+   "job_id": "20261115-041955-700811",
+   "command": "remove the red throw pillow from the round armchair",
+   "start": {
+    "pano_id": "m08g3sayuscznrxiiqgdaumkc",
+    "index": 23,
+    "yaw": 78.2,
+    "pitch": -21.3,
+    "fov": 70.0
+   },
+   "verdict": "pass",
+   "panos": [
+    23,
+    4,
+    13,
+    16
+   ],
+   "skipped": [],
+   "files": 21
+  },
+  {
+   "name": "03-doors-walnut",
+   "job_id": "20261115-042547-ba3b6f",
+   "command": "change the white double doors to rich brown walnut wood",
+   "start": {
+    "pano_id": "06zehmuifehufx50xdstxcwbc",
+    "index": 13,
+    "yaw": 302.4,
+    "pitch": -4.6,
+    "fov": 70.0
+   },
+   "verdict": "fix",
+   "panos": [
+    13,
+    21,
+    23,
+    12
+   ],
+   "skipped": [],
+   "files": 20
+  }
+ ]
+}
