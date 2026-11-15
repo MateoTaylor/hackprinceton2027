@@ -116,6 +116,38 @@ export function fitOnWall(wall: Wall, { alongM, bottomM, sizeM }: Placement): Pl
   }
 }
 
+// The smallest side a sign may have, as the server's SizeM allows.
+export const MIN_SIDE_M = 0.2
+
+// Why a sign of `sizeM` cannot hang on `wall`, in words for the user, or null when it fits. The
+// wall's own width and height are the only upper bounds.
+export function sizeProblem(wall: Wall, { widthM, heightM }: Placement['sizeM']) {
+  const tallM = round(wall.topM - wall.baseM)
+  if (widthM > wall.lengthM) return `This wall is ${wall.lengthM} m wide. Place the sign on a wider wall for more.`
+  if (heightM > tallM) return `This wall is ${tallM} m tall.`
+  if (widthM < MIN_SIDE_M || heightM < MIN_SIDE_M) return `A sign is at least ${MIN_SIDE_M} m on each side.`
+  return null
+}
+
+// The criss-cross hatch on a sign's face: two families of lines at 45 degrees, `spacingM` apart
+// on the wall, clipped to the sign. Lines stay lines in the photo, so projecting each end draws
+// the hatch in the sign's own perspective.
+export function hatch(wall: Wall, { alongM, bottomM, sizeM: { widthM: w, heightM: h } }: Placement, spacingM: number): [Vec3, Vec3][] {
+  const left = alongM - w / 2
+  const at = (u: number, v: number) => onWall(wall, left + u, bottomM + v)
+  const lines: [Vec3, Vec3][] = []
+  // Rising lines v = u + c and falling lines v = c - u, for c on the spacing grid inside the sign.
+  for (let c = Math.ceil(-w / spacingM) * spacingM; c < h; c += spacingM) {
+    const [u0, u1] = [Math.max(0, -c), Math.min(w, h - c)]
+    if (u1 > u0) lines.push([at(u0, u0 + c), at(u1, u1 + c)])
+  }
+  for (let c = spacingM; c < w + h; c += spacingM) {
+    const [u0, u1] = [Math.max(0, c - h), Math.min(w, c)]
+    if (u1 > u0) lines.push([at(u0, c - u0), at(u1, c - u1)])
+  }
+  return lines
+}
+
 // A length in metres with feet and inches beside it.
 export function formatLength(metres: number) {
   const inches = Math.round(metres / 0.0254)

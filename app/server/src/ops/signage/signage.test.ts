@@ -4,6 +4,7 @@ import { toLatLon } from '../../model/geo.ts'
 import type { ObliqueCamera } from '../../obliquePose.ts'
 import { utmToLngLat } from '../../obliquePose.ts'
 import { cameraInFrame } from './camera.ts'
+import { SizeM } from './document.ts'
 import { chooseLift } from './lift.ts'
 import { misfit, shellWalls, signCorners, wallFacing } from './walls.ts'
 
@@ -127,6 +128,14 @@ test('misfit names the range that would fit', () => {
   assert.match(misfit(walls[0], { ...sign, alongM: 9 }) ?? '', /from 2 to 8/)
   assert.match(misfit(walls[5], { ...sign, bottomM: 3.5 }) ?? '', /bottomM must be from 0 to 3/)
   assert.match(misfit(walls[4], { ...sign, sizeM: { widthM: 7, heightM: 1 } }) ?? '', /too short/)
+})
+
+test('a sign as large as its wall is allowed, with no cap of its own', () => {
+  const tower = shellWalls([{ ...box, ring: [[0, 0], [40, 0], [40, 20], [0, 20]], topM: 90 }])
+  const wall = { alongM: 20, bottomM: 0, sizeM: { widthM: 40, heightM: 90 } }
+  assert.equal(misfit(tower[0], wall), null)
+  assert.deepEqual(SizeM.parse(wall.sizeM), wall.sizeM)
+  assert.match(misfit(tower[0], { ...wall, sizeM: { widthM: 41, heightM: 90 } }) ?? '', /40 m long/)
 })
 
 test('signCorners spans the sign along its wall, left to right as seen from outside', () => {

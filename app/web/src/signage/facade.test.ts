@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { facesCamera, fitOnWall, formatLength, hitWall, project, signCorners, type Camera, type Vec3, type Wall } from './facade.ts'
+import { facesCamera, fitOnWall, formatLength, hatch, hitWall, project, signCorners, sizeProblem, type Camera, type Vec3, type Wall } from './facade.ts'
 
 // An invented camera 300 m south of and 300 m above the origin, looking at it, with image x to
 // the right and y down.
@@ -53,6 +53,25 @@ test('signCorners lie on the wall and project inside the photo', () => {
 test('fitOnWall moves a sign inside its wall and shrinks one too large', () => {
   assert.deepEqual(fitOnWall(walls[0], { alongM: 9.5, bottomM: -1, sizeM: { widthM: 4, heightM: 1 } }), { alongM: 8, bottomM: 0, sizeM: { widthM: 4, heightM: 1 } })
   assert.deepEqual(fitOnWall(walls[0], { alongM: 5, bottomM: 3, sizeM: { widthM: 14, heightM: 1 } }).sizeM, { widthM: 10, heightM: 1 })
+})
+
+test('sizeProblem lets a sign fill its wall and names the edge it would cross', () => {
+  assert.equal(sizeProblem(walls[0], { widthM: 10, heightM: 30 }), null)
+  assert.match(sizeProblem(walls[0], { widthM: 25, heightM: 1 }) ?? '', /10 m wide/)
+  assert.match(sizeProblem(walls[0], { widthM: 4, heightM: 31 }) ?? '', /30 m tall/)
+  assert.match(sizeProblem(walls[0], { widthM: 0.1, heightM: 1 }) ?? '', /at least/)
+})
+
+test('hatch draws 45 degree lines that end on the edges of the sign', () => {
+  const sign = { alongM: 5, bottomM: 3, sizeM: { widthM: 4, heightM: 2 } }
+  const lines = hatch(walls[0], sign, 0.5)
+  // The south wall runs along x, so a point's x is along the wall and its z is its height.
+  const onEdge = ([x, , z]: Vec3) => [3, 7].some((e) => Math.abs(x - e) < 1e-9) || [3, 5].some((e) => Math.abs(z - e) < 1e-9)
+  assert.ok(lines.length >= 20)
+  for (const [a, b] of lines) {
+    assert.ok(onEdge(a) && onEdge(b), `${a} to ${b} does not end on the sign's edge`)
+    near(Math.abs(b[0] - a[0]), Math.abs(b[2] - a[2]))
+  }
 })
 
 test('formatLength shows metres with feet and inches', () => {

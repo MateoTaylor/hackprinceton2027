@@ -1,19 +1,24 @@
 import { LoaderCircle, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import type { Direction, ObliqueIndex } from '../../../shared/api'
 import { callOp, getJson, OpCallError } from '../api'
 import { DIRECTIONS } from '../obliques'
 import type { PanelProps } from '../tools'
 import { useWrites } from '../view'
-import { facesCamera, fitOnWall, formatLength, hitWall, project, signCorners, wallPlaneAt, type Camera, type Placement, type Vec2, type Wall } from './facade'
+import { facesCamera, fitOnWall, formatLength, hatch, hitWall, MIN_SIDE_M, project, signCorners, sizeProblem, wallPlaneAt, type Camera, type Placement, type Vec2, type Wall } from './facade'
+import { fitted, LOOK_DEG, panned, turnRest, turnStep, viewBoxOf, zoomedAbout, type Box, type Zoom } from './photoView'
 import './signage.css'
 
 const DEFAULT_SIZE = { widthM: 3, heightM: 1 }
-const SIZE_RANGE = { min: 0.2, max: 20 }
 const DEBOUNCE_MS = 300
 // The photo frames the building with this much of its own size around it.
 const FRAME_MARGIN = 0.35
-const LOOK_DEG = { north: 0, east: 90, south: 180, west: 270 } satisfies Record<Direction, number>
+// The hatch on a sign keeps its lines this many screen pixels apart at any size or zoom.
+const HATCH_PX = 9
+// As on the map's oblique view: a press moving less than SLOP pixels is a click, and a drag turns
+// DEG_PER_PX degrees per pixel before it settles on the nearest photo.
+const SLOP = 4
+const DEG_PER_PX = 0.3
 
 type Sign = Placement & { id: string; wallIndex: number }
 type Signs = { version: number; signs: Sign[] }
@@ -23,21 +28,26 @@ type Measured = {
   areaM2: number
   bottomAboveGroundM: number
   topAboveGroundM: number
-  facingDeg: number
   lift: { label: string; workingHeightM: number } | null
-  confidence: number
 }
 type Draft = { id: string; widthM: string; heightM: string }
 // A sign being dragged or resized, with the wall point it was grabbed by.
 type Gesture = { kind: 'move' | 'resize'; id: string; grab: { alongM: number; heightM: number }; start: Placement; now: Placement }
+// A press on the photo itself: it pans a magnified photo, or turns an unmagnified one. `perPx` is
+// photo pixels per screen pixel when it began.
+type Drag = { pointerId: number; x: number; y: number; zoom: Zoom; perPx: number; dx: number; moved: boolean }
 
 const bearingGap = (a: number, b: number) => Math.abs((((a - b) % 360) + 540) % 360 - 180)
+const rotationOf = (e: Event) => ('rotation' in e && typeof e.rotation === 'number' ? e.rotation : 0)
+const scaleOf = (e: Event) => ('scale' in e && typeof e.scale === 'number' ? e.scale : 1)
 const points = (corners: (Vec2 | null)[]) => (corners.every((p) => p !== null) ? corners.map((p) => p.join(',')).join(' ') : null)
 
 // The Signage panel. It shows the property's oblique photos, one heading at a time, and hangs
 // blank signs on the building's outside walls, which come from the Vexcel outline and height.
 // Signs live in the building's frame, so every heading shows the same signs. The photo fills the
-// panel, with the heading and sign controls top-left and the selected sign's card on the right.
+// panel and moves like the map's oblique view: pinch or wheel zooms, a drag pans a zoomed photo
+// and turns an unzoomed one, and a pinch-rotate, the arrow keys or the compass turn to another
+// heading. The sign controls sit top-left and the selected sign's card on the right.
 export default function SignagePanel({ property }: PanelProps) {
   const propertyId = property.id
   const [directions, setDirections] = useState<Direction[] | null>(null)
@@ -53,7 +63,12 @@ export default function SignagePanel({ property }: PanelProps) {
   const [draft, setDraft] = useState<Draft | null>(null)
   const [gesture, setGesture] = useState<Gesture | null>(null)
   const [photoLoaded, setPhotoLoaded] = useState(false)
+  const [zoom, setZoom] = useState<Zoom | null>(null)
+  const [drag, setDrag] = useState<Drag | null>(null)
+  const [limit, setLimit] = useState<string | null>(null)
+  const [screenPx, setScreenPx] = useState({ width: 0, height: 0 })
   const svg = useRef<SVGSVGElement>(null)
+  const photo = useRef<HTMLDivElement>(null)
   const version = useRef(0)
   const lastWrite = useRef<Promise<unknown>>(Promise.resolve())
 
@@ -67,8 +82,11 @@ export default function SignagePanel({ property }: PanelProps) {
     setDocument(next)
     return next
   }
+  // The panel checks sizes against the wall itself, so a write the server still refuses as input
+  // gets a plain sentence rather than its schema message, which is written for Proppy.
   const fail = (error: unknown) => {
-    setNotice(error instanceof OpCallError ? `${error.message} ${error.hint}` : 'The signs could not be saved.')
+    if (!(error instanceof OpCallError)) setNotice('The signs could not be saved.')
+    else setNotice(error.code === 'invalid_input' ? 'The sign does not fit there on its wall.' : `${error.message} ${error.hint}`)
     return null
   }
   const load = () =>
@@ -137,16 +155,33 @@ export default function SignagePanel({ property }: PanelProps) {
     return () => controller.abort()
   }, [selected?.id, document?.version])
 
+  // A typed size is saved once it fits the sign's wall, moving the sign as little as it must to stay
+  // on the wall. One that does not fit says why under the inputs and is not sent. Only typing
+  // runs this: a sign or wall that changes under an unchanged draft sends nothing.
   useEffect(() => {
-    if (!draft) return
+    const sign = draft && signs.find(({ id }) => id === draft.id)
+    const wall = sign && walls?.[sign.wallIndex]
+    if (!draft || !sign || !wall || draft.widthM === '' || draft.heightM === '') return setLimit(null)
     const sizeM = { widthM: Number(draft.widthM), heightM: Number(draft.heightM) }
-    if (!Object.values(sizeM).every((value) => value >= SIZE_RANGE.min && value <= SIZE_RANGE.max)) return
-    const timer = setTimeout(() => void write('signage_move', { signId: draft.id, sizeM }).then((saved) => saved ?? setDraft(null)), DEBOUNCE_MS)
+    const problem = Number.isFinite(sizeM.widthM) && Number.isFinite(sizeM.heightM) ? sizeProblem(wall, sizeM) : 'Type the size in metres.'
+    setLimit(problem)
+    if (problem) return
+    const timer = setTimeout(() => void write('signage_move', { signId: draft.id, ...fitOnWall(wall, { ...sign, sizeM }) }).then((saved) => saved ?? setDraft(null)), DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [draft])
 
+  useEffect(() => setLimit(null), [selectedId])
+
+  useEffect(() => {
+    const element = photo.current
+    if (!element) return
+    const observer = new ResizeObserver(([entry]) => setScreenPx({ width: entry.contentRect.width, height: entry.contentRect.height }))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
   // The part of the photo around the building, so its facades fill the panel.
-  const frame = useMemo(() => {
+  const frame = useMemo((): Box | null => {
     if (!view || !walls) return null
     const seen = walls.flatMap((wall) => [project(view, [...wall.start, wall.baseM]), project(view, [...wall.start, wall.topM])]).filter((p) => p !== null)
     const [xs, ys] = [seen.map((p) => p[0]), seen.map((p) => p[1])]
@@ -154,10 +189,75 @@ export default function SignagePanel({ property }: PanelProps) {
     const margin = Math.max(right - left, bottom - top) * FRAME_MARGIN
     const x = Math.max(0, left - margin)
     const y = Math.max(0, top - margin)
-    return `${x} ${y} ${Math.min(view.widthPx, right + margin) - x} ${Math.min(view.heightPx, bottom + margin) - y}`
+    return { x, y, w: Math.min(view.widthPx, right + margin) - x, h: Math.min(view.heightPx, bottom + margin) - y }
   }, [view, walls])
 
-  const pixelOf = (event: PointerEvent): Vec2 | null => {
+  // A new heading or building starts unmagnified.
+  useEffect(() => setZoom(frame && fitted(frame)), [frame])
+
+  const box = frame && viewBoxOf(frame, zoom ?? fitted(frame))
+  // Screen pixels per photo pixel, as the SVG's default `meet` fit draws the viewBox.
+  const pxPerPhoto = box ? Math.min(screenPx.width / box.w, screenPx.height / box.h) || 1 : 1
+
+  const turnTo = (next: Direction) => {
+    if (next === direction) return
+    setDirection(next)
+    setGesture(null)
+  }
+
+  // Wheel and trackpad pinch (a wheel with ctrlKey in Chrome and Firefox) zoom about the pointer.
+  // Safari sends a trackpad pinch-rotate as gesture events: the pinch zooms and the rotation turns
+  // to the nearest heading when it ends, as on the map. Listeners are native so they can
+  // preventDefault the page zoom.
+  useEffect(() => {
+    const element = photo.current
+    if (!element || !frame || !direction || !directions) return
+    const pixelAt = (clientX: number, clientY: number): Vec2 | null => {
+      const matrix = svg.current?.getScreenCTM()?.inverse()
+      if (!matrix) return null
+      const { x, y } = new DOMPoint(clientX, clientY).matrixTransform(matrix)
+      return [x, y]
+    }
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const at = pixelAt(e.clientX, e.clientY)
+      const lines = e.deltaMode === 1 ? 16 : 1
+      if (at) setZoom((z) => zoomedAbout(frame, z ?? fitted(frame), Math.exp(-e.deltaY * lines * (e.ctrlKey ? 0.01 : 0.002)), at))
+    }
+    let pinch: { scale: number; at: Vec2 } | null = null
+    const gestureStart = (e: Event) => {
+      if (navigator.maxTouchPoints > 0) return
+      e.preventDefault()
+      const { left, top, width, height } = element.getBoundingClientRect()
+      const at = pixelAt(left + width / 2, top + height / 2)
+      pinch = at && { scale: 1, at }
+    }
+    const gestureChange = (e: Event) => {
+      if (!pinch) return
+      e.preventDefault()
+      const factor = scaleOf(e) / pinch.scale
+      const at = pinch.at
+      pinch = { scale: scaleOf(e), at }
+      setZoom((z) => zoomedAbout(frame, z ?? fitted(frame), factor, at))
+    }
+    const gestureEnd = (e: Event) => {
+      if (!pinch) return
+      pinch = null
+      turnTo(turnRest(directions, direction, -rotationOf(e)))
+    }
+    element.addEventListener('wheel', wheel, { passive: false })
+    element.addEventListener('gesturestart', gestureStart)
+    element.addEventListener('gesturechange', gestureChange)
+    element.addEventListener('gestureend', gestureEnd)
+    return () => {
+      element.removeEventListener('wheel', wheel)
+      element.removeEventListener('gesturestart', gestureStart)
+      element.removeEventListener('gesturechange', gestureChange)
+      element.removeEventListener('gestureend', gestureEnd)
+    }
+  }, [frame, direction, directions])
+
+  const pixelOf = (event: { clientX: number; clientY: number }): Vec2 | null => {
     const matrix = svg.current?.getScreenCTM()?.inverse()
     if (!matrix) return null
     const { x, y } = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix)
@@ -179,6 +279,7 @@ export default function SignagePanel({ property }: PanelProps) {
     event.stopPropagation()
     setSelectedId(sign.id)
     setDraft(null)
+    setLimit(null)
     const pixel = pixelOf(event)
     const hit = view && walls && pixel && wallPlaneAt(view, walls[sign.wallIndex], pixel)
     if (!hit) return
@@ -186,7 +287,22 @@ export default function SignagePanel({ property }: PanelProps) {
     setGesture({ kind, id: sign.id, grab: hit, start: sign, now: sign })
   }
 
-  const drag = (event: PointerEvent) => {
+  // A press on the photo, not on a sign. A click places an armed sign or clears the selection.
+  const press = (event: PointerEvent) => {
+    if (armed) return void place(event)
+    if (event.button !== 0 || !zoom) return
+    svg.current?.setPointerCapture(event.pointerId)
+    setDrag({ pointerId: event.pointerId, x: event.clientX, y: event.clientY, zoom, perPx: 1 / pxPerPhoto, dx: 0, moved: false })
+  }
+
+  const move = (event: PointerEvent) => {
+    if (drag && frame && event.pointerId === drag.pointerId) {
+      const [dx, dy] = [event.clientX - drag.x, event.clientY - drag.y]
+      const moved = drag.moved || Math.hypot(dx, dy) >= SLOP
+      if (drag.zoom.scale > 1) setZoom(panned(frame, drag.zoom, -dx * drag.perPx, -dy * drag.perPx))
+      setDrag({ ...drag, dx, moved })
+      return
+    }
     const pixel = pixelOf(event)
     const sign = gesture && signs.find(({ id }) => id === gesture.id)
     if (!gesture || !sign || !view || !walls || !pixel) return
@@ -196,13 +312,22 @@ export default function SignagePanel({ property }: PanelProps) {
     const { start } = gesture
     const [dx, dz] = [hit.alongM - gesture.grab.alongM, hit.heightM - gesture.grab.heightM]
     if (gesture.kind === 'move') return setGesture({ ...gesture, now: fitOnWall(wall, { ...start, alongM: start.alongM + dx, bottomM: start.bottomM + dz }) })
+    // The handle grows the sign up and right from its bottom-left corner. Past the wall's edge it
+    // grows the other way, and past the whole wall it stops and says why.
     const left = start.alongM - start.sizeM.widthM / 2
-    const widthM = Math.max(SIZE_RANGE.min, start.sizeM.widthM + dx)
-    const heightM = Math.max(SIZE_RANGE.min, start.sizeM.heightM + dz)
-    setGesture({ ...gesture, now: fitOnWall(wall, { alongM: left + widthM / 2, bottomM: start.bottomM, sizeM: { widthM, heightM } }) })
+    const wanted = { widthM: Math.max(MIN_SIDE_M, start.sizeM.widthM + dx), heightM: Math.max(MIN_SIDE_M, start.sizeM.heightM + dz) }
+    setLimit(sizeProblem(wall, wanted))
+    setGesture({ ...gesture, now: fitOnWall(wall, { alongM: left + wanted.widthM / 2, bottomM: start.bottomM, sizeM: wanted }) })
   }
 
-  const finish = () => {
+  const finish = (event: PointerEvent) => {
+    if (drag && event.pointerId === drag.pointerId) {
+      setDrag(null)
+      if (!drag.moved) return setSelectedId(null)
+      // Dragging left turns clockwise, as on the map.
+      if (drag.zoom.scale <= 1 && direction && directions) turnTo(turnRest(directions, direction, -drag.dx * DEG_PER_PX))
+      return
+    }
     if (!gesture) return
     const { id, start, now } = gesture
     setGesture(null)
@@ -216,6 +341,17 @@ export default function SignagePanel({ property }: PanelProps) {
     // A wall facing F is seen best by the camera looking toward F + 180.
     const best = directions.reduce((a, b) => (bearingGap(LOOK_DEG[a], wall.facingDeg + 180) <= bearingGap(LOOK_DEG[b], wall.facingDeg + 180) ? a : b))
     setDirection(best)
+  }
+
+  const key = (event: KeyboardEvent) => {
+    if ((event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || !direction || !directions) return
+    event.preventDefault()
+    turnTo(turnStep(directions, direction, event.key === 'ArrowRight' ? 1 : -1))
+  }
+
+  const faceNorth = () => {
+    if (directions?.includes('north')) turnTo('north')
+    if (frame) setZoom(fitted(frame))
   }
 
   const remove = async (id: string) => {
@@ -240,17 +376,20 @@ export default function SignagePanel({ property }: PanelProps) {
   const size = selected && (draft?.id === selected.id ? draft : { id: selected.id, widthM: String(shown(selected).sizeM.widthM), heightM: String(shown(selected).sizeM.heightM) })
   const reading = measured && measured.signId === selected?.id ? measured : null
   const selectedHidden = selected && walls && view && !facesCamera(walls[selected.wallIndex], view)
+  // An unzoomed photo follows a turning drag a little, the way the map starts to swing.
+  const swing = drag?.moved && drag.zoom.scale <= 1 ? { transform: `translateX(${drag.dx * 0.25}px)` } : undefined
 
   return (
     <div className="signage-panel">
-      <div className="signage-photo">
-        {direction && frame && view && (
+      <div ref={photo} className="signage-photo" tabIndex={0} aria-label="Oblique photo. Arrow keys turn to another heading." onKeyDown={key}>
+        {direction && box && view && (
           <svg
             ref={svg}
-            viewBox={frame}
-            className={armed ? 'armed' : undefined}
-            onPointerDown={(event) => (armed ? void place(event) : setSelectedId(null))}
-            onPointerMove={drag}
+            viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
+            className={[armed && 'armed', zoom && zoom.scale > 1 && 'zoomed', drag?.moved && 'dragging'].filter(Boolean).join(' ') || undefined}
+            style={swing}
+            onPointerDown={press}
+            onPointerMove={move}
             onPointerUp={finish}
             onPointerCancel={finish}
           >
@@ -269,7 +408,8 @@ export default function SignagePanel({ property }: PanelProps) {
                 return (
                   <g key={sign.id} className={isSelected ? 'signage-sign selected' : 'signage-sign'}>
                     <polygon points={polygon} onPointerDown={armed ? undefined : begin('move', stored)} />
-                    {isSelected && corners[2] && <circle className="signage-handle" cx={corners[2][0]} cy={corners[2][1]} r={10} onPointerDown={begin('resize', stored)} />}
+                    <path className="signage-hatch" d={hatchPath(view, wall, sign, corners, pxPerPhoto)} />
+                    {isSelected && corners[2] && <circle className="signage-handle" cx={corners[2][0]} cy={corners[2][1]} r={8 / pxPerPhoto} onPointerDown={begin('resize', stored)} />}
                   </g>
                 )
               })}
@@ -294,14 +434,21 @@ export default function SignagePanel({ property }: PanelProps) {
                 : null)}
       </p>
 
+      {direction && (
+        <button
+          className="surface-pill signage-compass"
+          aria-label={`Looking ${direction}, face north`}
+          title={`Looking ${direction}. Drag, pinch-rotate or use the arrow keys to turn.`}
+          onClick={faceNorth}
+        >
+          <svg width="16" height="24" viewBox="0 0 16 24" aria-hidden="true" style={{ rotate: `${-LOOK_DEG[direction]}deg` }}>
+            <path d="M8 0 15 12H1Z" fill="var(--compass)" />
+            <path d="M8 24 1 12h14Z" fill="var(--color-text-muted)" />
+          </svg>
+        </button>
+      )}
+
       <div className="signage-tools">
-        <div className="chip-row" role="group" aria-label="Photo heading">
-          {(directions ?? []).map((d) => (
-            <button key={d} className="chip" aria-pressed={d === direction} onClick={() => setDirection(d)}>
-              Looking {d}
-            </button>
-          ))}
-        </div>
         <div className="signage-row">
           <button className="button" disabled={!view || !walls} aria-pressed={armed} onClick={() => (setArmed(!armed), setNotice(null))}>
             {!armed && <Plus size={16} aria-hidden />}
@@ -327,7 +474,14 @@ export default function SignagePanel({ property }: PanelProps) {
             {(['widthM', 'heightM'] as const).map((side) => (
               <label key={side} className="signage-field">
                 {side === 'widthM' ? 'Width' : 'Height'}
-                <input type="number" step={0.1} {...SIZE_RANGE} value={size[side]} onChange={(event) => setDraft({ ...size, [side]: event.target.value })} />
+                <input
+                  type="number"
+                  step={0.1}
+                  min={MIN_SIDE_M}
+                  aria-invalid={limit !== null}
+                  value={size[side]}
+                  onChange={(event) => setDraft({ ...size, [side]: event.target.value })}
+                />
                 m
               </label>
             ))}
@@ -335,6 +489,11 @@ export default function SignagePanel({ property }: PanelProps) {
               <Trash2 size={16} aria-hidden />
             </button>
           </div>
+          {limit && (
+            <p className="signage-limit" role="alert">
+              {limit}
+            </p>
+          )}
 
           <dl className="signage-readout">
             <Reading label="Width" value={formatLength(shown(selected).sizeM.widthM)} />
@@ -344,15 +503,24 @@ export default function SignagePanel({ property }: PanelProps) {
             <Reading label="Top above ground" value={reading ? formatLength(reading.topAboveGroundM) : '…'} />
             <Reading label="Lift" value={lift(reading)} />
           </dl>
-          {reading && (
-            <p className="signage-status">
-              Faces {Math.round(reading.facingDeg)}°. Confidence {reading.confidence.toFixed(2)}. The sign is a blank placeholder. No sign rule is checked.
-            </p>
-          )}
         </div>
       )}
     </div>
   )
+}
+
+// The hatch on a sign as one SVG path, its lines HATCH_PX screen pixels apart where the sign is
+// drawn smallest, so it reads the same on a tiny sign and a whole facade at any zoom.
+function hatchPath(view: View, wall: Wall, sign: Placement, corners: (Vec2 | null)[], pxPerPhoto: number) {
+  const [a, b, , d] = corners
+  if (!a || !b || !d) return ''
+  const pxPerM = Math.min(Math.hypot(b[0] - a[0], b[1] - a[1]) / sign.sizeM.widthM, Math.hypot(d[0] - a[0], d[1] - a[1]) / sign.sizeM.heightM) * pxPerPhoto
+  if (!(pxPerM > 0)) return ''
+  return hatch(wall, sign, HATCH_PX / pxPerM)
+    .map((line) => line.map((end) => project(view, end)))
+    .filter((line) => line.every((p) => p !== null))
+    .map(([p, q]) => `M${p.join(',')}L${q.join(',')}`)
+    .join('')
 }
 
 function Reading({ label, value }: { label: string; value: string }) {

@@ -15,7 +15,7 @@
   position: absolute;
   top: 16px;
   left: 20px;
-  right: 72px;
+  right: 128px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -79,6 +79,49 @@
   cursor: crosshair;
 }
 
+.signage-photo > svg.zoomed {
+  cursor: grab;
+}
+
+.signage-photo > svg.dragging {
+  cursor: grabbing;
+}
+
+.signage-photo:focus-visible {
+  outline: none;
+  box-shadow: inset var(--ring);
+}
+
+/* Shows the photo's heading like the map's compass, left of ToolPanel's close button and clear of
+   the Proppy dock at the bottom. Clicking it faces north and zooms out. */
+.signage-compass {
+  position: absolute;
+  top: 16px;
+  right: 72px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  box-shadow: var(--shadow);
+}
+
+.signage-compass:focus-visible {
+  outline: none;
+  box-shadow: var(--ring), var(--shadow);
+}
+
+/* Why a typed or dragged size does not fit, under the Width and Height inputs, in the "Bad"
+   tint's text colour. */
+.signage-limit {
+  margin: -4px 0 0;
+  font: 500 12px/16px var(--font);
+  color: var(--color-score-bad-text);
+}
+
+.signage-field input[aria-invalid='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--color-score-bad-text);
+}
+
 .signage-outline {
   fill: none;
   stroke: #ffffff;
@@ -89,8 +132,8 @@
 }
 
 .signage-sign polygon {
-  fill: #ffffff;
-  fill-opacity: 0.9;
+  fill: #f2f3f5;
+  fill-opacity: 0.88;
   stroke: var(--color-text);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
@@ -100,6 +143,16 @@
 .signage-sign.selected polygon {
   stroke: var(--color-accent-bright);
   stroke-width: 2.5;
+}
+
+/* The criss-cross on a sign's face, drawn in its perspective and kept a few screen pixels apart. */
+.signage-hatch {
+  fill: none;
+  stroke: #1b1d22;
+  stroke-opacity: 0.38;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
 
 .signage-handle {

@@ -4,8 +4,8 @@ import { z } from 'zod'
 const round2 = (value: number) => Math.round(value * 100) / 100
 const metres = z.number().overwrite(round2)
 
-// The face of a sign in metres.
-export const SizeM = z.object({ widthM: z.number().min(0.2).max(20).overwrite(round2), heightM: z.number().min(0.2).max(20).overwrite(round2) })
+// The face of a sign in metres. Only the wall it hangs on bounds it from above (see `misfit`).
+export const SizeM = z.object({ widthM: z.number().min(0.2).overwrite(round2), heightM: z.number().min(0.2).overwrite(round2) })
 
 // One blank sign on an outside wall, in the building's frame and independent of any photo. The
 // wall is `wallIndex` from signage_get, `alongM` is the sign's centre from that wall's start corner,
