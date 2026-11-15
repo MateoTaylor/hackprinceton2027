@@ -6,6 +6,61 @@ const M_PER_DEG = 111_320
 
 type Point = [number, number]
 
+// The camera facts in an oriented extract's XMP that a projection needs. `footprint` is the whole
+// frame's ground outline at `groundZ`, corners in frame order from the top left. `crop` is the
+// extract inside that frame in pixels. `cameraAt` is where the camera stood, from Vexcel's measured
+// `camera-pos-x` and `camera-pos-y` in UTM, and `cameraZ` its height. Heights are metres above sea
+// level. Returns null when any field is missing or malformed.
+export function readObliqueCamera(jpeg: Uint8Array) {
+  const head = new TextDecoder('latin1').decode(jpeg.subarray(0, XMP_WINDOW))
+  const field = (name: string) => head.match(new RegExp(`<Vexcel:${name}>([^<]*)</Vexcel:${name}>`))?.[1]
+  const numbers = (text = '') => text.match(/-?\d+(?:\.\d+)?(?:E-?\d+)?/gi)?.map(Number) ?? []
+  const [frameW, frameH, groundZ, cameraX, cameraY, cameraZ] = ['raster-size-width', 'raster-size-height', 'ground-z', 'camera-pos-x', 'camera-pos-y', 'camera-pos-z'].map((name) => Number(field(name)))
+  const zone = field('utm-zone')?.match(/^(\d{1,2})([NS])$/i)
+  const [x, y, width, height] = numbers(field('pixel-bbox'))
+  const ring = numbers(field('geometry'))
+  const values = [frameW, frameH, groundZ, cameraX, cameraY, cameraZ, x, y, width, height, ...ring]
+  if (!zone || ring.length < 8 || !values.every(Number.isFinite) || !(cameraZ > groundZ)) return null
+  return {
+    frame: { width: frameW, height: frameH },
+    crop: { x, y, width, height },
+    footprint: [0, 1, 2, 3].map((i): LngLat => [ring[i * 2], ring[i * 2 + 1]]),
+    groundZ,
+    cameraAt: utmToLngLat(cameraX, cameraY, Number(zone[1]), zone[2].toUpperCase() === 'N'),
+    cameraZ,
+  }
+}
+
+// A WGS84 UTM easting and northing as a GeoJSON position, by the standard series inverse, which is
+// good to well under a centimetre inside a zone.
+export function utmToLngLat(easting: number, northing: number, zone: number, north: boolean): LngLat {
+  const [a, f, k0] = [6_378_137, 1 / 298.257223563, 0.9996]
+  const e2 = f * (2 - f)
+  const ep2 = e2 / (1 - e2)
+  const x = easting - 500_000
+  const mu = (north ? northing : northing - 10_000_000) / k0 / (a * (1 - e2 / 4 - (3 * e2 ** 2) / 64 - (5 * e2 ** 3) / 256))
+  const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2))
+  const phi1 =
+    mu +
+    ((3 * e1) / 2 - (27 * e1 ** 3) / 32) * Math.sin(2 * mu) +
+    ((21 * e1 ** 2) / 16 - (55 * e1 ** 4) / 32) * Math.sin(4 * mu) +
+    ((151 * e1 ** 3) / 96) * Math.sin(6 * mu) +
+    ((1097 * e1 ** 4) / 512) * Math.sin(8 * mu)
+  const [sin, cos, tan] = [Math.sin(phi1), Math.cos(phi1), Math.tan(phi1)]
+  const c1 = ep2 * cos ** 2
+  const t1 = tan ** 2
+  const n1 = a / Math.sqrt(1 - e2 * sin ** 2)
+  const r1 = (a * (1 - e2)) / (1 - e2 * sin ** 2) ** 1.5
+  const d = x / (n1 * k0)
+  const lat =
+    phi1 -
+    ((n1 * tan) / r1) *
+      (d ** 2 / 2 - ((5 + 3 * t1 + 10 * c1 - 4 * c1 ** 2 - 9 * ep2) * d ** 4) / 24 + ((61 + 90 * t1 + 298 * c1 + 45 * t1 ** 2 - 252 * ep2 - 3 * c1 ** 2) * d ** 6) / 720)
+  const lon = (d - ((1 + 2 * t1 + c1) * d ** 3) / 6 + ((5 - 2 * c1 + 28 * t1 - 3 * c1 ** 2 + 8 * ep2 + 24 * t1 ** 2) * d ** 5) / 120) / cos
+  return [zone * 6 - 183 + (lon * 180) / Math.PI, (lat * 180) / Math.PI]
+}
+export type ObliqueCamera = NonNullable<ReturnType<typeof readObliqueCamera>>
+
 // Reads where an oriented extract lies on the ground and where its camera stood, from the Vexcel
 // XMP inside the JPEG. `geometry` is the whole frame's ground footprint with corners in frame order
 // and `pixel-bbox` is the crop inside that frame, so one homography from frame to ground gives the
@@ -79,9 +134,9 @@ export function readObliquePose(jpeg: Uint8Array, focus: LngLat[], pin: LngLat):
   return [pose.bearing, pose.pitch, pose.metresPerPixel, ...pose.quad.flat(), ...pose.focus.center].every(Number.isFinite) ? pose : null
 }
 
-// The projective map that sends each `from` point to the matching `to` point, or null when the
-// points are degenerate.
-function homography(from: Point[], to: Point[]) {
+// The 3x3 projective matrix, row-major, that sends each of four `from` points to the matching `to`
+// point, or null when the points are degenerate.
+export function homographyMatrix(from: Point[], to: Point[]) {
   const rows = from.flatMap(([x, y], i) => {
     const [u, v] = to[i]
     return [
@@ -90,6 +145,12 @@ function homography(from: Point[], to: Point[]) {
     ]
   })
   const h = solve(rows)
+  return h && [...h, 1]
+}
+
+// The same map as a function on points.
+function homography(from: Point[], to: Point[]) {
+  const h = homographyMatrix(from, to)
   if (!h) return null
   return ([x, y]: Point): Point => {
     const w = h[6] * x + h[7] * y + 1
