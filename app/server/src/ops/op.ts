@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { Property } from '../../../shared/property.ts'
+import type { Matterport } from '../matterport.ts'
 import type { Vexcel } from '../vexcel.ts'
 
 // The longest `JSON.stringify(result)` that runOp lets through. Geometry and long lists go in
@@ -42,7 +43,8 @@ export class OpError extends Error {
   }
 }
 
-// What every op can reach.
+// What every op can reach. `matterport` is null when the Matterport keys are missing. Reach it
+// through requireMatterport.
 //
 // `call` runs another op by name with detail on. It resolves to that op's checked result and
 // detail as `unknown` and rejects with that op's OpError:
@@ -50,6 +52,7 @@ export class OpError extends Error {
 export interface OpContext {
   properties: ReadonlyMap<string, Property>
   vexcel: Vexcel
+  matterport: Matterport | null
   dataDir: string
   call(name: string, input: unknown): Promise<{ result: unknown; detail: unknown }>
 }
@@ -146,4 +149,10 @@ export function requireProperty(ctx: Pick<OpContext, 'properties'>, id: string):
   const property = ctx.properties.get(id)
   if (!property) throw new OpError('not_found', `No property has the id "${id}".`, 'List the valid ids with GET /api/properties.')
   return property
+}
+
+// The Matterport client, or `not_ready` with a hint that names the two keys it needs.
+export function requireMatterport(ctx: Pick<OpContext, 'matterport'>): Matterport {
+  if (!ctx.matterport) throw new OpError('not_ready', 'The Matterport client is off.', 'Add MP_TOKEN_ID and MP_TOKEN_SECRET to the repo-root .env and restart the server.')
+  return ctx.matterport
 }

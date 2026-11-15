@@ -27,6 +27,7 @@ const unusedDir = join(tmpdir(), 'propstar-http-test-unused')
 const base = {
   properties: new Map([[property.id, property]]),
   vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(unusedDir) }),
+  matterport: null,
   dataDir: unusedDir,
 }
 

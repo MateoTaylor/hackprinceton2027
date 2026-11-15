@@ -4,6 +4,7 @@ import { serve } from '@hono/node-server'
 import { fileURLToPath } from 'node:url'
 import { createApp } from './app.ts'
 import { createDiskCache } from './cache.ts'
+import { createMatterport } from './matterport.ts'
 import { loadProperties } from './properties.ts'
 import { createVexcel } from './vexcel.ts'
 
@@ -28,17 +29,27 @@ const cache = createDiskCache(fileURLToPath(new URL('cache/vexcel/', DATA)), {
   parcel: 64 * MB,
   thumb: 32 * MB,
   'oblique-coverage': 8 * MB,
+  extract: 128 * MB,
 })
 const usage = await cache.usage()
+
+const tokenId = process.env.MP_TOKEN_ID?.trim()
+const tokenSecret = process.env.MP_TOKEN_SECRET?.trim()
+const matterport =
+  tokenId && tokenSecret
+    ? createMatterport({ tokenId, tokenSecret, cache: createDiskCache(fileURLToPath(new URL('cache/matterport-api/', DATA)), { graphql: 64 * MB }) })
+    : null
 const app = createApp({
   base: {
     properties: new Map(properties.map((p) => [p.id, p])),
     vexcel: createVexcel({ apiKey, cache }),
+    matterport,
     dataDir: fileURLToPath(DATA),
   },
 })
 
 serve({ fetch: app.fetch, hostname: HOST, port: PORT }, () => {
   console.log(`Propstar API on http://${HOST}:${PORT}/api with ${properties.length} properties`)
+  if (!matterport) console.log('Matterport is off: MP_TOKEN_ID or MP_TOKEN_SECRET is missing from .env')
   console.log(`cache ${Object.entries(usage).map(([prefix, u]) => `${prefix} ${Math.round(u.bytes / MB)}/${u.cap / MB} MB`).join(', ')}`)
 })

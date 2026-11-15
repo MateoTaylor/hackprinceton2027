@@ -26,6 +26,7 @@ const unusedDir = join(tmpdir(), 'propstar-op-test-unused')
 const ctx: OpContext = {
   properties: new Map([[property.id, property]]),
   vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(unusedDir) }),
+  matterport: null,
   dataDir: unusedDir,
   call: async () => {
     throw new Error('no op calls another here')

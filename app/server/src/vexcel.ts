@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { Direction, LngLat, ObliqueIndex, ObliquePose } from '../../shared/api.ts'
 import type { Property } from '../../shared/property.ts'
@@ -49,6 +50,68 @@ const CollectionsResponse = z.object({
 })
 
 type Geometry = z.infer<typeof Geometry>
+
+// What `extract` asks Vexcel to fill: `precomputed` detections such as pools and roof defects, and
+// `calculated` measurements such as roof height and elevation.
+export type ExtractInclude = 'precomputed' | 'calculated'
+
+type Attribute = string | number | boolean
+
+// One structure in one capture. `ring` is the footprint's outer ring as closed [lon, lat] points,
+// the largest part's when Vexcel drew it as several. `id` hashes the footprint, so the same
+// footprint in two answers has the same id. `attributes` holds every filled value of the structure
+// and of its parcel, keyed as Vexcel names them, such as `roof-characteristics.height`.
+export type ExtractFeature = { id: string; ring: LngLat[]; capturedAt: string; primary: boolean; attributes: Record<string, Attribute> }
+
+const ExtractResponse = z.object({
+  features: z.array(
+    z.object({
+      properties: z.looseObject({
+        'metadata.ortho-date-estimate': z.string(),
+        structures: z
+          .array(z.looseObject({ 'footprint.wkt': z.string().regex(/^\s*(MULTI)?POLYGON\s*\(/), 'primary-structure': z.boolean().nullish() }))
+          .nullish(),
+      }),
+    }),
+  ),
+})
+
+const attributesOf = (record: Record<string, unknown>) =>
+  Object.entries(record).filter(
+    (entry): entry is [string, Attribute] =>
+      ['string', 'number', 'boolean'].includes(typeof entry[1]) &&
+      !entry[0].endsWith('.wkt') &&
+      !/^(metadata|request-information)\./.test(entry[0]) &&
+      entry[0] !== 'primary-structure',
+  )
+
+function largestOuterRing(wkt: string): LngLat[] {
+  const rings = [...wkt.matchAll(/\(\(\s*([^()]+)\)/g)].map(([, list]) =>
+    list.split(',').map((pair): LngLat => {
+      const [lon, lat] = pair.trim().split(/\s+/).map(Number)
+      return [lon, lat]
+    }),
+  )
+  const area = (ring: LngLat[]) =>
+    Math.abs(ring.slice(1).reduce((sum, [x, y], i) => sum + ring[i][0] * y - x * ring[i][1], 0))
+  return rings.reduce((best, ring) => (area(ring) > area(best) ? ring : best), [])
+}
+
+function extractFeatures({ features }: z.infer<typeof ExtractResponse>): ExtractFeature[] {
+  return features.flatMap(({ properties }) => {
+    const parcel = attributesOf(properties)
+    return (properties.structures ?? []).map((structure) => ({
+      id: createHash('sha256').update(structure['footprint.wkt']).digest('hex').slice(0, 16),
+      ring: largestOuterRing(structure['footprint.wkt']),
+      capturedAt: properties['metadata.ortho-date-estimate'],
+      primary: structure['primary-structure'] === true,
+      attributes: Object.fromEntries([...parcel, ...attributesOf(structure)]),
+    }))
+  })
+}
+
+// A coordinate as a cache key segment. cacheFile rejects a segment that starts with a minus sign.
+const keyCoordinate = (degrees: number) => degrees.toFixed(7).replace('-', 'm')
 
 type Bounds = { west: number; south: number; east: number; north: number }
 const boundsWkt = ({ west, south, east, north }: Bounds) =>
@@ -142,7 +205,8 @@ export function limiter(max: number) {
   }
 }
 
-function parseJson(text: string): unknown {
+// The parsed JSON, or undefined when `text` is not JSON.
+export function parseJson(text: string): unknown {
   try {
     return JSON.parse(text)
   } catch {
@@ -299,6 +363,38 @@ export function createVexcel({ apiKey, cache, fetch = globalThis.fetch }: { apiK
           'destination-dimensions': '256,256',
         },
       }),
+
+    // Every structure Vexcel has at a point, one entry per structure per capture. Captures come
+    // unsorted even with `latest=true`, so pick one by `capturedAt`. `bufferM` widens the point to a
+    // circle, which brings in the neighbours' structures. A point with nothing returns []. A
+    // non-finite point or a negative buffer throws RangeError.
+    //   const own = await vexcel.extract(lat, lon, { include: ['calculated'] })
+    extract: async (
+      lat: number,
+      lon: number,
+      { bufferM = 0, include }: { bufferM?: number; include: readonly [ExtractInclude, ...ExtractInclude[]] },
+    ): Promise<ExtractFeature[]> => {
+      if (![lat, lon, bufferM].every(Number.isFinite) || bufferM < 0) {
+        throw new RangeError('extract needs a finite point and a buffer of 0 m or more')
+      }
+      const includes = [...new Set(include)].toSorted()
+      const answer = await json(
+        `extract/${keyCoordinate(lat)}_${keyCoordinate(lon)}-b${bufferM}-${includes.join('.')}`,
+        {
+          path: 'property/extract',
+          query: {
+            wkt: `POINT(${lon} ${lat})`,
+            srid: '4326',
+            layer: LAYERS,
+            latest: 'true',
+            include: includes.join(','),
+            ...(bufferM > 0 && { 'buffer-meter': String(bufferM) }),
+          },
+        },
+        ExtractResponse,
+      )
+      return answer ? extractFeatures(answer) : []
+    },
 
     obliqueIndex: async (property: Property): Promise<ObliqueIndex> => ({
       directions: (await obliqueCoverage(property))?.directions ?? [],

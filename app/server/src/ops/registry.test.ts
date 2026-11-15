@@ -12,6 +12,7 @@ const unusedDir = join(tmpdir(), 'propstar-registry-test-unused')
 const base: OpBase = {
   properties: new Map(),
   vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(unusedDir) }),
+  matterport: null,
   dataDir: unusedDir,
 }
 

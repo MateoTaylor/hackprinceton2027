@@ -32,6 +32,7 @@ test('equipment_list returns every row within the result limit', async () => {
   const ctx: OpContext = {
     properties: new Map(),
     vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(unusedDir) }),
+    matterport: null,
     dataDir: unusedDir,
     call: async () => {
       throw new Error('equipment_list calls no other op')

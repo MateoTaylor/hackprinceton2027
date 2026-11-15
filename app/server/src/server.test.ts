@@ -106,7 +106,7 @@ const property: Property = {
 }
 
 const appWith = async (vexcel: Vexcel) =>
-  createApp({ base: { properties: new Map([[property.id, property]]), vexcel, dataDir: await tempRoot() } })
+  createApp({ base: { properties: new Map([[property.id, property]]), vexcel, matterport: null, dataDir: await tempRoot() } })
 
 test('only requests for this machine from the same site get through', async () => {
   const app = await appWith(createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()) }))
