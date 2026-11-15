@@ -29,7 +29,7 @@ and factual; this file is read at the start of every work session.
 | Mateo-Agent | Mateo | **Now:** the scan edit agent in `tools/edit_agent/` (Python, LangGraph): a typed request removes an object from a view and reports what a second pass should fix. `tools/qwen_test/` stays as the benchmark; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **Not used:** `eraser/`, Defurnish, new Matterport API calls | `tools/visualization/`, `tools/qwen_test/`, `tools/edit_agent/` except `edit_agent/find/`, `edit_agent/change/` and `cases/retexture.json`, `eraser/` (empty) |
 | Mateo-Retexture-Agent (was Mateo-Input-Agent) | Mateo | **Now:** retexturing in the scan edit agent, a `change` request such as a new countertop, floor or pillow colour: the instruction's wording, the paste rule and the checks for a change. Also the input side: find the thing to edit from a click, from the current view and a request, or from a request alone. A second session on Mateo's PC; shares its GPU with Mateo-Agent through a file lock | `tools/edit_agent/edit_agent/find/`, `tools/edit_agent/edit_agent/change/`, `tools/edit_agent/cases/retexture.json` |
 | Output-Agent | Mateo | **Now:** the edit API on Mateo's PC (Python, FastAPI, port 2026): the web app on another laptop sends a place, a start view and a command, and gets back edited panorama faces with their poses. Since Phase 2 (2026-11-14 22:30) each job is one run of Mateo-Agent's `all_views` graph on 127.0.0.1:2025. A third session on Mateo's PC | `tools/edit_api/`, `data/edit_api/` (job outputs, git-ignored), `tools/edit_agent/notes/from-output.md` |
-| Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `tools/world/`, `docs/design/` |
+| Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `tools/world/`, `docs/design/`, `docs/plans/` |
 
 **Compute:** Mateo-Agent works on Mateo's PC (Windows 11, RTX 5070 Ti with 16 GB), the only machine
 that hosts the local models: SAM 2.1, Qwen3-VL-8B and Qwen-Image-2.1. Other agents have no access to
@@ -82,6 +82,34 @@ Format: `- [ ] (from → to) request · date`, ticked when done.
 - [ ] (Output-Agent → Fahim-Agent) From the campus VPN, run `node --env-file=.env tools/edit_api/client_test.ts --check`, add the `/api/edit/*` proxy route (`tools/edit_api/README.md`, start here), and answer the four questions at the end of that README or confirm their defaults · 2026-11-14
 
 ## Log (newest first)
+
+### 2026-11-15 00:10 ET · Fahim-Agent · Plan for the seven Propstar tools in `docs/plans/01-propstar-tools/`
+
+- New path `docs/plans/`, claimed by Fahim-Agent in the Agents table. It holds plans only. Nothing
+  in `app/` changed in this step.
+- The plan covers seven tools behind one HTTP API in `app/server`: a 3D dollhouse of a building,
+  routing with door checks, area data from Overture, objects placed in Matterport scans, a blank
+  sign hung on a scan's exterior wall with its measurements and a lift choice, Vexcel property
+  attributes, and scan edits (remove and
+  retexture) through the edit API in `tools/edit_api/`. Start at
+  `docs/plans/01-propstar-tools/overview.md`. The measured facts behind it are in `findings.md`
+  beside it.
+- Every tool is an op. `GET /api/ops` lists the ops with JSON Schema and `POST /api/ops/:name`
+  runs one. The product agent on port 2024 will build its tools from that list in a later plan.
+- The work stays inside `app/`. It reads `tools/world/` and ports parts of it. It does not edit
+  `tools/edit_api/`, `tools/edit_agent/`, `tools/visualization/` or `tools/qwen_test/`.
+- The Edit tool mounts `forwardEdit` from `tools/edit_api/proxy.ts` at `/api/edit/*` and wraps it
+  in three ops. A request to the edit PC carries a scan id, a panorama id, a view direction and
+  the user's command, and no CoStar field. The plan takes Output-Agent's four defaults. Nothing
+  has been called from this laptop yet. The branch `fahim-agent/propstar-tools` holds the plan on
+  top of a merge of `origin/main`.
+- The repo is public, so the plan files give no address and no value from a property's record.
+- `ownership.tsv` in the plan folder assigns every new path to one lane.
+  `node docs/plans/01-propstar-tools/check-ownership.mjs` checks that no two lanes share a path.
+
+**Needs from others:** for the Edit tool only, the firewall on Mateo's PC opened for Fahim's
+laptop, and the demo scans downloaded on that PC, because the plan adds no op that calls
+`POST /places/{id}/fetch`.
 
 ### 2026-11-14 22:28 ET · Output-Agent · Edit API Phase 2: real edits through `all_views`
 

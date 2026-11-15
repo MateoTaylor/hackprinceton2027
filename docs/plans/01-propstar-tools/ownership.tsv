@@ -1,0 +1,55 @@
+path	owner	note
+AGENT_COMMS.md	main	Log entries go through the main session
+AGENTS.md	main	Changes only when a decision changes
+docs/plans/01-propstar-tools/	main	The plan itself
+docs/plans/01-propstar-tools/decisions-lane-a.tsv	lane-a	Decision log, one row per decision
+docs/plans/01-propstar-tools/decisions-lane-b.tsv	lane-b	Decision log, one row per decision
+docs/plans/01-propstar-tools/decisions-lane-c.tsv	lane-c	Decision log, one row per decision
+app/agent/	main	The product agent, untouched by this plan
+app/shared/	main	Types the MVP already shares
+app/server/	main	Anything in the server that no row below names
+app/server/package.json	foundation	Only foundation adds a dependency or a script
+app/server/pnpm-lock.yaml	foundation	Changes with package.json
+app/server/pipeline/build.ts	foundation	f6 adds the building_facts table
+app/server/pipeline/area.ts	lane-c	c1 builds area.duckdb
+app/server/pipeline/zoning.ts	lane-b	b6 builds the zoning table
+app/server/src/app.ts	foundation	f2 mounts the ops, f6 adds the scene config route and the edit proxy
+app/server/src/main.ts	foundation	f2 reads PROPSTAR_PORT, f5 and f6 build the context
+app/server/src/vexcel.ts	foundation	f5 adds extract
+app/server/src/matterport.ts	foundation	f5 creates it
+app/server/src/properties.ts	foundation	f6 adds loadBuildingFacts
+app/server/src/server.test.ts	foundation	f2 updates the createApp calls
+app/server/src/vexcel.test.ts	foundation	f5 tests extract with a fake fetch
+app/server/src/matterport.test.ts	foundation	f5 tests the client with a fake fetch
+app/server/src/upstream.live.test.ts	foundation	f5 creates it, and it skips without keys
+app/server/src/model/	foundation	BuildingModel, geo, fixtures, equipment
+app/server/src/ops/	foundation	op.ts, registry.ts, index.ts, http.ts and their tests
+app/server/src/ops/property/	foundation	property_get
+app/server/src/ops/equipment/	foundation	equipment_list
+app/server/src/ops/building/	lane-a	building_get and the steps behind it
+app/server/src/ops/route/	lane-a	route_solve
+app/server/src/ops/scene/	lane-b	scene_get, scene_place, scene_move, scene_remove
+app/server/src/ops/signage/	lane-b	lift_choose and signage_plan
+app/server/src/ops/area/	lane-c	area_places and area_summary
+app/server/src/ops/features/	lane-c	features_get
+app/server/src/ops/edit/	lane-c	edit_places, edit_start, edit_get and the edit client
+app/web/	main	Anything in the web app that no row below names
+app/web/package.json	foundation	Only foundation adds a dependency or a script
+app/web/pnpm-lock.yaml	foundation	Changes with package.json
+app/web/vite.config.ts	foundation	f7 reads the ports from the environment
+app/web/src/App.tsx	foundation	f7 adds the tool view
+app/web/src/QuickView.tsx	foundation	f7 adds the tool row
+app/web/src/api.ts	foundation	f7 adds callOp
+app/web/src/api.test.ts	foundation	f7 tests callOp
+app/web/src/tools.ts	foundation	f7 lists the seven panels
+app/web/src/ToolPanel.tsx	foundation	f7 creates the panel frame
+app/web/src/styles.css	foundation	A lane keeps its CSS in its own folder
+app/web/src/MapView.tsx	lane-c	c3 adds the basemap toggle and the places layer
+app/web/src/dollhouse/	lane-a	The look page, the renderer and the Dollhouse panel
+app/web/src/route/	lane-a	The route overlay and the Routing panel
+app/web/public/kit/	lane-a	CC0 furniture models with their licence file
+app/web/src/scene/	lane-b	The Showcase host, the collider and the vehicles
+app/web/src/signage/	lane-b	The sign layer and the Signage panel
+app/web/src/area/	lane-c	The places store and the Area panel
+app/web/src/features/	lane-c	The Features panel
+app/web/src/edit/	lane-c	The panorama cube and the Edit panel
