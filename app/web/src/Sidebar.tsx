@@ -1,7 +1,8 @@
 import { Bookmark, Box } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import type { Property, PropertyKind } from '../../shared/property'
 import { metaLine, specLine } from './property'
+import { cancelPrefetch, prefetch } from './obliques'
 import { PropertyPhoto } from './PropertyPhoto'
 
 export type Listing = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; properties: Property[] }
@@ -80,8 +81,8 @@ export function Sidebar({ listing, visible, selectedId, onSelect, kind, onKind, 
               property={p}
               selected={p.id === selectedId}
               saved={saved.has(p.id)}
-              onSelect={() => onSelect(p.id)}
-              onToggleSaved={() => onToggleSaved(p.id)}
+              onSelect={onSelect}
+              onToggleSaved={onToggleSaved}
             />
           ))}
         </div>
@@ -90,9 +91,10 @@ export function Sidebar({ listing, visible, selectedId, onSelect, kind, onKind, 
   )
 }
 
-type CardProps = { property: Property; selected: boolean; saved: boolean; onSelect: () => void; onToggleSaved: () => void }
+type CardProps = { property: Property; selected: boolean; saved: boolean; onSelect: (id: string) => void; onToggleSaved: (id: string) => void }
 
-function Card({ property, selected, saved, onSelect, onToggleSaved }: CardProps) {
+// Memoized, so selecting a property re-renders only the two cards whose selection changed.
+const Card = memo(function Card({ property, selected, saved, onSelect, onToggleSaved }: CardProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   // A pin click selects a card that may be scrolled out of view.
@@ -107,11 +109,13 @@ function Card({ property, selected, saved, onSelect, onToggleSaved }: CardProps)
       role="button"
       tabIndex={0}
       aria-current={selected}
-      onClick={onSelect}
+      onClick={() => onSelect(property.id)}
+      onPointerEnter={() => prefetch(property.id)}
+      onPointerLeave={cancelPrefetch}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
         e.preventDefault()
-        onSelect()
+        onSelect(property.id)
       }}
     >
       <div className="card-image">
@@ -122,7 +126,7 @@ function Card({ property, selected, saved, onSelect, onToggleSaved }: CardProps)
           aria-pressed={saved}
           onClick={(e) => {
             e.stopPropagation()
-            onToggleSaved()
+            onToggleSaved(property.id)
           }}
         >
           <Bookmark size={16} fill={saved ? 'currentColor' : 'none'} />
@@ -140,4 +144,4 @@ function Card({ property, selected, saved, onSelect, onToggleSaved }: CardProps)
       </div>
     </div>
   )
-}
+})

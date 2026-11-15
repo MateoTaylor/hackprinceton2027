@@ -2,9 +2,11 @@ import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { Minus, Plus, Star } from 'lucide-react'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { memo, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Property } from '../../shared/property'
+import { attachObliqueRig, type Rig } from './obliqueRig'
+import { cancelPrefetch, prefetch, useObliques } from './obliques'
 import { scoreBand, type PinState, type Pins } from './pins'
 import { pinLabel } from './property'
 
@@ -24,31 +26,29 @@ const STYLE: maplibregl.StyleSpecification = {
 maplibregl.setWorkerUrl(workerUrl)
 
 const LOS_ANGELES: [number, number] = [-118.33, 34.05]
+const CHAT_WIDTH = 420
 
 type Props = {
   properties: Property[]
   selected: Property | null
-  bearing: number
   frameRequest: number
   chatOpen: boolean
   pins: Pins
   onSelect: (id: string) => void
-  onArrive: (id: string) => void
 }
 
-// The map owns the camera. It flies to `selected`, reports arrival through `onArrive`, turns to
-// `bearing`, and frames `properties` whenever nothing is selected or `frameRequest` changes.
-// `pins` colours each property's pin with Proppy's progress and score.
-export function MapView({ properties, selected, bearing, frameRequest, chatOpen, pins: pinStates, onSelect, onArrive }: Props) {
+// The map owns the camera. It swoops into `selected` and its angled photos, and frames `properties`
+// whenever nothing is selected or `frameRequest` changes. `pins` colours each property's pin with
+// Proppy's progress and score.
+export function MapView({ properties, selected, frameRequest, chatOpen, pins: pinStates, onSelect }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<maplibregl.Map | null>(null)
-  const [heading, setHeading] = useState(0)
+  const [rig, setRig] = useState<Rig | null>(null)
   const [pins, setPins] = useState<ReadonlyMap<string, maplibregl.Marker>>(new Map())
   const markers = useRef(new Map<string, maplibregl.Marker>())
   const framed = useRef(false)
-  const lastBearing = useRef(bearing)
-  const arrive = useEffectEvent(onArrive)
-  const chatInset = useEffectEvent(() => (chatOpen ? 420 : 0))
+  const chatInset = chatOpen ? CHAT_WIDTH : 0
+  const frameInset = useEffectEvent(() => chatInset)
 
   useEffect(() => {
     if (!container.current) return
@@ -59,11 +59,20 @@ export function MapView({ properties, selected, bearing, frameRequest, chatOpen,
       zoom: 10,
       maxZoom: 21,
       maxPitch: 70,
+      // MapLibre would snap a heading within 7° of north back to north after each gesture, which
+      // turns a photo shot slightly off north away from where it lines up.
+      bearingSnap: 0,
       attributionControl: false,
     })
-    m.on('rotate', () => setHeading(m.getBearing()))
+    let attached: Rig | null = null
+    m.once('load', () => {
+      attached = attachObliqueRig(m)
+      setRig(attached)
+    })
     setMap(m)
     return () => {
+      attached?.detach()
+      setRig(null)
       m.remove()
       markers.current.clear()
       framed.current = false
@@ -100,49 +109,72 @@ export function MapView({ properties, selected, bearing, frameRequest, chatOpen,
     if (!map || selected || properties.length === 0) return
     const bounds = new maplibregl.LngLatBounds()
     for (const p of properties) bounds.extend([p.lon, p.lat])
-    const camera = map.cameraForBounds(bounds, { padding: { top: 80, bottom: 80, left: 80, right: 80 + chatInset() }, maxZoom: 16 })
+    // A photo flight leaves its padding on the map, so the padding here replaces it rather than adding to it.
+    const camera = map.cameraForBounds(bounds, { padding: { top: 80, bottom: 80, left: 80, right: 80 + frameInset() }, maxZoom: 16, absolutePadding: true })
     if (!camera) return
-    map.flyTo({ ...camera, pitch: 0, bearing: 0, duration: framed.current ? 1400 : 0, essential: true })
+    map.flyTo({ ...camera, bearing: 0, duration: framed.current ? 1400 : 0, essential: true })
     framed.current = true
   }, [map, properties, selected, frameRequest])
-
-  // Declared before the fly effect so a new selection's flight overrides this turn.
-  useEffect(() => {
-    if (!map || lastBearing.current === bearing) return
-    lastBearing.current = bearing
-    if (selected) map.easeTo({ bearing, duration: 700 })
-  }, [map, bearing, selected])
-
-  useEffect(() => {
-    if (!map || !selected) return
-    const id = selected.id
-    map.flyTo({ center: [selected.lon, selected.lat], zoom: 19, pitch: 60, bearing: 0, duration: 2200, essential: true })
-    const onMoveEnd = () => arrive(id)
-    map.once('moveend', onMoveEnd)
-    return () => {
-      map.off('moveend', onMoveEnd)
-    }
-  }, [map, selected])
 
   return (
     <>
       <div ref={container} className="map" />
+      <RigFeed rig={rig} subject={selected} chatInset={chatInset} />
       {properties.map((p) => {
         const marker = pins.get(p.id)
-        return marker && createPortal(<Pin property={p} selected={p.id === selected?.id} state={pinStates.get(p.id)} onSelect={() => onSelect(p.id)} />, marker.getElement(), p.id)
+        return marker && createPortal(<Pin property={p} selected={p.id === selected?.id} state={pinStates.get(p.id)} onSelect={onSelect} />, marker.getElement(), p.id)
       })}
+      <Compass map={map} onClick={() => rig?.faceNorth()} />
       <div className={`map-control surface-pill zoom-stack${chatOpen ? ' shifted' : ''}`}>
-        <button aria-label="Zoom in" onClick={() => map?.zoomIn()}>
+        <button aria-label="Zoom in" onClick={(e) => map?.zoomIn({}, { originalEvent: e.nativeEvent })}>
           <Plus size={16} />
         </button>
-        <button aria-label="Zoom out" onClick={() => map?.zoomOut()}>
+        <button aria-label="Zoom out" onClick={(e) => map?.zoomOut({}, { originalEvent: e.nativeEvent })}>
           <Minus size={16} />
-        </button>
-        <button aria-label="Face north" onClick={() => map?.resetNorthPitch()}>
-          <Compass heading={heading} />
         </button>
       </div>
     </>
+  )
+}
+
+// Hands the rig the selected property and its photos. It renders nothing, so a photo arriving
+// re-renders only this.
+function RigFeed({ rig, subject, chatInset }: { rig: Rig | null; subject: Property | null; chatInset: number }) {
+  const obliques = useObliques(subject?.id ?? null)
+  const id = subject?.id
+  const lon = subject?.lon
+  const lat = subject?.lat
+  useEffect(() => {
+    rig?.update({ subject: id && lon !== undefined && lat !== undefined ? { id, lngLat: [lon, lat] } : null, obliques, chatInset })
+  }, [rig, id, lon, lat, obliques, chatInset])
+  return null
+}
+
+// Shows which way the camera looks. The needle and label follow the map itself, so turning
+// re-renders nothing.
+function Compass({ map, onClick }: { map: maplibregl.Map | null; onClick: () => void }) {
+  const button = useRef<HTMLButtonElement>(null)
+  const needle = useRef<SVGSVGElement>(null)
+  useEffect(() => {
+    if (!map) return
+    const turn = () => {
+      const bearing = map.getBearing()
+      needle.current?.style.setProperty('rotate', `${-bearing}deg`)
+      button.current?.setAttribute('aria-label', `Facing ${(Math.round(bearing) + 360) % 360}°, face north`)
+    }
+    turn()
+    map.on('rotate', turn)
+    return () => {
+      map.off('rotate', turn)
+    }
+  }, [map])
+  return (
+    <button ref={button} className="map-control surface-pill compass" aria-label="Face north" title="Face north" onClick={onClick}>
+      <svg ref={needle} width="16" height="24" viewBox="0 0 16 24" aria-hidden="true">
+        <path d="M8 0 15 12H1Z" fill="var(--compass)" />
+        <path d="M8 24 1 12h14Z" fill="var(--color-text-muted)" />
+      </svg>
+    </button>
   )
 }
 
@@ -155,7 +187,10 @@ function pinClass(selected: boolean, state: PinState | undefined) {
   return state.status === 'scored' ? `scored ${scoreBand(state.score)}` : state.status
 }
 
-function Pin({ property, selected, state, onSelect }: { property: Property; selected: boolean; state: PinState | undefined; onSelect: () => void }) {
+type PinProps = { property: Property; selected: boolean; state: PinState | undefined; onSelect: (id: string) => void }
+
+// Memoized, so a photo arriving or a selection changing re-renders only the pins it touches.
+const Pin = memo(function Pin({ property, selected, state, onSelect }: PinProps) {
   const label = pinLabel(property)
   const scored = state?.status === 'scored' ? `, scored ${Math.round(state.score)}` : state ? PIN_NOTE[state.status] : ''
   return (
@@ -163,22 +198,15 @@ function Pin({ property, selected, state, onSelect }: { property: Property; sele
       className={['pin', label ? '' : 'dot', pinClass(selected, state)].join(' ')}
       aria-label={`${property.name}${scored}`}
       title={`${property.name}${scored}`}
+      onPointerEnter={() => prefetch(property.id)}
+      onPointerLeave={cancelPrefetch}
       onClick={(e) => {
         e.stopPropagation()
-        onSelect()
+        onSelect(property.id)
       }}
     >
       {selected && <Star size={14} fill="currentColor" strokeWidth={0} />}
       {label}
     </button>
   )
-}
-
-function Compass({ heading }: { heading: number }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" style={{ transform: `rotate(${-heading}deg)` }} aria-hidden>
-      <path d="M12 2 L16 12 L8 12 Z" fill="var(--compass)" />
-      <path d="M12 22 L16 12 L8 12 Z" fill="currentColor" />
-    </svg>
-  )
-}
+})
