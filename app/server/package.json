@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node --env-file=../../.env --watch src/main.ts",
     "start": "node --env-file=../../.env src/main.ts",
-    "test": "node --test src/*.test.ts",
+    "test": "node --test \"src/**/*.test.ts\"",
     "build:data": "node --env-file=../../.env pipeline/build.ts",
     "typecheck": "tsc --noEmit"
   },
