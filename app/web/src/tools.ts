@@ -1,4 +1,4 @@
-import { Box, Forklift, MapPinned, Route, ScanSearch, Signpost, WandSparkles, type LucideIcon } from 'lucide-react'
+import { Box, Eraser, Forklift, PaintRoller, Route, Signpost, type LucideIcon } from 'lucide-react'
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
 import type { Property, PropertyKind } from '../../shared/property'
 
@@ -6,7 +6,7 @@ import type { Property, PropertyKind } from '../../shared/property'
 // through `useOp` from ToolPanel.
 export type PanelProps = { property: Property }
 
-export type ToolId = 'dollhouse' | 'route' | 'scene' | 'signage' | 'area' | 'features' | 'edit'
+export type ToolId = 'dollhouse' | 'route' | 'scene' | 'signage' | 'edit' | 'remodel'
 
 export type Tool = {
   id: ToolId
@@ -15,7 +15,13 @@ export type Tool = {
   panel: LazyExoticComponent<ComponentType<PanelProps>>
   // The only kind of property the tool is offered on. Leave it out to offer the tool on every property.
   only?: PropertyKind
+  // The only property ids the tool is offered on, for a tool that works on prepared data.
+  onlyIds?: readonly string[]
 }
+
+// 2838 Potomac Ave, the one property with prepared picture edits in its drop folder. See
+// app/server/src/ops/edit/README.md.
+const PREPARED_EDITS = ['residential-201926017']
 
 // The tools, in the order the property card shows them. Each panel is the default export of
 // a file in its lane's folder and loads only when opened.
@@ -24,10 +30,10 @@ export const TOOLS: readonly Tool[] = [
   { id: 'route', label: 'Routing', icon: Route, panel: lazy(() => import('./route/RoutePanel')) },
   { id: 'scene', label: 'Scene', icon: Forklift, panel: lazy(() => import('./scene/ScenePanel')) },
   { id: 'signage', label: 'Signage', icon: Signpost, panel: lazy(() => import('./signage/SignagePanel')), only: 'commercial' },
-  { id: 'area', label: 'Area', icon: MapPinned, panel: lazy(() => import('./area/AreaPanel')) },
-  { id: 'features', label: 'Features', icon: ScanSearch, panel: lazy(() => import('./features/FeaturesPanel')) },
-  { id: 'edit', label: 'Edit', icon: WandSparkles, panel: lazy(() => import('./edit/EditPanel')) },
+  { id: 'edit', label: 'Magic Eraser', icon: Eraser, panel: lazy(() => import('./edit/EditPanel')), onlyIds: PREPARED_EDITS },
+  { id: 'remodel', label: 'Remodel', icon: PaintRoller, panel: lazy(() => import('./remodel/RemodelPanel')), onlyIds: PREPARED_EDITS },
 ]
 
 // The tools a property card shows for `property`.
-export const toolsFor = (property: Property) => TOOLS.filter(({ only }) => !only || only === property.kind)
+export const toolsFor = (property: Property) =>
+  TOOLS.filter(({ only, onlyIds }) => (!only || only === property.kind) && (!onlyIds || onlyIds.includes(property.id)))

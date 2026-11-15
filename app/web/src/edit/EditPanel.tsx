@@ -1,6 +1,7 @@
 import type { PanelProps } from '../tools'
+import { PictureEditor } from './PictureEditor'
 
-// The Edit panel. ToolPanel draws its frame and passes the selected property.
-export default function EditPanel(_: PanelProps) {
-  return <p className="panel-note">Edit is not built yet.</p>
+// The Magic Eraser panel: remove an object from a scan picture. ToolPanel draws its frame.
+export default function EditPanel({ property }: PanelProps) {
+  return <PictureEditor property={property} tool="erase" />
 }

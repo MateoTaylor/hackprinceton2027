@@ -3,6 +3,7 @@ import { logger } from 'hono/logger'
 import type { ApiError } from '../../shared/api.ts'
 import type { Cached } from './cache.ts'
 import { forwardEdit } from './editProxy.ts'
+import { PICTURE_ROUTE, servePicture } from './ops/edit/pictures.ts'
 import { mountOps } from './ops/http.ts'
 import { OPS } from './ops/index.ts'
 import type { Op } from './ops/op.ts'
@@ -75,6 +76,8 @@ export function createApp({
   })
 
   app.all('/api/edit/*', (c) => forwardEdit(c.req.raw, editLink))
+
+  app.get(PICTURE_ROUTE, servePicture(base.dataDir))
 
   app.get('/api/tiles/:z/:x/:y', async (c) => {
     const tile = parseTile(c.req.param('z'), c.req.param('x'), c.req.param('y'))
