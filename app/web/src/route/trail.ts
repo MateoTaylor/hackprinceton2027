@@ -26,6 +26,28 @@ export function resampleTrail(trail: RouteDetail['trail'], storeyIndex: number, 
   return points
 }
 
+// How long the walk along one storey's trail takes: about 40 m a second, kept between 1.5 and 3 s
+// so a short route still reads as a walk and a long one does not drag. A trail has a dot every
+// half metre.
+export const walkMs = (dotCount: number) => Math.min(3000, Math.max(1500, dotCount * 12.5))
+
+// What a walk along one storey's trail shows at `progress` (0 to 1): how many dots from the
+// entrance end, and for each mark whether the walk has reached it. A mark appears with the dot
+// nearest to it. At 1 everything shows.
+//   walkReveal(dots, marks.map(({ at }) => at), 0.5) // { dots: 40, marks: [true, false] }
+export function walkReveal(dots: [number, number][], marksAt: [number, number][], progress: number) {
+  const done = progress >= 1
+  const shown = done ? dots.length : Math.ceil(dots.length * Math.max(progress, 0))
+  const nearest = ([x, y]: [number, number]) => {
+    let best = 0
+    dots.forEach(([dx, dy], i) => {
+      if (Math.hypot(dx - x, dy - y) < Math.hypot(dots[best][0] - x, dots[best][1] - y)) best = i
+    })
+    return best
+  }
+  return { dots: shown, marks: marksAt.map((at) => done || nearest(at) < shown) }
+}
+
 // A door mark as the stage draws it: its centre in the building frame, how far above the floor it
 // floats and its current width on screen in metres. The overlay updates `sizeM` every frame.
 export type DoorMark = { door: RouteDetail['doors'][number]; at: [number, number]; liftM: number; sizeM: number }

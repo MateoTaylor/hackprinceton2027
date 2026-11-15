@@ -1,7 +1,7 @@
 import { type Camera, CanvasTexture, Group, InstancedMesh, Matrix4, MeshBasicMaterial, OrthographicCamera, SphereGeometry, Sprite, SpriteMaterial, type WebGLRenderer } from 'three'
 import type { RouteDetail } from '../../../server/src/ops/route/index.ts'
 import { type Look, type StageLayer, toScene } from '../dollhouse/index.ts'
-import { CONFIDENCE_BANDS, type ConfidenceBand, confidenceBand, type DoorMark, resampleTrail } from './trail.ts'
+import { CONFIDENCE_BANDS, type ConfidenceBand, confidenceBand, type DoorMark, resampleTrail, walkReveal } from './trail.ts'
 
 const DOT_RADIUS_M = 0.08
 const DOT_LIFT_M = 0.15
@@ -21,28 +21,19 @@ function metresPerPixel(renderer: WebGLRenderer, camera: Camera) {
 // The trail and the door marks of one storey, for the stage. Dots and marks are drawn at their
 // size in metres, but never smaller than a few pixels, and over walls so the route always reads.
 // The stage frees what it is handed, so the dot trail is new on every call; the six door
-// materials are shared and the stage never frees a sprite's material. `marks` says where each door
-// mark is drawn, for hit-testing a hover.
-//   const { layers, marks } = routeLayer(detail, DEFAULT_LOOK, 5, storeys[5].elevationM, result.confidence)
+// materials are shared and the stage never frees a sprite's material. `show(progress)` hides the
+// dots and marks a walk from the entrance has not reached yet (see walkReveal) and returns the
+// marks it shows, with where each is drawn, for hit-testing a hover. Redraw the stage after it
+// (the Dollhouse's `revision`), since the stage draws only on demand. `dotCount` sizes the walk (walkMs).
+//   const storey = routeLayer(detail, DEFAULT_LOOK, 5, storeys[5].elevationM, result.confidence)
+//   const shown = storey.show(0.5)
 export function routeLayer(detail: RouteDetail, look: Look, storeyIndex: number, elevationM: number, confidence: number) {
   const dots = resampleTrail(detail.trail, storeyIndex)
-  const material = new MeshBasicMaterial({ color: CONFIDENCE_BANDS[confidenceBand(confidence)], depthTest: false })
-  const trail = new InstancedMesh(new SphereGeometry(1, 12, 8), material, dots.length)
-  const lift = elevationM + DOT_LIFT_M
-  let radiusM = 0
-  trail.renderOrder = 9
-  trail.frustumCulled = false
-  trail.onBeforeRender = (renderer, _, camera) => {
-    const next = Math.max(DOT_RADIUS_M, DOT_MIN_PX * metresPerPixel(renderer, camera))
-    if (next === radiusM) return
-    radiusM = next
-    const matrix = new Matrix4()
-    dots.forEach(([x, y], i) => trail.setMatrixAt(i, matrix.makeScale(radiusM, radiusM, radiusM).setPosition(toScene(x, y, lift))))
-    trail.instanceMatrix.needsUpdate = true
-  }
+  const trail = dotTrail(dots, elevationM + DOT_LIFT_M, CONFIDENCE_BANDS[confidenceBand(confidence)])
 
   const group = new Group()
   const marks: DoorMark[] = []
+  const sprites: Sprite[] = []
   const liftM = look.wallStubM + MARK_LIFT_M
   for (const door of detail.doors) {
     if (door.storeyIndex !== storeyIndex) continue
@@ -50,18 +41,50 @@ export function routeLayer(detail: RouteDetail, look: Look, storeyIndex: number,
     const sprite = new Sprite(markMaterial(door.verdict, confidenceBand(door.confidence)))
     sprite.position.copy(toScene(door.at[0], door.at[1], elevationM + liftM))
     sprite.renderOrder = 10
+    // The renderer has already taken the world matrix by now, so it is updated here too, or the
+    // mark would draw at last frame's size (1 m on its first frame).
     sprite.onBeforeRender = (renderer, _, camera) => {
       mark.sizeM = Math.max(MARK_SIZE_M, MARK_MIN_PX * metresPerPixel(renderer, camera))
       sprite.scale.set(mark.sizeM, mark.sizeM, 1)
+      sprite.updateMatrixWorld()
     }
     group.add(sprite)
+    sprites.push(sprite)
     marks.push(mark)
   }
   const layers: StageLayer[] = [
     { id: `route-trail-${storeyIndex}`, object: trail, onStorey: storeyIndex },
     { id: `route-doors-${storeyIndex}`, object: group, onStorey: storeyIndex },
   ]
-  return { layers, marks }
+  const show = (progress: number) => {
+    const reveal = walkReveal(dots, marks.map(({ at }) => at), progress)
+    trail.count = reveal.dots
+    sprites.forEach((sprite, i) => (sprite.visible = reveal.marks[i]))
+    return marks.filter((_, i) => reveal.marks[i])
+  }
+  return { layers, show, dotCount: dots.length }
+}
+
+// One sphere per dot, placed once. The radius is a shader uniform set just before each draw:
+// instance matrices written in onBeforeRender reach the GPU only on the next frame, so the first
+// frame drew every dot unplaced, stacked into one 2 m ball at the building's origin, which stayed
+// until the view next moved.
+function dotTrail(dots: [number, number][], liftM: number, color: string) {
+  const radius = { value: DOT_RADIUS_M }
+  const material = new MeshBasicMaterial({ color, depthTest: false })
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.dotRadius = radius
+    shader.vertexShader = `uniform float dotRadius;\n${shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed *= dotRadius;')}`
+  }
+  const trail = new InstancedMesh(new SphereGeometry(1, 12, 8), material, dots.length)
+  const matrix = new Matrix4()
+  dots.forEach(([x, y], i) => trail.setMatrixAt(i, matrix.setPosition(toScene(x, y, liftM))))
+  trail.renderOrder = 9
+  trail.frustumCulled = false
+  trail.onBeforeRender = (renderer, _, camera) => {
+    radius.value = Math.max(DOT_RADIUS_M, DOT_MIN_PX * metresPerPixel(renderer, camera))
+  }
+  return trail
 }
 
 const materials = new Map<string, SpriteMaterial>()

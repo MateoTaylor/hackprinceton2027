@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { BuildingDetail, BuildingModel } from '../../../server/src/model/building.ts'
 import type { RouteDetail, RouteResult as RouteAnswer } from '../../../server/src/ops/route/index.ts'
 import type { RouteTarget } from '../../../server/src/ops/route/solve.ts'
@@ -7,7 +7,7 @@ import { OpStatus, useOp } from '../ToolPanel'
 import type { PanelProps } from '../tools'
 import { routeLayer } from './overlay.ts'
 import './route.css'
-import { confidenceBand, markUnder } from './trail.ts'
+import { confidenceBand, type DoorMark, markUnder, walkMs } from './trail.ts'
 
 // The presets of route_solve's `payload`, wheelchair first. `custom` needs sizes, so the panel
 // leaves it to the agent.
@@ -23,10 +23,13 @@ type Payload = (typeof PAYLOADS)[number]['name']
 type Solved = { result: RouteAnswer; detail: RouteDetail }
 type Tooltip = { door: RouteDetail['doors'][number]; x: number; y: number }
 
-// The Routing panel: click a floor and pick a payload, and a dot trail runs from the street to
-// it with a tick or a cross on each door. The building fills the panel, with the payload picker,
-// storey chips and route figures floating over it. Hover a door for its confidence. The pointer
-// is read in the capture phase, before the canvas's own listener reports the hover.
+// The Routing panel: click a floor and pick a payload, and a dot trail walks from the street to
+// it, putting a tick or a cross on each door as it passes. The walk covers the open storey's part
+// of the route and plays again when another storey is opened; a new target or payload starts it
+// over, and with reduced motion the route shows whole. The building fills the panel, with the
+// payload picker, storey chips and route figures floating over it. Hover a door the walk has
+// reached for its confidence. The pointer is read in the capture phase, before the canvas's own
+// listener reports the hover.
 export default function RoutePanel({ property }: PanelProps) {
   const building = useOp<unknown, BuildingDetail>('building_get', { propertyId: property.id }, { detail: true })
   if (building.status !== 'ready') return <OpStatus state={building} />
@@ -52,7 +55,15 @@ function RouteView({ propertyId, building }: { propertyId: string; building: Bui
         : [],
     [detail, solved, visited, building],
   )
+  const open = drawn.find(({ index }) => index === storeyIndex)
+  const progress = useWalk(open, walkMs(open?.dotCount ?? 0))
   const layers = useMemo(() => drawn.flatMap(({ layers }) => layers), [drawn])
+  // The marks the walk has reached, for hit-testing a hover. Showing them changes the layers in
+  // place, so it runs before the Dollhouse's own effect redraws for the new `revision`.
+  const shown = useRef<DoorMark[]>([])
+  useLayoutEffect(() => {
+    shown.current = open?.show(progress) ?? []
+  }, [open, progress])
 
   const onRoute = (next: Solved | null) => {
     setSolved(next)
@@ -62,8 +73,7 @@ function RouteView({ propertyId, building }: { propertyId: string; building: Bui
   }
   const onPick = ({ spaceId, at, storeyIndex }: StagePick) => setTarget(spaceId ? { spaceId } : { at, storeyIndex })
   const onHover = (pick: StagePick | null) => {
-    const marks = pick ? drawn.find(({ index }) => index === pick.storeyIndex)?.marks : undefined
-    const door = pick && marks ? markUnder(marks, pick.at, DEFAULT_LOOK) : null
+    const door = pick && pick.storeyIndex === storeyIndex ? markUnder(shown.current, pick.at, DEFAULT_LOOK) : null
     setTooltip(door && { door, ...pointer.current })
   }
 
@@ -89,7 +99,7 @@ function RouteView({ propertyId, building }: { propertyId: string; building: Bui
           pointer.current = { x: event.clientX - box.left, y: event.clientY - box.top }
         }}
       >
-        <Dollhouse building={building} storeyIndex={storeyIndex} layers={layers} onPick={onPick} onHover={onHover} />
+        <Dollhouse building={building} storeyIndex={storeyIndex} layers={layers} revision={progress} onPick={onPick} onHover={onHover} />
         {tooltip && (
           <div className="route-tooltip" style={{ left: tooltip.x, top: tooltip.y }} role="tooltip">
             <span className={`route-band ${confidenceBand(tooltip.door.confidence)}`}>{tooltip.door.confidence.toFixed(2)}</span>
@@ -99,12 +109,13 @@ function RouteView({ propertyId, building }: { propertyId: string; building: Bui
       </div>
       <div className="route-storeys" role="group" aria-label="Storey">
         {building.storeys.map(({ index, label }) => (
-          <button key={index} type="button" aria-pressed={index === storeyIndex} className={visited.includes(index) ? 'on-route' : undefined} onClick={() => setStoreyIndex(index)}>
+          <button key={index} type="button" className="chip" aria-pressed={index === storeyIndex} onClick={() => setStoreyIndex(index)}>
             {label}
+            {visited.includes(index) && <span className="route-on-route" aria-label="on the route" />}
           </button>
         ))}
         {visited.length > 1 && (
-          <button type="button" className="route-next" onClick={() => setStoreyIndex(next)}>
+          <button type="button" className="chip route-next" onClick={() => setStoreyIndex(next)}>
             Next storey on route
           </button>
         )}
@@ -118,6 +129,27 @@ function RouteView({ propertyId, building }: { propertyId: string; building: Bui
       </div>
     </div>
   )
+}
+
+// The progress (0 to 1) of a walk that starts each time `walk` changes and lasts `durationMs`.
+// A new walk reads 0 until its first frame, so it never flashes whole; with reduced motion, or
+// with nothing to walk, it reads 1. Unmounting or a new walk cancels the old one's frames.
+//   const progress = useWalk(open, walkMs(open.dotCount))
+function useWalk(walk: object | undefined, durationMs: number) {
+  const [state, setState] = useState<{ walk?: object; progress: number }>({ progress: 1 })
+  const still = !walk || matchMedia('(prefers-reduced-motion: reduce)').matches
+  useEffect(() => {
+    if (still) return
+    const start = performance.now()
+    let frame = requestAnimationFrame(function step(now) {
+      const progress = Math.min(1, (now - start) / durationMs)
+      setState({ walk, progress })
+      if (progress < 1) frame = requestAnimationFrame(step)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [walk, durationMs, still])
+  if (still) return 1
+  return state.walk === walk ? state.progress : 0
 }
 
 type RouteResultProps = { propertyId: string; target: RouteTarget; payload: Payload; onRoute: (solved: Solved | null) => void }
