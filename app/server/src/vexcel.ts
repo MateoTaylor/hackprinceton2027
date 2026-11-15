@@ -59,7 +59,7 @@ type Attribute = string | number | boolean
 
 // One structure in one capture. `ring` is the footprint's outer ring as closed [lon, lat] points,
 // the largest part's when Vexcel drew it as several. `id` hashes the footprint, so the same
-// footprint in two answers has the same id. `attributes` holds every filled value of the structure
+// footprint in two answers has the same id. A parcel Vexcel gave no capture date is left out. `attributes` holds every filled value of the structure
 // and of its parcel, keyed as Vexcel names them, such as `roof-characteristics.height`.
 export type ExtractFeature = { id: string; ring: LngLat[]; capturedAt: string; primary: boolean; attributes: Record<string, Attribute> }
 
@@ -67,7 +67,7 @@ const ExtractResponse = z.object({
   features: z.array(
     z.object({
       properties: z.looseObject({
-        'metadata.ortho-date-estimate': z.string(),
+        'metadata.ortho-date-estimate': z.string().nullish(),
         structures: z
           .array(z.looseObject({ 'footprint.wkt': z.string().regex(/^\s*(MULTI)?POLYGON\s*\(/), 'primary-structure': z.boolean().nullish() }))
           .nullish(),
@@ -99,11 +99,13 @@ function largestOuterRing(wkt: string): LngLat[] {
 
 function extractFeatures({ features }: z.infer<typeof ExtractResponse>): ExtractFeature[] {
   return features.flatMap(({ properties }) => {
+    const capturedAt = properties['metadata.ortho-date-estimate']
+    if (!capturedAt) return []
     const parcel = attributesOf(properties)
     return (properties.structures ?? []).map((structure) => ({
       id: createHash('sha256').update(structure['footprint.wkt']).digest('hex').slice(0, 16),
       ring: largestOuterRing(structure['footprint.wkt']),
-      capturedAt: properties['metadata.ortho-date-estimate'],
+      capturedAt,
       primary: structure['primary-structure'] === true,
       attributes: Object.fromEntries([...parcel, ...attributesOf(structure)]),
     }))

@@ -15,7 +15,7 @@ async function tempRoot() {
 }
 
 // Three captures of one invented parcel, out of date order. The 2025 capture has a tower drawn as
-// two parts and a shed, and the 2023 capture has no structures.
+// two parts and a shed, the 2023 capture has no structures, and one parcel has no date at all.
 const ANSWER = {
   type: 'FeatureCollection',
   features: [
@@ -52,6 +52,7 @@ const ANSWER = {
       },
     },
     { type: 'Feature', geometry: null, properties: { 'metadata.ortho-date-estimate': '2023-01-01', structures: null } },
+    { type: 'Feature', geometry: null, properties: { 'metadata.collection': 'old' } },
   ],
 }
 
