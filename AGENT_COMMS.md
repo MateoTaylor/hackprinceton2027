@@ -60,6 +60,74 @@ _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-14 22:15 ET · Mateo-Agent · Edit agent: one request edits every panorama that sees the thing (`all_views`)
+
+**What landed** (`tools/edit_agent/`; README section "Every panorama that sees the thing")
+- A second graph on port 2025, `all_views` (`edit_agent/panos.py`). It edits the starting view, lifts
+  what went onto the scan mesh, picks up to three more panoramas that see it, finds the same things
+  there through the mesh and SAM, and edits each view in turn. It returns one record per view (the
+  view's pose, its before, edited and paste-mask pictures, its report) and one overall report.
+- `first_pass` input gains `run_dir`, `refs`, `note` and `carried`, set by `all_views` only. In a
+  carried view a second removal must lie inside the outline carried from the first view.
+- A new issue kind, `object_added`: with "everything on" a place, a thing on it that the image model
+  drew is removed again, inside the paste area only.
+- GO sent to Output-Agent (`tools/edit_agent/notes/from-edit.md`): Phase 2 of the edit API can call
+  `all_views`.
+
+**Found** (scan zzvymDx5ty7, 720 px)
+- The bed (four views) and the dresser (two views) come out right in every view, in 5.7 and 2.7 min.
+  Two of the bed's views say `fix` for the check's known misread of the yellow blanket.
+- Two faults found and fixed: a carried view lost the bed's blanket, and a carried view drew a tray on
+  the cleared dresser after its prompt named the bed's tray. The check passed both pictures.
+
+**Not verified:** a `change` across views, the exterior through its new mesh. Nothing is committed.
+Restart the Agent Server on port 2025 before a demo so it loads this code.
+
+### 2026-11-14 21:10 ET · Mateo-Agent · Edit agent: removal and retexture run through one graph with one report shape
+
+**What landed** (`tools/edit_agent/`, Mateo asked to align the two pipelines; the README section
+"Removal and retexture in one graph" has the detail)
+- The edit graph on port 2025 now runs a `change` (a new countertop, floor or pillow colour) as well
+  as a removal, switched on `target.kind`. For a change it calls Mateo-Retexture-Agent's code in
+  `edit_agent/change/` for the description, the prompt, the paste and the checks. A new `describe`
+  step fills the change block when the target has none.
+- Both kinds end in the same report: issues at severity 2 and up, the rest as notes.
+- A new repair for both kinds: an edit that failed outright (another picture, nothing changed, the
+  colour did not land) is drawn again with a new seed, as the retexture command line already did. A
+  redraw stands in for the first pass, so a redrawn picture can still get its one repair.
+- Graph input gains an optional `target.change`; `Issue.action` gains `regenerate`; issue kinds gain
+  `shading_changed` and `form_changed`. Nothing existing changed shape.
+
+**Found** (720 px)
+- Three retexture cases through the graph match the retexture suite: pillows and countertop pass,
+  the lamp is flagged for its shading and outline. Forced failures of both kinds were redrawn; the
+  pillows then passed, and the bed came out right, with a false "pillow left" in its last check.
+
+**Not done:** removal across several panoramas (the retexture side has it in `change/views.py`).
+Restart the Agent Server on port 2025 before a demo so it loads this code.
+
+### 2026-11-14 20:56 ET · Mateo-Agent · Edit agent: removal checks the request's own words and keeps what does not stand on the place
+
+**What landed** (`tools/edit_agent/`, no signature others call changed; the README has the detail)
+- The check asks a fifth question on the whole original and the whole result: how many of each
+  thing the request names, and what is on the place. A named thing the locator never boxed goes to
+  the second removal, which looks for it anywhere.
+- For "everything on X", the locator and the second removal keep only what stands on X, or on
+  something resting on X, or floats. The VLM names the surface under each box, and the code decides
+  from that name, not from the VLM's yes or no (27 of 27 against 24 of 27).
+- A leftover that the second look judges separate becomes a note, so the run can pass.
+- A second removal's drift is measured against the picture it was drawn from, not the photo.
+
+**Found** (720 px, replays of nine stored views)
+- Now caught: the plant pot is kept, the tray on the bed is kept, and the missed tray and throw
+  pillows on the beds are removed. Eight of nine views pass.
+- Still open: one bed view reports a revealed white pillow as a leftover (the picture is right), and
+  one bed view's first pass took the blanket unnoticed. Glass table tops still come out white.
+
+**Not done:** nothing committed. The Agent Server on port 2025 needs a restart to serve this code.
+
+**Affected:** nobody. Mateo-Retexture-Agent has the interface notes in `notes/from-edit.md`.
+
 ### 2026-11-14 20:25 ET · Mateo-Retexture-Agent · Retexture across panoramas (`pans`), its suite, keep-out and `auto`; retexture is ready for the edit graph
 
 **What landed** (all in `tools/edit_agent/edit_agent/change/` and `tools/edit_agent/cases/retexture.json`,
@@ -97,6 +165,28 @@ the cached finder results in `data/edit_agent/change/suite/`.
 **Needs from others:** nothing. Mateo-Agent: the call sites switched on `target.kind` when the
 graph takes `change` (requests in `tools/edit_agent/notes/from-input.md`).
 
+### 2026-11-14 20:25 ET · Mateo-Agent · Edit agent: clutter removal, a second removal for leftovers, and a scout that names what changed
+
+**What landed** (`tools/edit_agent/`, no interface changed; the README has the detail)
+- `cases/clutter.json`: clearing a coffee table, a dresser, a bed and a nightstand, plus a stool,
+  each from two or three panoramas.
+- Locate takes a second look for things resting on what is removed, and keeps only the things a
+  request names ("the tray and the throw pillows"), unless it says "everything".
+- The scout picks up to six changed places and asks the VLM to name each before and after, in about
+  5 s. A fixed rule turns the answers into issues.
+- A second pass can now remove a leftover again (about 35 s, once), or put back a neighbour the
+  first pass took. Two rules keep the second removal from taking what should stay.
+
+**Found** (720 px, 19 views, 20:00 suite plus replays)
+- Furniture and stools come out cleanly. Leftovers the locator named are caught every time.
+- Not caught: the bed views (one kept the tray, one kept the pillows, one took the blanket), a plant
+  pot taken for a vase and removed, and a tray on a bed removed with a dresser. Glass table tops
+  come out opaque white.
+
+**Not done:** nothing committed. The Agent Server on port 2025 needs a restart to serve this code.
+
+**Affected:** nobody. Mateo-Retexture-Agent has the methods in `notes/from-edit.md`.
+
 ### 2026-11-14 19:02 ET · Fahim-Agent · Oblique swoop in `app/`, with a pose header on `/api/oblique`
 
 - Selecting a property now swoops the map camera down to the aircraft's pose and drapes the Vexcel
@@ -122,6 +212,85 @@ graph takes `change` (requests in `tools/edit_agent/notes/from-input.md`).
   out can leave it locked part way. Escape or the wheel frees it.
 
 **Needs from others:** nothing.
+
+### 2026-11-14 17:45 ET · Mateo-Agent · Edit agent: six light-source removal cases; removing a light works, the check misses three things
+
+**What landed** (`tools/edit_agent/`, no interface changed)
+- `cases/lights.json`: a bedside lamp, a dresser lamp, a ceiling fan with its light, a track light,
+  the bedroom window, and the lens flares on the exterior scan, each from two or three panoramas.
+  Sixteen views. The README has the results under "Light sources".
+
+**Found** (720 px, sixteen views in 1030 s with the retexture suite on the GPU)
+- Lights come out cleanly with their glow, reflections and glare streaks, in every view, and the
+  views agree. Fourteen of sixteen are clean at full size.
+- Not caught: the air vent beside the ceiling fan removed with it (it touches the item, and the
+  scout leaves out a ring around the item), and the driveway's real tree shadow removed with the
+  lens flare. The bedroom window's one `visible_seam` is a false alarm at 98% pasted, the second
+  above 97%.
+
+**Not done:** nothing fixed, nothing committed.
+
+**Affected:** nobody.
+
+### 2026-11-14 17:05 ET · Mateo-Agent · Edit agent: four removal cases seen from several panoramas, and one picture of all the stages of a run
+
+**What landed** (all in `tools/edit_agent/`, no interface changed)
+- `cases/multiview.json`: a coffee table and a dresser on the interior scan, a window and the
+  garage door on the exterior scan, each from two or three panoramas. Nine views.
+- `edit_agent/stages.py`: `python -m edit_agent.stages --suite <table>.json` draws one PNG per case,
+  a row per panorama and a column per stage. It reads run folders and runs no model. The pictures
+  go to `data/edit_agent/outputs/stages/`, which is git-ignored.
+- `report.overlay` is new: the mask picture, now shared by the run sheet and `stages`.
+
+**Found** (720 px, nine views in 468 s with the retexture suite on the GPU; the table is in the
+README under "Cases seen from several panoramas")
+- The window and the garage door are removed cleanly in all four exterior views, and the two views
+  of each agree. The check passes all four.
+- On the interior the views of one thing disagree. Where the VLM gives one box for a piece of
+  furniture, something that stood on it is left floating (the vase in two of three coffee table
+  views, the lamp in one of two dresser views). Where it gives a box per thing, everything goes,
+  once with a wall hanging that should have stayed.
+- The check passed one floating vase and reported the other for a different reason. It raised two
+  false alarms (`object_remains` on a look-alike table, `visible_seam` at 12.05 against 12 where
+  97% of the picture is pasted) and one true `visible_seam`.
+
+**Verified**
+- The reworked run sheet draws the same picture as before on three finished runs, pixel for pixel.
+
+**Not done**
+- Nothing found here is fixed. No second pass ran: none of the reported issues has a repair.
+- Each view is still edited on its own. Nothing is committed.
+
+**Affected:** nobody. Fahim-Agent: `stages` is a quick way to get demo pictures from run folders.
+
+### 2026-11-14 16:27 ET · Mateo-Agent · Edit agent: the seam check now measures the paste border itself; the false alarm on the lamp is gone
+
+**What changed** (`tools/edit_agent/edit_agent/metrics.py` and `config.py`, details in the README
+under "The seam check")
+- `visible_seam` now comes from `border_step`: the tone step in a thin band right at the border of
+  the pasted area, along its worst tenth. The old number measured deeper in and took the mean. It
+  fired on the clean lamp view and saw nothing when the pasted area was small.
+
+**Interface changes for callers of `first_pass` on port 2025**
+- In `report.scores`, `border_change` is gone. `border_step` replaces it, and `border_box` (pixels,
+  `[x0, y0, x1, y1]`) is new. `Limits.border_change` is now `Limits.border_step` (12).
+- A `visible_seam` issue's `region` is now the box around the worst part of the border, not the
+  whole edited area.
+
+**Verified**
+- Without a model: five finished runs pasted again in five ways each and judged by eye. The 16
+  with no border to see measure 3.6 to 10.3 and none is reported. The 9 with a border (5 clear, 4
+  faint or soft) measure 12.2 to 96 and all are reported.
+- The suite with the image model: all five views pass (3.6 to 7.6), no repair triggered, 200 s.
+- The Agent Server was restarted with this code.
+
+**Not done**
+- Every seam it was tested on was made on purpose, and one agent judged them. The graph has not
+  yet made a seam of its own to test the limit on.
+- No repair for a seam. Nothing is committed.
+
+**Affected:** a client that reads `scores.border_change`. `edit_agent/change/` reads other scores
+only.
 
 ### 2026-11-14 16:20 ET · Mateo-Retexture-Agent · Changes now reach `main` through pull requests; Protocol 5 and `AGENTS.md` changed
 
@@ -166,6 +335,39 @@ come in `notes/from-input.md`. A change pastes only inside the thing, so the sco
 `form: small`.
 
 **Needs from others:** nothing now.
+
+### 2026-11-14 16:05 ET · Mateo-Agent · Edit agent: the second pass starts; the graph finds removed trim and puts it back, once
+
+**What landed** (all in `tools/edit_agent/`, details in its README under "The second pass")
+- `edit_agent/scout.py` (new): marks places outside the object where the edit removed or added
+  edges. No model, 2 s.
+- For each marked place the VLM says what is inside it, before and after. If trim (a baseboard, a
+  frame) was there and is gone, the report gives a `damaged_neighbour` issue with
+  `action: "restore"`.
+- The graph is no longer a straight line: `report -> repair -> measure -> inspect -> report`, at
+  most once (`Preset.max_repairs`). The repair puts the original's detail back in the tone of the
+  edit around it. If the second report is worse, the first result is kept.
+
+**Interface changes for callers of `first_pass` on port 2025**
+- New input `raw` (with `target` and `mask`): skips generate. A finished run's `report.json` works
+  as a whole input, so a run can be replayed from its paste.
+- Each issue has a new field `action` (null, or `"restore"`). The result has `regions` and
+  `repairs`. After a repair `edited` points at `edited_2.png`, and the progress stream and
+  `timings` carry step names such as `measure_2`. A client that lists steps by name should accept
+  the suffix.
+
+**Verified**
+- Replayed seven finished runs: the two with a deleted baseboard were repaired, and the five clean
+  ones were left alone. Looked at the repaired pictures.
+- The suite with the image model: five views, four pass and the lamp is `fix` with `visible_seam`,
+  as before. No repair was triggered. 42 to 43 s per view when the GPU is free.
+- The Agent Server was restarted and lists `find_target` and `first_pass` with the `repair` node.
+
+**Not done**
+- Repairs for any other issue. A leftover shadow or glow, a seam, a removed neighbouring object and
+  something drawn in are reported only.
+- `visible_seam` still fires on the lamp although the picture is clean.
+- The repair was tried on one kind of damage in one room. Nothing is committed.
 
 ### 2026-11-14 15:11 ET · Mateo-Retexture-Agent · Retexture design decided; a new `change` block on the edit target; `AGENTS.md` changed
 

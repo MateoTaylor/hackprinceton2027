@@ -1,0 +1,70 @@
+{
+  "about": "Clutter removal: take the small things off a piece of furniture and keep the furniture, or take out one small piece of furniture and keep what is around it. Each case is seen from two or three panoramas, and each view is edited on its own. Each view is rendered from a downloaded scan under data/ (git-ignored), so this file holds no pictures. Run with: python -m edit_agent.suite cases/clutter.json. One picture per case: python -m edit_agent.stages --suite <table>.json.",
+  "preset": "720",
+  "cases": [
+    {
+      "name": "clutter-coffee-table",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove everything on the coffee table",
+      "views": [
+        {"pano": 1, "yaw": 237, "pitch": -25, "fov": 60},
+        {"pano": 4, "yaw": 282, "pitch": -25, "fov": 60},
+        {"pano": 7, "yaw": 275, "pitch": -10, "fov": 35}
+      ],
+      "notes": "The coffee table of interior-coffee-table in multiview.json. The teal tray, the grey vase and the plant in it go; the glass and gold table, its mirror shelf and the rug stay. The table's glass top shows the rug through it, so the model has to draw glass, not floor."
+    },
+    {
+      "name": "clutter-dresser",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove everything on the dresser",
+      "views": [
+        {"pano": 6, "yaw": 222, "pitch": -12, "fov": 60},
+        {"pano": 2, "yaw": 245, "pitch": -20, "fov": 75}
+      ],
+      "notes": "The dresser of interior-dresser. The lit lamp and the three yellow-green vases go, with the lamp's glow; the dresser and the wall hanging above it stay. Five things in one request."
+    },
+    {
+      "name": "clutter-bed",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the tray and the throw pillows from the bed",
+      "views": [
+        {"pano": 6, "yaw": 270, "pitch": -14, "fov": 70},
+        {"pano": 2, "yaw": 298, "pitch": -14, "fov": 70},
+        {"pano": 8, "yaw": 264, "pitch": -8, "fov": 60}
+      ],
+      "notes": "Bedroom, near world x 2.7, y -6.5. The black tray on the yellow throw and the yellow, patterned and blue-and-white throw pillows go; the white bed pillows, the duvet, the throw and the headboard stay. Two kinds of thing named in one request, and the pillows overlap."
+    },
+    {
+      "name": "clutter-nightstand-vase",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the blue vase from the nightstand",
+      "views": [
+        {"pano": 6, "yaw": 328, "pitch": -20, "fov": 75},
+        {"pano": 2, "yaw": 0, "pitch": -8, "fov": 50},
+        {"pano": 1, "yaw": 355, "pitch": -5, "fov": 35}
+      ],
+      "notes": "The views of light-bedside-lamp in lights.json. A small thing next to a large one: the lamp right beside it must stay, with its glow."
+    },
+    {
+      "name": "furniture-stool",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the blue stool",
+      "views": [
+        {"pano": 6, "yaw": 328, "pitch": -20, "fov": 75},
+        {"pano": 2, "yaw": 0, "pitch": -8, "fov": 50},
+        {"pano": 1, "yaw": 355, "pitch": -5, "fov": 35}
+      ],
+      "notes": "The blue hourglass stool beside the nightstand, a small piece of furniture on carpet. The carpet and baseboard behind it have to be invented; the nightstand next to it stays. Panorama 6 sees only its top corner."
+    }
+  ]
+}
