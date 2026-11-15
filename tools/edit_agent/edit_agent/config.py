@@ -27,6 +27,7 @@ class Limits:
     wrong_picture_drift: float = 40.0             # clean edits drift 9-19, a returned reference picture 60-74
     unchanged_inside: float = 5.0                 # the masked area changed less than this: nothing was removed
     border_step: float = 12.0                     # tone step at the paste border: clean pastes 4-8, visible borders 12 and up
+    seam_max_paste: float = 0.85                  # pasted over more of the picture than this, the border is at its edge: no seam check
     report_severity: int = 2                      # VLM findings below this are kept as notes only
     # The item's "effect": where the image model changed the smooth brightness in one piece with the item
     # (its shadow, reflection or glow). Brightness is on the 0-255 scale.
@@ -37,7 +38,9 @@ class Limits:
     # scouting (scout.py): edges outside the item that vanished or appeared. First guesses from 28 runs.
     scout_edge: float = 4.0                       # change in edge energy that counts (a deleted baseboard measures 8)
     scout_min_share: float = 0.0004               # smaller regions than this share of the picture are dropped
-    scout_regions: int = 3                        # at most this many regions go on to a closer look
+    scout_ring: float = 0.008                     # the item's own outline: this share of the long side around it is not scouted
+    scout_regions: int = 6                        # at most this many regions go on to a closer look, strongest first ...
+    scout_seconds: float = 5.0                    # ... and no more once the VLM has spent this long on them (two questions each)
     restore_max_share: float = 0.08               # a restore that grows past this share of the picture stays in its boxes
 
 
@@ -61,6 +64,7 @@ class Preset:
     tone_match: bool = True
     follow_change: bool = True                    # also paste the item's effect, however far it reaches (a long shadow)
     max_repairs: int = 1                          # second passes after the first; more than two passes is the exception
+    max_redraws: int = 1                          # new seeds for an edit that failed outright; each stands in for the first pass
     # `eyes` is the model that sees pixels. It must stay local.
     eyes: Role = field(default_factory=Role)
     limits: Limits = field(default_factory=Limits)

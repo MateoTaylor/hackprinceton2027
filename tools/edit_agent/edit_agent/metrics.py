@@ -117,8 +117,13 @@ def change_map(before, after, gain=4.0):
     return heat(diff.mean(axis=2) * gain, 255.0)
 
 
-def measure(view_path, raw_path, edited_path, mask_path, paste_mask_path, effect_path=None):
+def measure(view_path, raw_path, edited_path, mask_path, paste_mask_path, effect_path=None, raw_from=None):
+    """`raw_from`: the picture the image model was given, when not the view. A second removal draws on the
+    first result, so its drift is measured against that. Against the view it also counted the first
+    redraw: a dresser pasted whole (drift 34) and then its lamp shade (2 more) read 40, over the limit,
+    though the second redraw had kept the picture."""
     view = Image.open(view_path).convert("RGB")
+    given = Image.open(raw_from).convert("RGB") if raw_from else view
     raw = Image.open(raw_path).convert("RGB").resize(view.size, Image.LANCZOS)
     edited = Image.open(edited_path).convert("RGB")
     item = np.asarray(Image.open(mask_path).convert("L")) > 127
@@ -130,7 +135,7 @@ def measure(view_path, raw_path, edited_path, mask_path, paste_mask_path, effect
 
     near = grown(item, round(0.02 * long_side))
     scores = {
-        "drift_outside": _mean(np.abs(pixels(view) - pixels(raw)), ~near),
+        "drift_outside": _mean(np.abs(pixels(given) - pixels(raw)), ~near),
         "change_inside": _mean(np.abs(pixels(view) - pixels(edited)), item),
         "border_step": 0.0,
         "mask_share": round(float(item.mean()), 4),
@@ -167,7 +172,9 @@ def flags(scores, limits, region=None):
     if scores["change_inside"] < limits.unchanged_inside:
         out.append(("object_remains", 3, f"the masked area barely changed (mean change {scores['change_inside']})",
                     region))
-    if scores["border_step"] > limits.border_step:
+    # Pasted over nearly all of the picture, the border runs along the picture's edge, where the image model
+    # drifts most and nothing is there to see (two false alarms in the light cases, at 97 and 98 % pasted).
+    if scores["border_step"] > limits.border_step and scores.get("paste_share", 0) < limits.seam_max_paste:
         out.append(("visible_seam", 2, f"the tone steps by {scores['border_step']} at the paste border, along its "
                                        "worst tenth (a clean paste measures 4 to 8)", scores.get("border_box") or region))
     if scores.get("effect_left", 0) > limits.effect_left:

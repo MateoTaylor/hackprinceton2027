@@ -60,6 +60,74 @@ _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-14 22:15 ET · Mateo-Agent · Edit agent: one request edits every panorama that sees the thing (`all_views`)
+
+**What landed** (`tools/edit_agent/`; README section "Every panorama that sees the thing")
+- A second graph on port 2025, `all_views` (`edit_agent/panos.py`). It edits the starting view, lifts
+  what went onto the scan mesh, picks up to three more panoramas that see it, finds the same things
+  there through the mesh and SAM, and edits each view in turn. It returns one record per view (the
+  view's pose, its before, edited and paste-mask pictures, its report) and one overall report.
+- `first_pass` input gains `run_dir`, `refs`, `note` and `carried`, set by `all_views` only. In a
+  carried view a second removal must lie inside the outline carried from the first view.
+- A new issue kind, `object_added`: with "everything on" a place, a thing on it that the image model
+  drew is removed again, inside the paste area only.
+- GO sent to Output-Agent (`tools/edit_agent/notes/from-edit.md`): Phase 2 of the edit API can call
+  `all_views`.
+
+**Found** (scan zzvymDx5ty7, 720 px)
+- The bed (four views) and the dresser (two views) come out right in every view, in 5.7 and 2.7 min.
+  Two of the bed's views say `fix` for the check's known misread of the yellow blanket.
+- Two faults found and fixed: a carried view lost the bed's blanket, and a carried view drew a tray on
+  the cleared dresser after its prompt named the bed's tray. The check passed both pictures.
+
+**Not verified:** a `change` across views, the exterior through its new mesh. Nothing is committed.
+Restart the Agent Server on port 2025 before a demo so it loads this code.
+
+### 2026-11-14 21:10 ET · Mateo-Agent · Edit agent: removal and retexture run through one graph with one report shape
+
+**What landed** (`tools/edit_agent/`, Mateo asked to align the two pipelines; the README section
+"Removal and retexture in one graph" has the detail)
+- The edit graph on port 2025 now runs a `change` (a new countertop, floor or pillow colour) as well
+  as a removal, switched on `target.kind`. For a change it calls Mateo-Retexture-Agent's code in
+  `edit_agent/change/` for the description, the prompt, the paste and the checks. A new `describe`
+  step fills the change block when the target has none.
+- Both kinds end in the same report: issues at severity 2 and up, the rest as notes.
+- A new repair for both kinds: an edit that failed outright (another picture, nothing changed, the
+  colour did not land) is drawn again with a new seed, as the retexture command line already did. A
+  redraw stands in for the first pass, so a redrawn picture can still get its one repair.
+- Graph input gains an optional `target.change`; `Issue.action` gains `regenerate`; issue kinds gain
+  `shading_changed` and `form_changed`. Nothing existing changed shape.
+
+**Found** (720 px)
+- Three retexture cases through the graph match the retexture suite: pillows and countertop pass,
+  the lamp is flagged for its shading and outline. Forced failures of both kinds were redrawn; the
+  pillows then passed, and the bed came out right, with a false "pillow left" in its last check.
+
+**Not done:** removal across several panoramas (the retexture side has it in `change/views.py`).
+Restart the Agent Server on port 2025 before a demo so it loads this code.
+
+### 2026-11-14 20:56 ET · Mateo-Agent · Edit agent: removal checks the request's own words and keeps what does not stand on the place
+
+**What landed** (`tools/edit_agent/`, no signature others call changed; the README has the detail)
+- The check asks a fifth question on the whole original and the whole result: how many of each
+  thing the request names, and what is on the place. A named thing the locator never boxed goes to
+  the second removal, which looks for it anywhere.
+- For "everything on X", the locator and the second removal keep only what stands on X, or on
+  something resting on X, or floats. The VLM names the surface under each box, and the code decides
+  from that name, not from the VLM's yes or no (27 of 27 against 24 of 27).
+- A leftover that the second look judges separate becomes a note, so the run can pass.
+- A second removal's drift is measured against the picture it was drawn from, not the photo.
+
+**Found** (720 px, replays of nine stored views)
+- Now caught: the plant pot is kept, the tray on the bed is kept, and the missed tray and throw
+  pillows on the beds are removed. Eight of nine views pass.
+- Still open: one bed view reports a revealed white pillow as a leftover (the picture is right), and
+  one bed view's first pass took the blanket unnoticed. Glass table tops still come out white.
+
+**Not done:** nothing committed. The Agent Server on port 2025 needs a restart to serve this code.
+
+**Affected:** nobody. Mateo-Retexture-Agent has the interface notes in `notes/from-edit.md`.
+
 ### 2026-11-14 20:25 ET · Mateo-Retexture-Agent · Retexture across panoramas (`pans`), its suite, keep-out and `auto`; retexture is ready for the edit graph
 
 **What landed** (all in `tools/edit_agent/edit_agent/change/` and `tools/edit_agent/cases/retexture.json`,
@@ -96,6 +164,28 @@ the cached finder results in `data/edit_agent/change/suite/`.
 
 **Needs from others:** nothing. Mateo-Agent: the call sites switched on `target.kind` when the
 graph takes `change` (requests in `tools/edit_agent/notes/from-input.md`).
+
+### 2026-11-14 20:25 ET · Mateo-Agent · Edit agent: clutter removal, a second removal for leftovers, and a scout that names what changed
+
+**What landed** (`tools/edit_agent/`, no interface changed; the README has the detail)
+- `cases/clutter.json`: clearing a coffee table, a dresser, a bed and a nightstand, plus a stool,
+  each from two or three panoramas.
+- Locate takes a second look for things resting on what is removed, and keeps only the things a
+  request names ("the tray and the throw pillows"), unless it says "everything".
+- The scout picks up to six changed places and asks the VLM to name each before and after, in about
+  5 s. A fixed rule turns the answers into issues.
+- A second pass can now remove a leftover again (about 35 s, once), or put back a neighbour the
+  first pass took. Two rules keep the second removal from taking what should stay.
+
+**Found** (720 px, 19 views, 20:00 suite plus replays)
+- Furniture and stools come out cleanly. Leftovers the locator named are caught every time.
+- Not caught: the bed views (one kept the tray, one kept the pillows, one took the blanket), a plant
+  pot taken for a vase and removed, and a tray on a bed removed with a dresser. Glass table tops
+  come out opaque white.
+
+**Not done:** nothing committed. The Agent Server on port 2025 needs a restart to serve this code.
+
+**Affected:** nobody. Mateo-Retexture-Agent has the methods in `notes/from-edit.md`.
 
 ### 2026-11-14 19:02 ET · Fahim-Agent · Oblique swoop in `app/`, with a pose header on `/api/oblique`
 

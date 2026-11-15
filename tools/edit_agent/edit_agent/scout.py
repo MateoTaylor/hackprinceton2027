@@ -65,7 +65,8 @@ def find(view, edited, item, paste, limits=Limits()):
     w, h = view.size
     long_side = max(w, h)
     before, after = edge_energy(view), edge_energy(edited)
-    where = paste & ~metrics.grown(item, round(0.03 * long_side))       # the item's own outline goes with it
+    # The item's own outline goes with it. The ring is thin: a wider one (3 %) hid a vent cut next to a fan blade.
+    where = paste & ~metrics.grown(item, max(1, round(limits.scout_ring * long_side)))
     lost = np.clip(before - after, 0, None) * where
     new = np.clip(after - before, 0, None) * where
     hot = np.maximum(lost, new) > limits.scout_edge

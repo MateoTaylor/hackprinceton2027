@@ -7,12 +7,12 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from edit_agent import metrics
-from edit_agent.schemas import GRADES, REPAIRS, Issue, QAReport, place_finding
+from edit_agent.schemas import GRADES, REPAIRS, Issue, QAReport, head, parts, place_finding, request_findings
 
 
-def _issue(kind, severity, source, evidence, region=None, action=None):
+def _issue(kind, severity, source, evidence, region=None, action=None, what=None, missed=False):
     return Issue(kind=kind, severity=severity, source=source, evidence=evidence, region=region, repair=REPAIRS[kind],
-                 action=action)
+                 action=action, what=what, missed=missed)
 
 
 def weight(report):
@@ -28,30 +28,67 @@ def build(state, limits):
         issues.append(_issue("not_found", 3, "vlm", "the thing to edit was not found in the picture"))
     elif not state.get("edited"):
         issues.append(_issue("not_found", 3, "metric", "the segmenter returned an empty mask for the boxes"))
+    elif target["kind"] == "change":
+        # Mateo-Retexture-Agent's checks (change/checks.py), sorted into issues and notes like a removal's
+        from edit_agent.change.checks import flags
+        found = state.get("findings") or {}
+        for i in flags(scores, found, target):
+            issue = Issue(**{k: i[k] for k in ("kind", "severity", "source", "evidence", "region", "repair")})
+            (issues if issue.severity >= limits.report_severity else notes).append(issue)
+        labels = [b["label"] for b in target["boxes"]]
+        for place in found.get("places", []):
+            finding = place_finding(place, False, labels)
+            if finding:
+                kind, severity, evidence, action, what = finding
+                issue = _issue(kind, severity, "vlm", evidence, place["box"], action, what)
+                (issues if severity >= limits.report_severity else notes).append(issue)
     else:
         for kind, severity, evidence, region in metrics.flags(scores, limits, scores.get("paste_box")):
             issues.append(_issue(kind, severity, "metric", evidence, region))
         found = state.get("findings") or {}
         if target["kind"] == "remove":
-            left = [b["box"] for b in target["boxes"] if b["label"] in found.get("visible", [])]
+            seen = set(found.get("visible", []))                    # names from schemas.parts, one label may hold several
+            left = [b["box"] for b in target["boxes"] if seen & set(parts(b["label"]))]
             if left and not any(i.kind == "object_remains" for i in issues):
                 region = [min(b[0] for b in left), min(b[1] for b in left), max(b[2] for b in left),
                           max(b[3] for b in left)]
                 issues.append(_issue("object_remains", 3, "vlm", "still visible: " + ", ".join(found["visible"]),
-                                     region))
-        elif found.get("done", "yes") != "yes":
-            what = "the change was only partly applied" if found["done"] == "partly" else "the thing looks unchanged"
-            issues.append(_issue("not_applied", 3, "vlm", what, found.get("item_box")))
+                                     region, "remove_again", ", ".join(found["visible"])))
+            if found.get("floating"):                               # what stood on the removed thing
+                issues.append(_issue("object_remains", 2, "vlm", "left floating, with nothing to hold it up: "
+                                     + ", ".join(found["floating"]), found.get("close_box"), "remove_again",
+                                     ", ".join(found["floating"])))
+            ask = found.get("request")                              # the request's own words, on the whole picture
+            if ask:
+                boxed = {head(p) for b in target["boxes"] for p in parts(b["label"])}
+                for kind, severity, evidence, action, what in request_findings(ask["read"], ask["before"], ask["after"],
+                                                                               boxed):
+                    issue = _issue(kind, severity, "vlm", evidence, None, action, what, missed=action == "remove_again")
+                    (issues if severity >= limits.report_severity else notes).append(issue)
         for (field, grade), (kind, severity, what) in GRADES.items():
             if found.get(field) == grade:
                 issue = _issue(kind, severity, "vlm", what, found.get("close_box"))
                 (issues if severity >= limits.report_severity else notes).append(issue)
+        labels = [b["label"] for b in target["boxes"]]
         for place in found.get("places", []):                       # what the scout marked and the VLM named
-            finding = place_finding(place)
+            finding = place_finding(place, target["kind"] == "remove", labels)
             if finding:
-                severity, what, action = finding
-                issue = _issue("damaged_neighbour", severity, "vlm", what, place["box"], action)
+                kind, severity, evidence, action, what = finding
+                issue = _issue(kind, severity, "vlm", evidence, place["box"], action, what)
                 (issues if severity >= limits.report_severity else notes).append(issue)
+    cleared = state.get("cleared")                                  # leftovers the second removal judged separate
+    if cleared:
+        for issue in [i for i in issues if i.action == "remove_again" and i.what in cleared["what"]]:
+            issues.remove(issue)
+            notes.append(issue.model_copy(update={"severity": 1, "action": None,
+                                                  "evidence": f"{issue.evidence} (a second look: {cleared['why']})"}))
+    # An edit that failed outright (another picture, nothing changed, the colour did not land) has nothing
+    # to mend: it is drawn again with a new seed, as Mateo-Retexture-Agent's first view is. A severity-3
+    # finding that has a repair of its own (a leftover to remove again) keeps it.
+    if target.get("boxes") and state.get("edited"):
+        for i, issue in enumerate(issues):
+            if issue.severity >= 3 and issue.action is None:
+                issues[i] = issue.model_copy(update={"action": "regenerate"})
     issues.sort(key=lambda i: -i.severity)
     if issues:
         summary = f"{len(issues)} issue(s) for a second pass: " + ", ".join(i.kind for i in issues) + "."

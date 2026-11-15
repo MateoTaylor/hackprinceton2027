@@ -80,11 +80,15 @@ def _checked(rec, limits):
     lines += [(f"note, {i['kind']}: {i['evidence']}", DIM) for i in result["notes"]]
     if found.get("changed"):
         lines.append((f"VLM, before against after: \"{found['changed']}\"", TEXT))
+    if "is_new" in found:                                                     # a change's close-ups
+        said = f"looks \"{found.get('looks', '')}\"; the new look: {found['is_new']}"
+        said += f"; old colour seen: {found['old_seen']}" if "old_seen" in found else ""
+        lines.append((f"VLM, close-up of each changed part: {said}; natural: {found.get('natural')}", TEXT))
     if "visible" in found:
         close = "still visible: " + (", ".join(found["visible"]) or "nothing")
         close += "".join(f"; {key} {found[key]}" for key in ("patch", "shadow", "glow") if key in found)
         lines.append((f"VLM, close-up of the result: {close}", TEXT))
-    for letter, place in zip("abc", found.get("places") or []):
+    for letter, place in zip("abcdefgh", found.get("places") or []):
         what = "edges gone" if place["kind"] == "edges_lost" else "new edges"
         lines.append((f"{letter} ({what}): \"{place['before']['inside']}\" [{place['before']['kind']}] -> "
                       f"\"{place['after']['inside']}\" [{place['after']['kind']}]", ORANGE))
@@ -109,7 +113,14 @@ def panels(run, limits=Limits()):
     out = [(view, [(where, YELLOW), (f"request: \"{final['request']}\"", TEXT), (f"{seconds} s in all", DIM)])]
 
     boxes = target.get("boxes") or []
-    if boxes:
+    if boxes and target.get("change"):
+        c = target["change"]
+        words = [(f"found: {target['item']}", TEXT),
+                 (f"the change: {c['style']} from {c['from']} to {c['to']}" + (f", keeping {c['keep']}" if c["keep"] else "")
+                  + (", its shape may change a little" if c["form"] == "small" else ""), TEXT),
+                 (f"to the image model: {target.get('prompt', '')}", TEXT)]
+        out.append((_mark(view.copy(), [b["box"] for b in boxes], YELLOW, [b["label"] for b in boxes]), words))
+    elif boxes:
         words = [(f"found: {target['item']}", TEXT), (f"behind it: {target['behind']}", TEXT),
                  (f"to the image model: {target['instruction']}", TEXT)]
         out.append((_mark(view.copy(), [b["box"] for b in boxes], YELLOW, [b["label"] for b in boxes]), words))
@@ -143,7 +154,7 @@ def panels(run, limits=Limits()):
         out.append((pasted, [("The redraw pasted into the original, with its tones matched at the border. "
                               "Everything outside the blue line is the original photo.", TEXT)]))
         places = (first.get("findings") or {}).get("places") or first.get("regions") or []
-        marked = _mark(pasted.copy(), [p["box"] for p in places], ORANGE, list("abc"[:len(places)]))
+        marked = _mark(pasted.copy(), [p["box"] for p in places], ORANGE, list("abcdefgh"[:len(places)]))
         issues = first["report"]["issues"]
         _mark(marked, [i["region"] for i in issues], RED, [str(n) for n in range(1, len(issues) + 1)])
         out.append((marked, _checked(first, limits)))
@@ -160,9 +171,21 @@ def panels(run, limits=Limits()):
             inside = np.asarray(Image.open(area).convert("L")) > 127
             a[metrics.grown(inside, 3) & ~inside] = GREEN
             again = Image.fromarray(a)
-        words = [(f"{last['action']}: the original's detail was put back in {len(last['boxes'])} place(s), in the "
-                  "tone of the edit around it (green line)", TEXT)]
+        words = []
+        for done in repairs:                                    # a redraw may come before a repair
+            if done["action"] == "restore":
+                words.append((f"restore: the original's detail was put back in {len(done['boxes'])} place(s), in "
+                              "the tone of the edit around it (green line)", TEXT))
+            elif done["action"] == "regenerate":
+                words.append((f"regenerate: drawn again with seed {done['seed']}, because of "
+                              f"{', '.join(done['why'])}", TEXT))
+            else:
+                words.append((f"remove_again: {', '.join(done.get('taken') or [])} found on the result and "
+                              "removed a second time", TEXT))
         out.append((again, words + _checked(final, limits)))
+    elif final.get("cleared"):
+        out.append((_blank(view.size, "nothing taken"),
+                    [(f"A second removal looked and judged it separate: {final['cleared']['why']}", DIM)]))
     elif first["report"]["verdict"] == "pass":
         out.append((_blank(view.size, "not needed"), [("The check passed, so nothing was repaired.", DIM)]))
     else:
