@@ -28,8 +28,8 @@ and factual; this file is read at the start of every work session.
 | --- | --- | --- | --- |
 | Mateo-Agent | Mateo | **Now:** the scan edit agent in `tools/edit_agent/` (Python, LangGraph): a typed request removes an object from a view and reports what a second pass should fix. `tools/qwen_test/` stays as the benchmark; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **Not used:** `eraser/`, Defurnish, new Matterport API calls | `tools/visualization/`, `tools/qwen_test/`, `tools/edit_agent/` except `edit_agent/find/`, `edit_agent/change/` and `cases/retexture.json`, `eraser/` (empty) |
 | Mateo-Retexture-Agent (was Mateo-Input-Agent) | Mateo | **Now:** retexturing in the scan edit agent, a `change` request such as a new countertop, floor or pillow colour: the instruction's wording, the paste rule and the checks for a change. Also the input side: find the thing to edit from a click, from the current view and a request, or from a request alone. A second session on Mateo's PC; shares its GPU with Mateo-Agent through a file lock | `tools/edit_agent/edit_agent/find/`, `tools/edit_agent/edit_agent/change/`, `tools/edit_agent/cases/retexture.json` |
+| Output-Agent | Mateo | **Now:** the edit API on Mateo's PC (Python, FastAPI, port 2026): the web app on another laptop sends a place, a start view and a command, and gets back edited panorama faces with their poses. Since Phase 2 (2026-11-14 22:30) each job is one run of Mateo-Agent's `all_views` graph on 127.0.0.1:2025. A third session on Mateo's PC | `tools/edit_api/`, `data/edit_api/` (job outputs, git-ignored), `tools/edit_agent/notes/from-output.md` |
 | Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `tools/world/`, `docs/design/` |
-| Output-Agent | Mateo | **Now:** the edit API on Mateo's PC (Python, FastAPI, port 2026): the web app on another laptop sends a place, a start view and a command, and gets back edited panorama faces with their poses. Phase 1 runs on stub results; Phase 2 wires it to the edit graph after Mateo-Agent's GO. A third session on Mateo's PC | `tools/edit_api/`, `data/edit_api/` (job outputs, git-ignored), `tools/edit_agent/notes/from-output.md` |
 
 **Compute:** Mateo-Agent works on Mateo's PC (Windows 11, RTX 5070 Ti with 16 GB), the only machine
 that hosts the local models: SAM 2.1, Qwen3-VL-8B and Qwen-Image-2.1. Other agents have no access to
@@ -64,6 +64,9 @@ subfolder under `tools/`, owned by whoever builds them.
   - `GET /edits/{id}`: `status` is `queued`, `fetching`, `running`, `done` or `failed`, with `steps`
     (each with `pano` and `view`) and `result` or `error`. `GET /edits/{id}/events` is the same as
     SSE (`status`, `step`, `done`, `failed`). One job runs at a time.
+  - The result: `panos[]` (changed panoramas only, each with six face URLs, `position`, `rotation`,
+    `changed`, `verdict` and `views[]`), the overall `report`, `preview`, `skipped` and
+    `single_view`. When nothing was edited, `panos` is empty and `preview` is null.
   - Result: `{model_id, stub, has_mesh, frame, start, panos[], report, preview}`. Each pano is
     `{id, location_id, index, position, rotation, faces: [6 URLs], changed: [face numbers],
     verdict, views[]}`. An unchanged face points to the original. URLs are paths on the API, and
@@ -79,6 +82,39 @@ Format: `- [ ] (from → to) request · date`, ticked when done.
 - [ ] (Output-Agent → Fahim-Agent) From the campus VPN, run `node --env-file=.env tools/edit_api/client_test.ts --check`, add the `/api/edit/*` proxy route (`tools/edit_api/README.md`, start here), and answer the four questions at the end of that README or confirm their defaults · 2026-11-14
 
 ## Log (newest first)
+
+### 2026-11-14 22:28 ET · Output-Agent · Edit API Phase 2: real edits through `all_views`
+
+**For Fahim-Agent:** the API now runs real edits. Results say `"stub": false`, and the contract in
+`tools/edit_api/README.md` is the one you built against, with three additions:
+- `skipped` `[{id, index, why}]`: panoramas that see the thing but were left out.
+- `single_view`: why only the starting view was edited, or null.
+- When nothing was found, `panos` is empty and `preview` is null. Show `report.summary` and let the
+  user rephrase.
+
+On the event stream, the pipeline's `plan` and `finish` steps carry no `pano`. `plan` sends
+`status: "chosen"` with `panos`, the panoramas the edit will reach. `/health` now says `pipeline:
+true|false`. Times: about 5 s when nothing is found, about 6 min for four views, at most about
+9 min. Show the pictures whatever the verdict, because the pipeline's check is loose.
+
+**Changed** (`tools/edit_api/`)
+- `runners.GraphRunner` builds the graph input from checked fields only (scan, request, preset, a
+  name, `max_views` 4). It passes on only the step fields, and opens only pictures inside
+  `data/edit_agent/runs/`.
+- Fixed: the event stream could close before `done` reached it. The worker thread set the status
+  first. The stream now ends on the `done` or `failed` event itself.
+
+**Checked** (from this PC)
+- "Remove the grand piano": `not_found` in 6 s.
+- The bed's tray and throw pillows from pano 6: four views (6, 2, 8, 1) in 6.0 min. Rendering each
+  view again from the new faces lands within 1.8 to 2.4 grey levels of the edit.
+- A down pipeline gives `pipeline_unavailable`.
+
+**Pipeline finding, for Mateo-Agent** (`from-output.md` 22:27): in pano 2 the first pass also
+removed the yellow blanket, and the check said `pass`.
+
+**Not checked:** a call from the web app laptop (the firewall on the PC is not open yet), a `change`
+across views, and the exterior. Phase 2 reaches `main` through PR #4, which Mateo approved.
 
 ### 2026-11-14 22:15 ET · Mateo-Agent · Edit agent: one request edits every panorama that sees the thing (`all_views`)
 

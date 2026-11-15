@@ -9,10 +9,10 @@ direction the user was looking) and a **command** in words ("remove the throw pi
 The API downloads the scan if this PC does not have it, runs the edit, turns the edited views back
 into cube faces, and serves them.
 
-**State: Phase 1.** Every endpoint works, but edits come from a **stub**. It builds a believable
-result from finished runs on disk and marks it `"stub": true`. Phase 2 swaps in the real pipeline
-(the edit graph on `127.0.0.1:2025`) after Mateo-Agent's GO. The contract below does not change
-when it does.
+**State: Phase 2.** Edits run the real pipeline: Mateo-Agent's `all_views` graph on
+`127.0.0.1:2025`, which edits the starting view and then every other panorama that sees the thing
+(up to four views). Results say `"stub": false`. The contract is the one the stub served, plus
+`skipped`, `single_view` and a `preview` that is null when nothing was edited.
 
 Owner: Output-Agent. Python 3.12, FastAPI, port **2026**.
 
@@ -55,11 +55,13 @@ Owner: Output-Agent. Python 3.12, FastAPI, port **2026**.
    the direction they look along as world-frame `yaw` and `pitch` (see The frame), and their words as
    `command`.
 5. **Show progress** from the event stream: `status`, then `step` events with `pano` and `view`.
-   Then **draw the result**: each changed panorama's six faces on a cube at its `position`, turned
+   The `plan` step's `chosen` event lists the panoramas the edit will reach, so you know how many
+   views are coming. Then **draw the result**: each changed panorama's six faces on a cube at its `position`, turned
    by its `rotation` (The frame has the three.js steps).
-6. **While a result says `"stub": true`**, it is a finished edit of the same scan, picked by the
-   command's words, not an edit of the requested view. Build against it. The shape stays the same
-   when the real pipeline goes in.
+6. **Show the pictures whatever the verdict.** `fix` comes often on right pictures, because the
+   pipeline's check is loose and misreads things. When the pipeline finds nothing to edit, `panos`
+   is empty, `preview` is null, and `report.summary` and `single_view` say why. Tell the user and
+   let them rephrase.
 
 The questions at the end of this README are still open. The API follows the default given with
 each one.
@@ -74,7 +76,9 @@ tools/edit_api/.venv/Scripts/python tools/edit_api/server.py --make-token
 
 `--make-token` writes a random `EDIT_API_TOKEN` into `.env` if it has none, and never prints it. In
 Claude Code, start the server with `preview_start` name `edit-api` (`.claude/launch.json`). By hand,
-run `tools\edit_api\.venv\Scripts\python tools\edit_api\server.py --runner stub`.
+run `tools\edit_api\.venv\Scripts\python tools\edit_api\server.py` (the graph runner, the
+default). The edit graph's Agent Server on `127.0.0.1:2025` must be running (Mateo-Agent's
+`tools/edit_agent/`). `--runner stub` serves finished cases instead, with no GPU, marked `"stub": true`.
 
 | `.env` name | Meaning |
 | --- | --- |
@@ -162,7 +166,7 @@ rotated −90° about X). Faces are 2048 px JPEGs at the `2k` resolution.
 
 | Method and path | What it does |
 | --- | --- |
-| `GET /health` | `{ok, runner}`. No token needed. Use it to test the link |
+| `GET /health` | `{ok, runner, pipeline}`. No token needed. Use it to test the link. `pipeline` is false when the edit graph on this PC is down |
 | `GET /places` | The downloaded scans: `{places: [{model_id, panos, has_mesh}]}` |
 | `GET /places/{model_id}` | One scan, whether downloaded or not (see below). Never calls Matterport |
 | `POST /places/{model_id}/fetch` | Download a scan ahead of time. A job like an edit (202), with `kind: "fetch"` |
@@ -220,20 +224,24 @@ Answer (202), the same shape as `GET /edits/{id}`:
 `status` moves through `queued`, then `fetching` (downloading the scan or mesh if needed), then
 `running`, and ends `done` or `failed` (or `cancelled`). **One job runs at a time**, because the GPU
 runs one edit at a time. `queue_position` is 1 for the next job to run, and null once the job has
-started. A real edit takes 35 to 90 s per panorama, so a job over several panoramas takes minutes.
-The stub takes 5 to 15 s.
+started. A job takes about 5 s when nothing is found, about 3 min for two views and about 6 min
+for four (the starting view 50 to 95 s, the plan about 20 s, each other view 65 to 95 s). The worst
+case is about 9 min. A second job waits in the queue. The stub takes 5 to 15 s.
 
 `steps` lists `{step, status: "started" | "done", seconds, pano, view, at}` in order. `pano` is the
 panorama index, and `view` counts the views of the run from 0 (the start view). Both are absent on
-the API's own steps. One pipeline run covers every panorama the edit reaches. The step names are
-the pipeline's (`prepare`, `locate`, `segment`, `describe`, `generate`, `paste`, `measure`, `inspect`,
-`report`, `repair`, …, which can carry suffixes such as `measure_2`), plus `fetch_panos`,
-`fetch_mesh` and `faces` from the API. Show them as they come, and do not branch on the names.
+steps that belong to no single view: the pipeline's `plan` and `finish`, and the API's own. One
+pipeline run covers every panorama the edit reaches. Each view is a `first_view` or
+`other_view_<n>` step with that view's own steps inside it (`prepare`, `locate`, `segment`,
+`generate`, `paste`, `measure`, `inspect`, `report`, `repair`, …, which can carry suffixes such as
+`measure_2`). `plan` also sends `{"step": "plan", "status": "chosen", "panos": [6, 2, 8, 1]}`, and
+a view's `done` and `finish`'s `done` carry its `verdict`. The API adds `fetch_panos`, `fetch_mesh`
+and `faces`. Show the steps as they come, and do not branch on the names.
 
 ### The result (`status: "done"`)
 
 ```json
-{"job_id": "...", "stub": true, "model_id": "zzvymDx5ty7", "command": "...", "has_mesh": true,
+{"job_id": "...", "stub": false, "model_id": "zzvymDx5ty7", "command": "...", "has_mesh": true,
  "frame": {"...": "see The frame"},
  "start": {"pano_id": "6zup806u9qfn91xq0hbdk5yna", "index": 6, "yaw": 270.0, "pitch": -14.0, "fov": 70.0},
  "panos": [
@@ -251,7 +259,8 @@ the pipeline's (`prepare`, `locate`, `segment`, `describe`, `generate`, `paste`,
  "report": {"verdict": "fix", "issues": [{"kind": "object_remains", "severity": 2, "pano": 2, "...": "..."}],
             "notes": ["..."], "summary": "Panorama 6: ... Panorama 2: ..."},
  "preview": "/edits/<job>/files/preview.jpg",
- "note": "Stub: ..."}
+ "skipped": [{"id": "...", "index": 3, "why": "closer than 0.8 m"}],
+ "single_view": null}
 ```
 
 - `panos` lists only the panoramas the edit changed. The starting panorama comes first.
@@ -264,9 +273,15 @@ the pipeline's (`prepare`, `locate`, `segment`, `describe`, `generate`, `paste`,
 - `verdict` is `pass` or `fix`. `fix` means the pipeline's loose check found something glaring
   (`issues`). The edit is still returned. Each issue is `{kind, severity, source, evidence, region,
   repair, action, what, pano}`, and `region` is `[x0, y0, x1, y1]` in pixels of that panorama's view.
-- `preview` is one JPEG with before and after for every view, one row per panorama.
-- `stub` is true while Phase 1 lasts. A stub result is a finished case of the same scan, chosen to
-  match the command's words, and **not** an edit of the requested view. `note` says which case.
+- Issue kinds include `object_remains`, `shadow_left`, `object_added` (the image model drew
+  something new) and `not_found` (nothing to edit in that view; that view is then not in `panos`).
+- `preview` is one JPEG with before and after for every view, one row per view. It is null when
+  nothing was edited.
+- `skipped` lists panoramas that see the thing but were left out (closer than 0.8 m, or the thing
+  is hidden in the framed view). `single_view` says why only the starting view was edited, when so
+  (nothing edited there, no mesh), and is null otherwise.
+- `stub` is true only with `--runner stub`. A stub result is a finished case of the same scan,
+  chosen to match the command's words, and **not** an edit of the requested view. `note` says which.
 
 ### Errors
 
@@ -374,7 +389,7 @@ Until these are answered, the API follows the default given with each question.
 | --- | --- |
 | `server.py` | FastAPI app, auth, routes, SSE and binding |
 | `jobs.py` | The one-at-a-time queue, a job's life, mapping a run into the result |
-| `runners.py` | `StubRunner` (Phase 1) and `GraphRunner` (Phase 2, after GO) |
+| `runners.py` | `GraphRunner` (the `all_views` graph on 2025) and `StubRunner` (finished cases) |
 | `places.py` | Place to scan, scan summaries, downloads on demand, the frame |
 | `faces.py` | An edited view back into cube faces (`python faces.py check <run_dir>`) |
 | `config.py` | Settings from `.env`, paths, limits |

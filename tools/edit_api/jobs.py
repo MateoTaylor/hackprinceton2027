@@ -233,12 +233,17 @@ class Queue:
             verdicts = [vw["report"]["verdict"] for vw in entry["views"]]
             entry["verdict"] = "pass" if all(x == "pass" for x in verdicts) else "fix"
         emit({"step": "faces", "status": "done", "seconds": round(time.time() - t, 1)})
-        self._preview(rows, files / "preview.jpg")
+        if rows:                                    # no edited view (nothing found): no faces, no preview
+            self._preview(rows, files / "preview.jpg")
+        skipped = [{"id": locs[s["pano"]]["id"], "index": s["pano"], "why": s["why"]}
+                   for s in out.get("skipped") or [] if 0 <= s["pano"] < len(locs)]
         result = {
             "job_id": job.id, "stub": bool(out.get("stub")), "model_id": job.model_id, "command": job.command,
             "has_mesh": places.has_mesh(m, job.model_id), "frame": places.FRAME,
             "start": {k: job.start[k] for k in ("pano_id", "index", "yaw", "pitch", "fov")},
-            "panos": list(panos.values()), "report": out["report"], "preview": url("preview.jpg"),
+            "panos": list(panos.values()), "report": out["report"],
+            "preview": url("preview.jpg") if rows else None,
+            "skipped": skipped, "single_view": out.get("single_view"),
         }
         if out.get("note"):
             result["note"] = out["note"]

@@ -1,7 +1,7 @@
 """The edit API: the web app on another laptop sends edit commands into the scan edit pipeline on
 this PC and gets the edited panoramas back. The contract is in README.md.
 
-    .venv\\Scripts\\python server.py [--runner stub|graph]
+    .venv\\Scripts\\python server.py [--runner graph|stub]      graph (the default) runs the real pipeline
     .venv\\Scripts\\python server.py --make-token      write a random EDIT_API_TOKEN into .env
 
 Binds 127.0.0.1 and EDIT_API_HOST (one address, never 0.0.0.0), port 2026. Every request needs
@@ -24,6 +24,7 @@ from typing import Literal, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import httpx
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -33,7 +34,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 import config
 import places
-from jobs import TERMINAL, Job, Queue
+from jobs import Job, Queue
 from places import ApiError
 from runners import RUNNERS
 
@@ -151,7 +152,14 @@ def make_app(runner_name: str = "stub") -> FastAPI:
 
     @app.get("/health")
     async def health():
-        return {"ok": True, "runner": app.state.runner.name}
+        out = {"ok": True, "runner": app.state.runner.name}
+        if app.state.runner.name == "graph":              # is the edit graph on this PC up? (no token needed)
+            try:
+                async with httpx.AsyncClient(timeout=1.5) as http:
+                    out["pipeline"] = (await http.get(f"{config.PIPELINE_URL}/ok")).status_code == 200
+            except httpx.HTTPError:
+                out["pipeline"] = False
+        return out
 
     @app.get("/places")
     async def list_places():
@@ -209,16 +217,19 @@ def make_app(runner_name: str = "stub") -> FastAPI:
             i = max(0, start)
             yield "retry: 3000\n\n"
             while True:
+                changed = job.changed                       # taken first, so an event during a yield wakes us
                 while i < len(job.events):
                     ev = job.events[i]
                     yield f"id: {i}\nevent: {ev['event']}\ndata: {json.dumps(ev['data'])}\n\n"
                     i += 1
-                if job.status in TERMINAL and i >= len(job.events):
-                    return
+                    # Every job ends with a done or failed event. End on that event, not on job.status:
+                    # the worker thread sets the status before its last event reaches this loop.
+                    if ev["event"] in ("done", "failed"):
+                        return
                 if await request.is_disconnected():
                     return
                 try:
-                    await asyncio.wait_for(job.changed.wait(), timeout=15)
+                    await asyncio.wait_for(changed.wait(), timeout=15)
                 except asyncio.TimeoutError:
                     yield ": keep-alive\n\n"
 
@@ -263,7 +274,7 @@ def sockets() -> list[socket.socket]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--runner", choices=sorted(RUNNERS), default="stub")
+    ap.add_argument("--runner", choices=sorted(RUNNERS), default="graph")
     ap.add_argument("--make-token", action="store_true", help="write a random EDIT_API_TOKEN into .env if it has none")
     args = ap.parse_args()
     if args.make_token:
@@ -272,8 +283,6 @@ def main() -> None:
     problems = SETTINGS.check()
     if problems:
         sys.exit("Not starting:\n- " + "\n- ".join(problems))
-    if args.runner == "graph":
-        sys.exit("The graph runner is wired after Mateo-Agent's GO. Use --runner stub.")
     socks = sockets()
     print(f"edit API ({args.runner}) on " + ", ".join(f"{s.getsockname()[0]}:{config.PORT}" for s in socks)
           + f"; allowed clients: {SETTINGS.describe_allow()}", flush=True)

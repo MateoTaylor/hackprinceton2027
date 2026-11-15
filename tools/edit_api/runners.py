@@ -2,13 +2,14 @@
 
     {"views": [{"pano": index, "yaw", "pitch", "fov", "view": Path, "edited": Path,
                 "paste_mask": Path, "report": {verdict, issues, notes, summary}}, ...],
-     "report": {verdict, issues, notes, summary}, "stub": bool, "note": str}
+     "report": {verdict, issues, notes, summary}, "stub": bool, "note": str,
+     "skipped": [{pano, why}], "single_view": str | None}
 
-The first view is the starting panorama's. Paths are files on this PC; they never leave this module
-except as pixels.
+The first view is the starting panorama's. `views` holds only views that were edited, so it can be
+empty. Paths are files on this PC; they never leave this module except as pixels.
 
 - StubRunner (Phase 1) builds that from finished runs in data/edit_agent/runs/. No GPU, no model.
-- GraphRunner (Phase 2) will call the edit graph on 127.0.0.1:2025 once Mateo-Agent sends GO.
+- GraphRunner (Phase 2) runs Mateo-Agent's `all_views` graph on 127.0.0.1:2025.
 """
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-from config import DATA
+from config import DATA, PIPELINE_URL
 
 import faces
 
@@ -108,12 +109,81 @@ class StubRunner:
 
 
 class GraphRunner:
-    """Phase 2. Waits for Mateo-Agent's GO entry in tools/edit_agent/notes/from-edit.md."""
+    """Phase 2: one run of Mateo-Agent's `all_views` graph on 127.0.0.1:2025 per job (GO, 22:14).
+
+    The input is built here from checked fields only. The graph's own paths and flags (run_dir, refs,
+    note, carried, mask, image, raw) are never sent. Its result maps onto the shape above: the graph's
+    `before` is our `view`, and each record's flat verdict, issues, notes and summary are its report.
+    """
 
     name = "graph"
+    GRAPH = "all_views"
+    MAX_VIEWS = 4
+    # Step fields passed on to the web app. Anything else in a custom event stays on this PC.
+    STEP_KEYS = ("step", "status", "seconds", "pano", "view", "panos", "verdict")
 
     def run(self, job: dict, emit) -> dict:
-        raise NotImplementedError("the graph runner is wired after GO")
+        import httpx
+        from langgraph_sdk import get_sync_client
+
+        start = job["start"]
+        inp = {"scan": {"model": job["model_id"], "pano": int(start["index"]), "yaw": float(start["yaw"]),
+                        "pitch": float(start["pitch"]), "fov": float(start["fov"])},
+               "request": job["command"], "preset": job["preset"],
+               "name": "api-" + job["dir"].name.rsplit("-", 1)[-1], "max_views": self.MAX_VIEWS}
+        # api_key=None: the SDK would otherwise send a LangSmith key from the environment.
+        client = get_sync_client(url=PIPELINE_URL, api_key=None, timeout=httpx.Timeout(10.0, read=900.0))
+        last = None
+        try:
+            for part in client.runs.stream(None, self.GRAPH, input=inp, stream_mode=["custom", "values"]):
+                kind = part.event.split("|", 1)[0]
+                if kind == "custom" and isinstance(part.data, dict):
+                    emit({k: part.data[k] for k in self.STEP_KEYS if k in part.data})
+                elif kind == "values" and isinstance(part.data, dict):
+                    last = part.data
+                elif kind == "error":
+                    raise RuntimeError(f"the edit graph failed: {str(part.data)[:300]}")
+        except httpx.ConnectError as err:
+            raise ConnectionError(str(err)) from err
+        if not last or "views" not in last:
+            raise RuntimeError("the edit graph returned no result")
+        return self.result(last)
+
+    @staticmethod
+    def _path(value) -> Path:
+        """A picture the graph wrote. It must lie in the runs folder; nothing else is ever opened."""
+        path = Path(value).resolve()
+        if not path.is_relative_to(RUNS.resolve()) or not path.is_file():
+            raise RuntimeError("the edit graph returned a picture outside its runs folder")
+        return path
+
+    @classmethod
+    def result(cls, out: dict) -> dict:
+        records = out.get("views") or []
+        views, every = [], []
+        for rec in records:
+            rep = {"verdict": rec.get("verdict"), "issues": rec.get("issues") or [],
+                   "notes": rec.get("notes") or [], "summary": rec.get("summary") or ""}
+            every.append({"pano": int(rec["pano"]), "report": rep})
+            if not rec.get("edited") or not rec.get("paste_mask"):
+                continue                                  # not_found: nothing to paste
+            views.append({"pano": int(rec["pano"]), "yaw": float(rec["yaw"]), "pitch": float(rec["pitch"]),
+                          "fov": float(rec["fov"]), "view": cls._path(rec["before"]),
+                          "edited": cls._path(rec["edited"]), "paste_mask": cls._path(rec["paste_mask"]),
+                          "report": rep})
+        report = overall(every)                           # issues and notes of every view, found or not
+        graph = out.get("report") or {}
+        if graph.get("verdict") in ("pass", "fix"):
+            report["verdict"] = graph["verdict"]
+        if not views:
+            report["verdict"] = "fix"                     # nothing was edited, so nothing passed
+        if graph.get("summary"):
+            report["summary"] = graph["summary"]
+        skipped = [{"pano": int(s["pano"]), "why": str(s.get("why", ""))} for s in out.get("skipped") or []
+                   if isinstance(s, dict) and "pano" in s]
+        single = out.get("single_view")
+        return {"views": views, "report": report, "stub": False, "skipped": skipped,
+                "single_view": str(single) if single else None}
 
 
 RUNNERS = {"stub": StubRunner, "graph": GraphRunner}

@@ -101,7 +101,8 @@ async function main() {
   for await (const { event, data } of events(`/edits/${job.job_id}/events`)) {
     if (event === 'status') console.log(`  status ${data.status}${data.queue_position ? `, queue position ${data.queue_position}` : ''}`)
     else if (event === 'step') {
-      const where = data.pano === undefined ? 'api' : `pano ${data.pano} view ${data.view ?? '-'}`
+      // plan, finish and faces belong to no single view, so they carry no pano
+      const where = data.pano === undefined ? 'all views' : `pano ${data.pano} view ${data.view ?? '-'}`
       console.log(`  ${where.padEnd(16)} ${data.step.padEnd(12)} ${data.status}${data.seconds != null ? ` ${data.seconds} s` : ''}`)
     } else if (event === 'failed') {
       console.error(`failed: ${data.code}: ${data.message}`)
@@ -114,19 +115,22 @@ async function main() {
   for (const p of result.panos) {
     console.log(`  pano ${p.index} (${p.id}): faces changed ${JSON.stringify(p.changed)}, verdict ${p.verdict}, ${p.views.length} view(s)`)
   }
+  for (const s of result.skipped ?? []) console.log(`  skipped pano ${s.index} (${s.id}): ${s.why}`)
+  if (result.single_view) console.log(`  only the starting view: ${result.single_view}`)
   if (result.note) console.log(`  note: ${result.note}`)
+  if (!result.panos.length) console.log(`  nothing was edited: ${result.report.summary}`)
 
   if (opt.save) {
     await mkdir(opt.save, { recursive: true })
-    await writeFile(join(opt.save, 'preview.jpg'), await call(result.preview))
-    let n = 1
+    if (result.preview) await writeFile(join(opt.save, 'preview.jpg'), await call(result.preview))
+    let n = 0
     for (const p of result.panos) {
       for (const f of p.changed) {
         await writeFile(join(opt.save, `p${p.index}_f${f}.jpg`), await call(p.faces[f]))
         n++
       }
     }
-    console.log(`saved the preview and ${n - 1} changed faces in ${opt.save}`)
+    console.log(`saved ${result.preview ? 'the preview and ' : ''}${n} changed faces in ${opt.save}`)
   }
 }
 
