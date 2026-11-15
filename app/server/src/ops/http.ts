@@ -17,29 +17,35 @@ const STATUS = {
   internal: 500,
 } as const satisfies Record<OpErrorCode, ContentfulStatusCode>
 
-const badBody = (message: string): OpEnvelope => ({
-  ok: false,
-  error: { code: 'invalid_input', message, hint: 'Send the input as one JSON object, as GET /api/ops describes it.' },
-})
+// Serves a registry over HTTP under `prefix`. GET <prefix> lists its ops. POST <prefix>/:name runs
+// one with the JSON object body as its input and answers with the envelope. `?detail=full` adds
+// `detail`. The status follows the error code, and 200 means `ok`. `onWrite` runs after a `write` op
+// answers `ok`, with the op's name and the caller's `x-propstar-client` header, or `unknown`.
+//   mountOps(app, publicRegistry, '/api/ops', view.publishWrite)
+//   mountOps(app, proppyRegistry, '/api/proppy/ops')
+export function mountOps(app: Hono, registry: Registry, prefix: string, onWrite: (name: string, by: string) => void = () => {}) {
+  const badBody = (message: string): OpEnvelope => ({
+    ok: false,
+    error: { code: 'invalid_input', message, hint: `Send the input as one JSON object, as GET ${prefix} describes it.` },
+  })
 
-// Serves the registry over HTTP. GET /api/ops lists every op. POST /api/ops/:name runs one with the
-// JSON object body as its input and answers with the envelope. `?detail=full` adds `detail`. The
-// status follows the error code, and 200 means `ok`. `onWrite` runs after a `write` op answers `ok`,
-// with the op's name and the caller's `x-propstar-client` header, or `unknown`.
-export function mountOps(app: Hono, registry: Registry, onWrite: (name: string, by: string) => void = () => {}) {
-  app.get('/api/ops', (c) => c.json({ ops: registry.manifest() }))
+  app.get(prefix, (c) => c.json({ ops: registry.manifest() }))
 
   app.post(
-    '/api/ops/:name',
+    `${prefix}/:name`,
     bodyLimit({ maxSize: BODY_MAX_BYTES, onError: (c) => c.json(badBody(`body: The body is over ${BODY_MAX_BYTES} bytes.`), STATUS.invalid_input) }),
     async (c) => {
+      const name = c.req.param('name')
+      if (!registry.get(name)) {
+        const unknown: OpEnvelope = { ok: false, error: { code: 'not_found', message: `No op is named "${name}".`, hint: `List the ops with GET ${prefix}.` } }
+        return c.json(unknown, STATUS.not_found)
+      }
       let input: unknown
       try {
         input = await c.req.json()
       } catch {
         return c.json(badBody('body: The body is not JSON.'), STATUS.invalid_input)
       }
-      const name = c.req.param('name')
       const answer = await registry.run(name, input, { detail: c.req.query('detail') === 'full' })
       if (answer.ok && registry.get(name)?.effect === 'write') onWrite(name, clientOf(c.req.header('x-propstar-client')))
       return c.json(answer, answer.ok ? 200 : STATUS[answer.error.code])

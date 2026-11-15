@@ -8,12 +8,13 @@
 //   segments  id, name, class, geom, geom_utm               Overture road segments
 //   places    id, name, basic_category, taxonomy, geom, geom_utm
 //   cells     cell_id, theme ('segment' | 'place'), rows, seconds   one row per loaded cell
-// A property is covered when every cell coverCells gives it is in `cells` for both themes.
+// A property is covered when every cell coverCells gives it, out to AREA_REACH_M, is in `cells`
+// for both themes.
 // `geom` is WGS84 lon/lat. `geom_utm` is EPSG:32611 metres, which every property falls in.
 import { DuckDBInstance } from '@duckdb/node-api'
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { cellBounds, coverCells } from '../src/ops/area/cells.ts'
+import { cellBounds, coverCells, AREA_REACH_M } from '../src/ops/area/cells.ts'
 
 const RELEASE = '2026-10-21.0'
 const OUT = new URL('../../../data/propstar/', import.meta.url)
@@ -67,7 +68,7 @@ const properties = ((await connection.runAndReadAll('SELECT id, lat, lon FROM pr
   lon: number
 }[]).filter(({ id }) => !only.size || only.has(id))
 if (only.size && properties.length !== only.size) throw new Error('A named property id is not in propstar.duckdb.')
-const cells = coverCells(properties)
+const cells = coverCells(properties, AREA_REACH_M)
 const loaded = new Set(
   (await connection.runAndReadAll('SELECT cell_id, theme FROM cells')).getRowsJS().map(([cell, theme]) => `${cell} ${theme}`),
 )

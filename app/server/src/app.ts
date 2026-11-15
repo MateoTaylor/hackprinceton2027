@@ -5,7 +5,7 @@ import type { Cached } from './cache.ts'
 import { forwardEdit } from './editProxy.ts'
 import { PICTURE_ROUTE, servePicture } from './ops/edit/pictures.ts'
 import { mountOps } from './ops/http.ts'
-import { OPS } from './ops/index.ts'
+import { OPS, PROPPY_OPS } from './ops/index.ts'
 import type { Op } from './ops/op.ts'
 import { createRegistry, type OpBase } from './ops/registry.ts'
 import { createViewOps } from './ops/view/index.ts'
@@ -42,23 +42,27 @@ const image = (c: Context, answer: Cached) => {
 // The Propstar HTTP API. It answers only under /api; every other path is an empty 404, so nothing
 // on disk can be served. It registers `ops` and throws when one of them is invalid. `sdkKey` is the
 // Matterport SDK key the browser's Showcase embed needs, and /api/edit/* forwards to `editLink`.
-// `view` is the one view the view ops and GET /api/events share; by default `ops` holds every op
-// plus the view ops bound to it.
+// `view` is the one view the view ops and GET /api/events share; by default `ops` holds the public
+// ops plus the view ops bound to it, served at /api/ops, and `proppyOps` holds Proppy's private ops,
+// served the same way at /api/proppy/ops.
 export function createApp({
   base,
   view = createViewStore(),
   ops = [...OPS, ...createViewOps(view)],
+  proppyOps = PROPPY_OPS,
   sdkKey = null,
   editLink = {},
 }: {
   base: OpBase
   view?: ViewStore
   ops?: readonly Op[]
+  proppyOps?: readonly Op[]
   sdkKey?: string | null
   editLink?: Parameters<typeof forwardEdit>[1]
 }) {
   const { properties, vexcel } = base
   const registry = createRegistry(ops, base)
+  const proppyRegistry = createRegistry(proppyOps, base)
   const app = new Hono()
 
   app.use(logger())
@@ -74,7 +78,8 @@ export function createApp({
 
   app.get('/api/properties', (c) => c.json([...properties.values()]))
 
-  mountOps(app, registry, view.publishWrite)
+  mountOps(app, registry, '/api/ops', view.publishWrite)
+  mountOps(app, proppyRegistry, '/api/proppy/ops', view.publishWrite)
   mountView(app, view)
 
   app.get('/api/scene/config', (c) => {

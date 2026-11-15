@@ -43,17 +43,31 @@ const Envelope = z.union([
   }),
 ])
 
-// Reads the manifest once under a 3 s timeout and rejects with API_UNREACHABLE when the API is off.
+// The two op routes. The public one serves the app and any client. The Proppy one holds the ops
+// only Proppy uses (the area, features and property query ops), with the same manifest and envelope.
+const ROUTES = ['/api/ops', '/api/proppy/ops'] as const
+
+// Reads one manifest under a 3 s timeout, or undefined when the route is off or answers badly.
+async function readManifest(url: string) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(3000) }).catch(() => undefined)
+  const manifest = res?.ok ? Manifest.safeParse(await res.json().catch(() => null)) : undefined
+  return manifest?.success ? manifest.data.ops : undefined
+}
+
+// Reads both manifests once and calls each op at the route it came from. It rejects with
+// API_UNREACHABLE when the public manifest is off. A missing Proppy manifest only drops its ops,
+// so an API without that route still serves the public tools. A name in both stays public.
 //   const ops = await connectOps(propstarUrl())
 export async function connectOps(baseUrl: string): Promise<Ops> {
-  const res = await fetch(`${baseUrl}/api/ops`, { signal: AbortSignal.timeout(3000) }).catch(() => undefined)
-  const manifest = res?.ok ? Manifest.safeParse(await res.json().catch(() => null)) : undefined
-  if (!manifest?.success) throw new Error(API_UNREACHABLE)
+  const [publicOps, proppyOps = []] = await Promise.all(ROUTES.map((route) => readManifest(`${baseUrl}${route}`)))
+  if (!publicOps) throw new Error(API_UNREACHABLE)
+  const privateOps = proppyOps.filter((op) => !publicOps.some((p) => p.name === op.name))
+  const privateNames = new Set(privateOps.map((op) => op.name))
   return {
-    manifest: manifest.data.ops,
+    manifest: [...publicOps, ...privateOps],
     call: async (name, input) => {
       try {
-        const answer = await fetch(`${baseUrl}/api/ops/${encodeURIComponent(name)}`, {
+        const answer = await fetch(`${baseUrl}${ROUTES[privateNames.has(name) ? 1 : 0]}/${encodeURIComponent(name)}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-propstar-client': 'agent' },
           body: JSON.stringify(input ?? {}),

@@ -10,6 +10,11 @@ export function cellBounds(id: string) {
   return { xmin: x * CELL_DEG, ymin: y * CELL_DEG, xmax: (x + 1) * CELL_DEG, ymax: (y + 1) * CELL_DEG }
 }
 
+// How far around a property the area build loads every cell. It is also the largest radius an area
+// op takes, so nothing inside a radius is missing from the data. 5 km reaches the nearest motorway
+// of every property.
+export const AREA_REACH_M = 5000
+
 // Every cell that the square reaching `reachM` east, west, north and south of a point touches,
 // over all points, deduplicated and sorted by id so every build loads cells in the same order.
 //   coverCells(properties.map(({ lat, lon }) => ({ lat, lon })))

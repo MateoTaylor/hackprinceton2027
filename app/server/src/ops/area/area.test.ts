@@ -8,8 +8,8 @@ import type { Property } from '../../../../shared/property.ts'
 import { createDiskCache } from '../../cache.ts'
 import { createVexcel } from '../../vexcel.ts'
 import { type OpContext, RESULT_MAX_CHARS, runOp } from '../op.ts'
-import { coverCells } from './cells.ts'
-import { areaPlaces, areaSummary } from './index.ts'
+import { AREA_REACH_M, coverCells } from './cells.ts'
+import { areaPlaces, areaRoads, areaSummary } from './index.ts'
 
 const PIN = { lat: 34.05, lon: -118.25 }
 const property = (id: string, lat: number, lon: number): Property => ({
@@ -69,9 +69,11 @@ before(async () => {
     INSERT INTO segments VALUES
       ${segment('s1', 'Back Alley', 'service', line([0.00005, -0.001], [0.00005, 0.001]))},
       ${segment('s3', 'Invented Freeway', 'motorway', line([0.0001, -0.001], [0.0001, 0.001]))},
-      ${segment('s2', 'Main Street', 'residential', line([-0.0003, -0.001], [-0.0003, 0.001]))};
+      ${segment('s2', 'Main Street', 'residential', line([-0.0003, -0.001], [-0.0003, 0.001]))},
+      ${segment('s4', 'Main Street', 'residential', line([-0.0003, 0.001], [-0.0003, 0.003]))},
+      ${segment('s5', 'Distant Freeway', 'motorway', line([0.03, -0.01], [0.03, 0.01]))};
   `)
-  for (const cell of coverCells([PIN])) await db.run(`INSERT INTO cells VALUES ('${cell}', 'segment', 1, 0), ('${cell}', 'place', 1, 0)`)
+  for (const cell of coverCells([PIN], AREA_REACH_M)) await db.run(`INSERT INTO cells VALUES ('${cell}', 'segment', 1, 0), ('${cell}', 'place', 1, 0)`)
   db.closeSync()
   instance.closeSync()
 })
@@ -153,4 +155,27 @@ test('a missing area.duckdb is not_ready with the build command', async () => {
   assert.ok(!answer.ok)
   assert.equal(answer.error.code, 'not_ready')
   assert.match(answer.error.hint, /build:area/)
+})
+
+test('area_roads lists each named road once, nearest first, by class and name', async (t) => {
+  if (!spatial) return t.skip('spatial is not installed')
+  const all = await runOp(areaRoads, contextAt(built), { propertyId: 'p1', radiusM: 500 })
+  assert.ok(all.ok)
+  assert.deepEqual(all.result.roads.map(({ name, roadClass }) => [name, roadClass]), [
+    ['Back Alley', 'service'],
+    ['Invented Freeway', 'motorway'],
+    ['Main Street', 'residential'],
+  ])
+  const far = await runOp(areaRoads, contextAt(built), { propertyId: 'p1', roadClass: 'motorway', name: 'distant', radiusM: 5000 })
+  assert.ok(far.ok)
+  assert.deepEqual(far.result.roads.map(({ name }) => name), ['Distant Freeway'])
+  assert.ok(Math.abs(far.result.roads[0].distanceM - 3330) <= 20)
+  assert.ok(Math.abs(far.result.roads[0].bearingDeg) <= 1, 'the freeway lies north')
+})
+
+test('area_places filters by name, ignoring case', async (t) => {
+  if (!spatial) return t.skip('spatial is not installed')
+  const answer = await runOp(areaPlaces, contextAt(built), { propertyId: 'p1', name: 'CAFE', radiusM: 500 })
+  assert.ok(answer.ok)
+  assert.deepEqual(answer.result.places.map(({ name }) => name), ['Cafe Uno'])
 })

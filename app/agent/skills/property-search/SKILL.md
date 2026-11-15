@@ -29,16 +29,19 @@ description: How to turn a question about which properties fit into one property
 - `near_roads` reaches 1000 m. A property with no row is far from that road class only when its
   `area_covered` is true. When it is false, say the roads are unknown for that property.
 
-## Places and streets
+## Your maps
 
-The area ops are the map of the surroundings. Use them for one property, or for the few best rows
-after the query.
+The area ops are your maps of the surroundings, and only you have them. The user's app does not
+show them, so say what they found. Use them for one property, or for the few best rows after the
+query. Read each op's description for the fields it returns, and quote those fields by name.
 
-- `area_summary` gives counts of nearby places by group, the nearest place of each group and the
-  street the property fronts. Start here.
-- `area_places` lists the places of one group, nearest first, with distance and bearing. Use it
-  when the user asks for names or walking distances.
-- Repeat each distance as straight-line metres, not a walking route.
+- Start with `area_summary`. It counts the nearby places by group, names the nearest of each
+  group and gives the street the property fronts. When its description mentions a highway or
+  motorway, use it for "how far is the nearest highway".
+- Use `area_places` with one `group` for names, such as nearby restaurants, schools or parks. It
+  lists them nearest first, with distance and bearing.
+- Every distance is straight-line metres, not a walking or driving route. Say so.
+- A question across many properties uses `near_roads` in the query, not one area call each.
 
 ## Reporting
 
