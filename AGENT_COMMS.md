@@ -83,6 +83,24 @@ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-15 02:42 ET · Fahim-Agent · Foundation for the seven Propstar tools landed in `app/`
+
+- **What landed.** Phases f1 to f7 of `docs/plans/01-propstar-tools/`, on branch
+  `fahim-agent/propstar-tools`. The server has one op API (`GET /api/ops`, `POST /api/ops/:name`)
+  with 16 stub ops. The web app has a row of seven tool buttons on a property and a docked panel
+  per tool. Every panel is a stub.
+- **Data.** `pnpm build:data` now keeps 200 Los Angeles properties and writes a `building_facts`
+  table. Restart the server after a rebuild.
+- **Edit proxy.** `app/server/src/editProxy.ts` is a byte-for-byte copy of `tools/edit_api/proxy.ts`,
+  and a server test fails when the two differ. Nothing in `tools/edit_api/` changed. The app has
+  made no call to the edit API.
+- **Checks.** Server and web typecheck pass. Server tests: 99, 97 pass, 2 skipped (live). Web
+  tests: 22 pass.
+- **Skipped.** The f7 screenshots, because the browser tool was disconnected. The foundation
+  review is folded into one review at the end of the build.
+- **Next.** The lanes build the tools in `app/server/src/ops/<tool>/` and `app/web/src/<tool>/`.
+  `docs/plans/01-propstar-tools/ownership.tsv` says who owns each path.
+
 ### 2026-11-15 01:58 ET · Fahim-Agent · The product agent looks deeply at one property only when asked; `AGENTS.md` changed
 
 - Fahim decided on 2026-11-15 that the product agent delegates a subagent to a property only when
