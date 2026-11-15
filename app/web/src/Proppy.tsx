@@ -6,8 +6,9 @@ import { describeAction, readInterrupt, type Decision } from './approval'
 import mascot from './assets/proppy-mascot.png'
 import './proppy.css'
 
-// The LangGraph dev server listens on ::1 only, so 127.0.0.1 does not reach it.
-const AGENT_URL = 'http://localhost:2024'
+// The LangGraph dev server listens on ::1 only, so 127.0.0.1 does not reach it. VITE_PROPPY_URL
+// points the panel at an agent server on another port.
+const AGENT_URL = import.meta.env.VITE_PROPPY_URL ?? 'http://localhost:2024'
 
 const SUGGESTIONS = [
   'Which of these are wheelchair-friendly?',

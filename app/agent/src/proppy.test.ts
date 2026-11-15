@@ -124,6 +124,9 @@ test('the system message holds the view note, or says the view is unavailable', 
 const call = (name: string, args: Record<string, unknown>) => () =>
   new AIMessage({ content: '', tool_calls: [{ name, args, id: `${name}-call` }] })
 
+// The scorer's last turn: a PropertyScore as native structured output, which arrives as JSON text.
+const answer = (score: Record<string, unknown>) => () => new AIMessage(JSON.stringify(score))
+
 // Runs one score-property task whose model takes the given turns, approving every interrupt, and
 // returns every op call made with the error that ended the run, if one did.
 async function scoreOne(scorerTurns: (() => AIMessage)[]) {
@@ -148,7 +151,7 @@ test('the scorer has no write or view op, even when a write is approved', async 
   const { calls, error } = await scoreOne([
     call('signage_place', { propertyId: 'p1' }),
     call('view_highlight', { propertyId: 'p1' }),
-    call('PropertyScore', { propertyId: 'p1', score: 50, summary: 'Unknown.', evidence: [] }),
+    answer({ propertyId: 'p1', score: 50, summary: 'Unknown.', evidence: [] }),
   ])
   assert.equal(error, undefined)
   assert.equal(calls.filter((c) => c.name === 'signage_place').length, 0)
@@ -159,7 +162,7 @@ test('a valid PropertyScore posts one highlight', async () => {
   const summary = 'Level entry from the street and a lift to every storey, per the scan.'.repeat(2)
   const { calls, error } = await scoreOne([
     call('property_get', { propertyId: 'p1' }),
-    call('PropertyScore', { propertyId: 'p1', score: 72, summary, evidence: [{ source: 'costar', detail: 'One storey.' }] }),
+    answer({ propertyId: 'p1', score: 72, summary, evidence: [{ source: 'costar', detail: 'One storey.' }] }),
   ])
   assert.equal(error, undefined)
   assert.deepEqual(
@@ -170,12 +173,9 @@ test('a valid PropertyScore posts one highlight', async () => {
 
 test('an invalid PropertyScore posts nothing', async () => {
   const { calls, error } = await scoreOne([
-    call('PropertyScore', { propertyId: 'p1', score: 140, summary: 'Too high.', evidence: [] }),
-    () => {
-      throw new Error('model overloaded')
-    },
+    answer({ propertyId: 'p1', score: 140, summary: 'Too high.', evidence: [] }),
   ])
-  assert.match(String(error), /model overloaded/)
+  assert.equal(error, undefined)
   assert.equal(calls.filter((c) => c.name === 'view_highlight').length, 0)
 })
 

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { BaseCheckpointSaver } from '@langchain/langgraph'
 import { CompositeBackend, FilesystemBackend, createDeepAgent, type SubAgent } from 'deepagents'
-import { createMiddleware, tool } from 'langchain'
+import { createMiddleware, providerStrategy, tool } from 'langchain'
 import { z } from 'zod'
 import { PropertyScore } from './contract.ts'
 import { approvals, connectOps, opTools, propstarUrl, viewNote, type Ops } from './ops.ts'
@@ -104,7 +104,12 @@ export function createProppy({ ops, model = MODEL, subagentModel = model, checkp
     tools: [...opTools(ops, (op) => op.effect === 'read' && !SCORER_SKIPS.has(op.name)), viewAerial],
     skills: ['/skills/'],
     middleware: [postScore(ops)],
-    responseFormat: PropertyScore,
+    // Native structured output, because Sonnet 5.5 rejects the forced tool choice that the tool
+    // strategy sends. That API also rejects numeric bounds, so the wire schema drops the 0 to 100
+    // range and PostScore still checks it.
+    responseFormat: providerStrategy(
+      PropertyScore.extend({ score: z.number().describe('0 to 100. 0 is unusable for the question, 100 is ideal') }),
+    ),
   }
 
   return createDeepAgent({
