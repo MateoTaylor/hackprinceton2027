@@ -182,14 +182,16 @@ The rules that make the API easy for a model to use:
 
 - **architect** before [f1](phase-f1-op-contract.md) and [f3](phase-f3-building-model.md). Both
   define types that every lane consumes.
-- **interrogate** once, on the `Op` contract and `BuildingModel` together, before any lane starts.
+- **interrogate** is cut. Fahim asked on 2026-11-15 for fewer reviews to save time. The
+  foundation review after f7 covers the `Op` contract and `BuildingModel` instead.
 - **how** before a phase edits `app/server/src/vexcel.ts` or `app/web/src/MapView.tsx`.
 - **frontend-design** and `docs/design/design.md` for every panel and for the look phases.
 - **verify** for phases that end in pixels. **run** for phases that end in an op call.
 - **show-me-your-work** for every lane. Each lane writes its own decision log, so no two agents
   append to one file. The logs are `decisions-lane-a.tsv`, `decisions-lane-b.tsv` and
   `decisions-lane-c.tsv` in this folder.
-- `/deslop` and `/no-comments` before each commit. **unslop** and **technical-writing** for Log
+- `/deslop` before each commit. `/no-comments` is cut to save time, so follow the Comments rule
+  under Implementation guidance as you write. **unslop** and **technical-writing** for Log
   entries and commit messages.
 - The LangChain skills (`langchain-skills:deep-agents-core`) apply to the later agent plan, not
   to this one.
@@ -290,8 +292,11 @@ a6 for scanned rooms. The demo still works without each of them.
 - **Other agents' folders.** No phase edits `tools/edit_api/`, `tools/edit_agent/`,
   `tools/visualization/` or `tools/qwen_test/`. [f6](phase-f6-server-scaffolds.md) imports
   `tools/edit_api/proxy.ts` and changes nothing in it.
-- **Review.** No agent reviews its own phase. The main session hands each lane's diff to a
-  reviewer subagent at these milestones, after f7, a7, l5, r4, b5, b9, c4 and e3.
+- **Review.** No agent reviews its own phase. Fahim asked on 2026-11-15 for fewer reviews to
+  save time, so there are four. The main session hands the foundation diff to a reviewer subagent
+  after f7, and each lane's whole diff to one reviewer subagent when the lane lands. This list
+  wins over a phase file that names a review or **interrogate** at another point. A lane does
+  not stop at a7, r4, b5 or c4. Lane A still stops at l5 to show Fahim the screenshots.
 - **A failed delegate.** If a lane agent fails or is interrupted, stop that lane and ask Fahim. Do
   not move its work to another model or take it over.
 - **Log.** Add an `AGENT_COMMS.md` Log entry when foundation lands, when each lane lands and when
