@@ -21,6 +21,8 @@
     "postprocessing": "6.39.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
     "three": "0.187.0",
     "three-mesh-bvh": "0.9.18"
   },

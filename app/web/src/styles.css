@@ -821,20 +821,24 @@ button:disabled {
   opacity: 0.35;
 }
 
-/* Proppy */
+/* Proppy floats above everything in the map frame: the quick view (3), an open tool (4) and the
+   fly-through (5, earlier in the DOM). */
 
 .proppy-fab {
   position: absolute;
   right: 20px;
   bottom: 20px;
-  z-index: 4;
+  z-index: 5;
+  animation: proppy-in 200ms ease;
   height: 40px;
   padding: 0 16px 0 8px;
   gap: 8px;
   font: 600 14px/18px var(--font);
 }
 
-.proppy-fab img {
+.fab-mascot {
+  display: block;
+  flex-shrink: 0;
   width: 28px;
   height: 28px;
   object-fit: contain;
@@ -844,20 +848,63 @@ button:disabled {
   position: absolute;
   right: 20px;
   bottom: 44px;
-  z-index: 4;
+  z-index: 5;
   height: 60px;
   padding-inline: 8px;
   gap: 12px;
+  animation: proppy-in 200ms ease;
 }
 
-/* An open tool panel stops 12px short of Proppy's chat, and Proppy's button floats above the panel. */
-.map-frame:has(> .chat) > .tool-panel {
-  right: 432px;
+/* ChatPill, in the open chat's header: one accent pill holding two 32px icon buttons. */
+.chat-pill {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding-inline: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  box-shadow: var(--shadow);
+  color: #ffffff;
 }
 
-.map-frame > .proppy-fab,
-.map-frame > .proppy-pill {
-  z-index: 5;
+.chat-pill button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  transition: background-color 120ms ease;
+}
+
+.chat-pill button:hover:not(:disabled) {
+  background: #ffffff26;
+}
+
+.chat-pill button:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
+}
+
+.chat-pill button:disabled {
+  opacity: 0.45;
+}
+
+@keyframes proppy-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* The open chat covers a tool's close button, so the button steps left of the chat. */
+.map-frame:has(> .chat.open) > .tool-panel .panel-close {
+  translate: -420px 0;
+}
+
+.panel-close {
+  transition: translate 200ms ease;
 }
 
 .ring {
@@ -867,7 +914,7 @@ button:disabled {
   flex-shrink: 0;
 }
 
-.ring img {
+.ring .ring-mascot {
   position: absolute;
   inset: 8px;
   width: 32px;
@@ -910,7 +957,7 @@ button:disabled {
   top: 20px;
   right: 20px;
   bottom: 12px;
-  z-index: 4;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   width: 400px;
@@ -918,6 +965,24 @@ button:disabled {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
+  transform-origin: bottom right;
+  opacity: 0;
+  transform: translateY(8px) scale(0.92);
+  visibility: hidden;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease,
+    visibility 0s 200ms;
+}
+
+/* A closed chat stays mounted, hidden, so it animates both ways and keeps its scroll and draft. */
+.chat.open {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
 }
 
 .chat-head {
@@ -928,7 +993,9 @@ button:disabled {
   border-bottom: 1px solid var(--color-border);
 }
 
-.chat-head img {
+.chat-head .head-mascot {
+  display: block;
+  flex-shrink: 0;
   width: 44px;
   height: 44px;
   object-fit: contain;
@@ -984,10 +1051,6 @@ button:disabled {
   border-radius: 16px 16px 4px 16px;
   background: var(--color-accent);
   color: #ffffff;
-  white-space: pre-wrap;
-}
-
-.agent-text {
   white-space: pre-wrap;
 }
 
@@ -1098,10 +1161,6 @@ button:disabled {
   min-width: 0;
 }
 
-.tool-panel-title strong {
-  font: 600 18px/22px var(--font);
-}
-
 .tool-panel-title span {
   overflow: hidden;
   font: 400 12px/16px var(--font);
@@ -1186,7 +1245,15 @@ button:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .panel-spinner {
+  .panel-spinner,
+  .proppy-fab,
+  .proppy-pill {
     animation: none;
+  }
+
+  .chat,
+  .chat.open,
+  .panel-close {
+    transition: none;
   }
 }

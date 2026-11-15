@@ -1,4 +1,142 @@
-/* Proppy's tool lines and approval cards. The rest of the chat panel lives in styles.css. */
+/* Proppy's answers, tool lines and approval cards. The rest of the chat panel lives in styles.css. */
+
+/* Proppy's markdown answers, at body size with compact headings, inside the 400px chat. */
+.agent-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.agent-text > :first-child {
+  margin-top: 0;
+}
+
+.agent-text > :last-child {
+  margin-bottom: 0;
+}
+
+.agent-text :is(p, ul, ol, pre, blockquote, .md-table) {
+  margin: 0 0 8px;
+}
+
+.agent-text :is(h1, h2, h3, h4, h5, h6) {
+  margin: 12px 0 4px;
+  font: 600 14px/20px var(--font);
+}
+
+.agent-text :is(h1, h2) {
+  font: 600 15px/20px var(--font);
+}
+
+.agent-text :is(ul, ol) {
+  padding-left: 20px;
+}
+
+.agent-text li + li {
+  margin-top: 2px;
+}
+
+.agent-text li > :is(ul, ol) {
+  margin: 2px 0 0;
+}
+
+.agent-text strong {
+  font-weight: 600;
+}
+
+.agent-text a {
+  color: var(--color-accent-bright);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.agent-text code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-surface-2);
+  font: 400 12px/16px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.agent-text pre {
+  overflow-x: auto;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.agent-text pre code {
+  padding: 0;
+  background: none;
+}
+
+.agent-text blockquote {
+  padding-left: 12px;
+  border-left: 2px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.agent-text hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* A wide table scrolls sideways inside its own box instead of widening the chat. */
+.md-table {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.md-table table {
+  border-collapse: collapse;
+  font: 400 12px/16px var(--font);
+  font-variant-numeric: tabular-nums;
+}
+
+.md-table :is(th, td) {
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.md-table th {
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.md-table td {
+  min-width: 64px;
+  max-width: 240px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* The empty chat's suggested questions: one column, each hugging its text up to the chat width.
+   A one-line chip is 32px tall, so radius-lg clamps to a pill; a wrapped chip keeps soft corners. */
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.suggestion {
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-2);
+  font: 500 13px/16px var(--font);
+  text-align: left;
+}
+
+.suggestion:hover:not(:disabled) {
+  background: var(--color-border);
+}
+
+.suggestion:disabled {
+  opacity: 0.6;
+}
 
 .tool-line {
   font: 400 12px/16px var(--font);
@@ -50,6 +188,8 @@
 }
 
 .pill-mascot {
+  display: block;
+  flex-shrink: 0;
   width: 40px;
   height: 40px;
   object-fit: contain;

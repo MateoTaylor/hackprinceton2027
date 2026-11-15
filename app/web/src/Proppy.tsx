@@ -1,9 +1,12 @@
 import { AIMessage, ToolMessage } from '@langchain/core/messages'
 import { useStream } from '@langchain/react'
-import { ArrowUp, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowUp, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { AgentText } from './AgentText'
+import { callOp } from './api'
 import { describeAction, readInterrupt, type Decision } from './approval'
-import mascot from './assets/proppy-mascot.png'
+import { Mascot } from './mascot/Mascot'
+import { mascotMood } from './mood'
 import './proppy.css'
 
 // The LangGraph dev server listens on ::1 only, so 127.0.0.1 does not reach it. VITE_PROPPY_URL
@@ -11,9 +14,8 @@ import './proppy.css'
 const AGENT_URL = import.meta.env.VITE_PROPPY_URL ?? 'http://localhost:2024'
 
 const SUGGESTIONS = [
-  'Which of these are wheelchair-friendly?',
-  'Hang a sign on 2838 Potomac Ave. Which lift reaches it?',
-  'Remove an object or remodel a room at 2838 Potomac Ave.',
+  'Which properties are wheelchair-friendly?',
+  'Can a wheelchair reach the top floor of 10801 National Blvd?',
 ]
 
 // What each tool call shows in the thread. A tool missing here shows its own name.
@@ -89,15 +91,36 @@ function classify(error: unknown): Trouble {
 
 const RING = 2 * Math.PI * 22
 
+type ChatPillProps = { onCollapse: () => void; onNewChat: () => void; canRestart: boolean }
+
+// The accent pill in the open chat's header: collapse the chat, or start a new one. Restart stays
+// disabled until there is a chat to clear.
+//   <ChatPill onCollapse={onClose} onNewChat={newChat} canRestart={hasChat} />
+function ChatPill({ onCollapse, onNewChat, canRestart }: ChatPillProps) {
+  return (
+    <div className="chat-pill">
+      <button aria-label="Collapse chat" title="Collapse chat" onClick={onCollapse}>
+        <ChevronDown size={16} />
+      </button>
+      <button aria-label="Start new chat" title="Start new chat" disabled={!canRestart} onClick={onNewChat}>
+        <RotateCcw size={16} />
+      </button>
+    </div>
+  )
+}
+
 type Props = { open: boolean; onOpen: () => void; onClose: () => void; onRunning: (running: boolean) => void }
 
-// Proppy stays mounted while collapsed so a run keeps streaming behind the pill. Pins come from
+// Proppy stays mounted while collapsed so a run keeps streaming behind the pill, and the chat
+// panel stays mounted too so it can animate shut and keep its scroll and draft. Pins come from
 // the view's highlights, which Proppy's ops write, so the panel reports only whether a run is
 // streaming. A write op waits on an approval card until the user approves or rejects it.
 export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
+  // The stream follows `threadId`, so setting it back to null starts a new chat.
+  const [threadId, setThreadId] = useState<string | null>(null)
   // Without the optimistic echo, a send that never reaches the server leaves no question behind
   // to show twice when the user asks again.
-  const stream = useStream({ apiUrl: AGENT_URL, assistantId: 'proppy', optimistic: false })
+  const stream = useStream({ apiUrl: AGENT_URL, assistantId: 'proppy', optimistic: false, threadId, onThreadId: setThreadId })
   const [online, setOnline] = useState<boolean | null>(null)
   const [healthCheck, setHealthCheck] = useState(0)
   const [draft, setDraft] = useState('')
@@ -151,6 +174,17 @@ export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
   const subagents = [...stream.subagents.values()]
   const running = subagents.filter((s) => s.status === 'running').length
   const done = subagents.length - running
+  const mood = mascotMood(stream.messages, stream.isLoading, running > 0)
+  const hasChat = stream.messages.length > 0
+
+  // Starts an empty chat and takes Proppy's scores off the pins, which belong to the old one.
+  const newChat = () =>
+    void (async () => {
+      if (stream.isLoading) await stream.stop()
+      lastAsk.current = ''
+      setThreadId(null)
+      await callOp('view_highlight', { mode: 'clear' }).catch(() => {})
+    })()
 
   const ask = (text: string) => {
     const content = text.trim()
@@ -166,60 +200,50 @@ export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
   const decide = (type: Decision['type']) =>
     void stream.respond({ decisions: requests.map((): Decision => ({ type })) }, { interruptId: stream.interrupt?.id })
 
-  if (!open && waiting) {
-    return (
-      <div className="surface-pill proppy-pill">
-        <img className="pill-mascot" src={mascot} alt="" />
-        <span className="pill-text">
-          <strong>Proppy is waiting for you</strong>
-          <span>Approve or reject in the chat</span>
-        </span>
-        <button className="circle accent" aria-label="Open Proppy" onClick={onOpen}>
-          <ChevronUp size={16} />
-        </button>
-      </div>
-    )
-  }
-
-  if (!open && stream.isLoading) {
-    return (
-      <div className="surface-pill proppy-pill">
-        <span className={`ring${subagents.length ? '' : ' spinning'}`}>
-          <img src={mascot} alt="" />
-          <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden>
-            <circle cx="24" cy="24" r="22" fill="none" stroke="#2A2D32" strokeWidth="3" />
-            <circle
-              cx="24"
-              cy="24"
-              r="22"
-              fill="none"
-              stroke="#3D8BDB"
-              strokeWidth="3"
-              strokeLinecap="round"
-              transform="rotate(-90 24 24)"
-              strokeDasharray={`${subagents.length ? (RING * done) / subagents.length : RING / 4} ${RING}`}
-            />
-          </svg>
-        </span>
-        <span className="pill-text">
-          <strong>{subagents.length ? 'Proppy is scoring' : 'Proppy is thinking'}</strong>
-          <span>{subagents.length ? `${done} of ${subagents.length} subagents done` : 'Working on your question'}</span>
-        </span>
-        <button className="circle accent" aria-label="Open Proppy" onClick={onOpen}>
-          <ChevronUp size={16} />
-        </button>
-      </div>
-    )
-  }
-
-  if (!open) {
-    return (
-      <button className="surface-pill proppy-fab" onClick={onOpen}>
-        <img src={mascot} alt="" />
-        Ask Proppy
+  const dock = open ? null : waiting ? (
+    <div className="surface-pill proppy-pill">
+      <Mascot mood={mood} className="pill-mascot" />
+      <span className="pill-text">
+        <strong>Proppy is waiting for you</strong>
+        <span>Approve or reject in the chat</span>
+      </span>
+      <button className="circle accent" aria-label="Open Proppy" onClick={onOpen}>
+        <ChevronUp size={16} />
       </button>
-    )
-  }
+    </div>
+  ) : stream.isLoading ? (
+    <div className="surface-pill proppy-pill">
+      <span className={`ring${subagents.length ? '' : ' spinning'}`}>
+        <Mascot mood={mood} className="ring-mascot" />
+        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden>
+          <circle cx="24" cy="24" r="22" fill="none" stroke="#2A2D32" strokeWidth="3" />
+          <circle
+            cx="24"
+            cy="24"
+            r="22"
+            fill="none"
+            stroke="#3D8BDB"
+            strokeWidth="3"
+            strokeLinecap="round"
+            transform="rotate(-90 24 24)"
+            strokeDasharray={`${subagents.length ? (RING * done) / subagents.length : RING / 4} ${RING}`}
+          />
+        </svg>
+      </span>
+      <span className="pill-text">
+        <strong>{subagents.length ? 'Proppy is scoring' : 'Proppy is thinking'}</strong>
+        <span>{subagents.length ? `${done} of ${subagents.length} subagents done` : 'Working on your question'}</span>
+      </span>
+      <button className="circle accent" aria-label="Open Proppy" onClick={onOpen}>
+        <ChevronUp size={16} />
+      </button>
+    </div>
+  ) : (
+    <button className="surface-pill proppy-fab" onClick={onOpen}>
+      <Mascot mood={mood} className="fab-mascot" />
+      Ask Proppy
+    </button>
+  )
 
   const status = trouble
     ? { dot: trouble === 'offline' ? 'off' : 'warn', text: TROUBLE[trouble].title }
@@ -230,116 +254,121 @@ export function Proppy({ open, onOpen, onClose, onRunning }: Props) {
       : { dot: online === null ? 'off' : '', text: online === null ? 'Connecting' : 'Ready' }
 
   return (
-    <section className="chat" aria-label="Proppy">
-      <div className="chat-head">
-        <img src={mascot} alt="" />
-        <div className="chat-head-text">
-          <strong>Proppy</strong>
-          <span className="status">
-            <span className={`status-dot ${status.dot}`} />
-            {status.text}
-          </span>
+    <>
+      {dock}
+      <section className={`chat${open ? ' open' : ''}`} aria-label="Proppy" inert={!open}>
+        <div className="chat-head">
+          <Mascot mood={mood} className="head-mascot" />
+          <div className="chat-head-text">
+            <strong>Proppy</strong>
+            <span className="status">
+              <span className={`status-dot ${status.dot}`} />
+              {status.text}
+            </span>
+          </div>
+          <ChatPill onCollapse={onClose} onNewChat={newChat} canRestart={hasChat} />
         </div>
-        <button className="circle accent" aria-label="Collapse Proppy" onClick={onClose}>
-          <ChevronDown size={16} />
-        </button>
-      </div>
 
-      <div className="thread" ref={thread}>
-        {turns.length === 0 && !trouble && (
-          <p className="agent-text muted">Ask about the properties on the map. Proppy reads each one's CoStar record, aerial and 3D scan.</p>
-        )}
-        {turns.map((t) => (
-          <div key={t.key} className={t.kind === 'human' ? 'bubble' : t.kind === 'tool' ? 'tool-line' : 'agent-text'}>
-            {t.text}
-          </div>
-        ))}
-        {waiting && requests.length === 0 && (
-          <div className="approval" role="group" aria-label="Proppy is waiting">
-            <strong>Proppy is waiting</strong>
-            The run paused on a question this panel cannot show. Reject it to end the run.
-          </div>
-        )}
-        {requests.map((request, i) => {
-          if (!request) {
+        <div className="thread" ref={thread}>
+          {turns.length === 0 && !trouble && (
+            <p className="agent-text muted">Ask about the properties on the map. Proppy reads each one's CoStar record, aerial and 3D scan.</p>
+          )}
+          {turns.map((t) =>
+            t.kind === 'agent' ? (
+              <AgentText key={t.key} text={t.text} />
+            ) : (
+              <div key={t.key} className={t.kind === 'human' ? 'bubble' : 'tool-line'}>
+                {t.text}
+              </div>
+            ),
+          )}
+          {waiting && requests.length === 0 && (
+            <div className="approval" role="group" aria-label="Proppy is waiting">
+              <strong>Proppy is waiting</strong>
+              The run paused on a question this panel cannot show. Reject it to end the run.
+            </div>
+          )}
+          {requests.map((request, i) => {
+            if (!request) {
+              return (
+                <div key={i} className="approval" role="group" aria-label="Unreadable change">
+                  <strong>Proppy asked for a change this panel cannot read</strong>
+                  Reject it, then ask again.
+                </div>
+              )
+            }
+            const { line, args } = describeAction(request)
             return (
-              <div key={i} className="approval" role="group" aria-label="Unreadable change">
-                <strong>Proppy asked for a change this panel cannot read</strong>
-                Reject it, then ask again.
+              <div key={i} className="approval" role="group" aria-label="Approve this change">
+                <strong>{line}</strong>
+                {args.length > 0 && (
+                  <dl>
+                    {args.map(([label, value], j) => (
+                      <div key={j}>
+                        <dt>{label}</dt>
+                        <dd>{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
               </div>
             )
-          }
-          const { line, args } = describeAction(request)
-          return (
-            <div key={i} className="approval" role="group" aria-label="Approve this change">
-              <strong>{line}</strong>
-              {args.length > 0 && (
-                <dl>
-                  {args.map(([label, value], j) => (
-                    <div key={j}>
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
+          })}
+          {waiting && (
+            <div className="approval-actions">
+              <button className="button quiet" onClick={() => decide('reject')}>
+                Reject
+              </button>
+              {approvable && (
+                <button className="button" onClick={() => decide('approve')}>
+                  Approve
+                </button>
               )}
             </div>
-          )
-        })}
-        {waiting && (
-          <div className="approval-actions">
-            <button className="button quiet" onClick={() => decide('reject')}>
-              Reject
-            </button>
-            {approvable && (
-              <button className="button" onClick={() => decide('approve')}>
-                Approve
-              </button>
-            )}
-          </div>
-        )}
-        {trouble && (
-          <div className="notice" role="status">
-            <strong>{TROUBLE[trouble].title}</strong>
-            {TROUBLE[trouble].body}
-            {trouble === 'offline' && (
-              <button className="button quiet" style={{ alignSelf: 'flex-start', marginTop: 8 }} onClick={() => setHealthCheck((n) => n + 1)}>
-                Check again
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <form
-        className="composer"
-        onSubmit={(e) => {
-          e.preventDefault()
-          ask(draft)
-        }}
-      >
-        <div className="composer-input">
-          <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={turns.length ? 'Ask a follow-up…' : 'Ask Proppy…'} aria-label="Message Proppy" />
-          {stream.isLoading ? (
-            <button type="button" className="circle accent" aria-label="Stop" onClick={() => void stream.stop()}>
-              <span className="stop-square" />
-            </button>
-          ) : (
-            <button type="submit" className="circle accent" aria-label="Send" disabled={!draft.trim() || !canSend}>
-              <ArrowUp size={16} />
-            </button>
+          )}
+          {trouble && (
+            <div className="notice" role="status">
+              <strong>{TROUBLE[trouble].title}</strong>
+              {TROUBLE[trouble].body}
+              {trouble === 'offline' && (
+                <button className="button quiet" style={{ alignSelf: 'flex-start', marginTop: 8 }} onClick={() => setHealthCheck((n) => n + 1)}>
+                  Check again
+                </button>
+              )}
+            </div>
           )}
         </div>
-        {turns.length === 0 && (
-          <div className="chip-row">
-            {SUGGESTIONS.map((s) => (
-              <button key={s} type="button" className="chip" disabled={!canSend} onClick={() => ask(s)}>
-                {s}
+
+        <form
+          className="composer"
+          onSubmit={(e) => {
+            e.preventDefault()
+            ask(draft)
+          }}
+        >
+          <div className="composer-input">
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={turns.length ? 'Ask a follow-up…' : 'Ask Proppy…'} aria-label="Message Proppy" />
+            {stream.isLoading ? (
+              <button type="button" className="circle accent" aria-label="Stop" onClick={() => void stream.stop()}>
+                <span className="stop-square" />
               </button>
-            ))}
+            ) : (
+              <button type="submit" className="circle accent" aria-label="Send" disabled={!draft.trim() || !canSend}>
+                <ArrowUp size={16} />
+              </button>
+            )}
           </div>
-        )}
-      </form>
-    </section>
+          {turns.length === 0 && (
+            <div className="suggestions">
+              {SUGGESTIONS.map((s) => (
+                <button key={s} type="button" className="suggestion" disabled={!canSend} onClick={() => ask(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </form>
+      </section>
+    </>
   )
 }
