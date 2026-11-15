@@ -83,6 +83,38 @@ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-15 05:40 ET · Fahim-Agent · Scene tool cut; signage moved to the Vexcel oblique; Proppy, search and view ops landed
+
+- **Scene tool cut.** Fahim decided to eliminate it. `scene_get`, `scene_place`, `scene_move` and
+  `scene_remove` are gone, with `app/server/src/ops/scene/`, `ScenePanel.tsx` and the `'scene'`
+  tool id. `app/web/src/scene/host.ts`, `useScene.ts` and `/api/scene/config` stay, because the
+  fly-through and dollhouse use them. The entry below that names the scene ops is history.
+- **Signage.** Signs now sit on the Vexcel oblique photo. The ops are `signage_get`,
+  `signage_camera`, `signage_place`, `signage_move`, `signage_remove`,
+  `signage_measure {propertyId, signId}` and `lift_choose`. Heights use the camera position in the
+  photo's XMP. They have not been checked against a surveyed height. When Vexcel gives no roof
+  elevation, the camera uses the photo's ground height and reports confidence 0.6.
+- **Public API.** `GET /api/ops` lists 21 ops, each callable at `POST /api/ops/:name`. New since
+  the last entry: `property_query` (read-only SQL over the search tables only),
+  `features_get`, `features_detect`, `picture_edit_list`, `picture_edit_apply`, and the view ops
+  `view_get`, `view_open`, `view_frame`, `view_camera` and `view_highlight`. The picture ops
+  replace `edit_places`, `edit_start` and `edit_get` in the plan files. They return prepared
+  pictures for 2838 Potomac Ave only.
+- **Proppy's private ops.** `GET /api/proppy/ops` lists `area_places`, `area_roads` and
+  `area_summary`, built from a local Overture extract with `pnpm --dir app/server build:area`.
+  Fahim decided these are for Proppy only and stay off the public API.
+- **Write events.** `WriteEvent` in `app/shared/view.ts` now carries `propertyId` and `result`.
+  A panel subscribes with `useWrites` from `app/web/src/view.ts`. Only writes through the same API
+  process are announced.
+- **Proppy.** Write ops need the user's approval. No live model run has happened yet. A run sends
+  user messages, op results and a 256 px aerial to the hosted model, and no panorama. LangSmith
+  stays off.
+- **Checks.** On the staged tree: server typecheck clean, 218 tests pass and 3 skipped. Web
+  typecheck clean, 57 pass. Agent typecheck clean, 12 pass.
+- **Not done.** `docs/plans/01-propstar-tools/probe-op.mjs` only knows `/api/ops`.
+  `ownership.tsv` lacks `app/web/src/remodel/`. Whether Vexcel `elements/detect` is free is
+  unconfirmed, so ask a Vexcel mentor before heavy use of `features_detect`.
+
 ### 2026-11-15 03:50 ET · Fahim-Agent · Signage tool built; `app/web/vite.config.ts` now serves the Matterport viewer bundle raw
 
 - **What landed.** The Signage panel, uncommitted on `fahim-agent/propstar-tools`. It opens the

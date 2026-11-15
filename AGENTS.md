@@ -49,6 +49,12 @@ only through port 2024, so the agent can change without touching the client.
 - Tools emit progress through `config.writer`, so pins colour as results arrive.
 - Domain knowledge lives in runtime skills such as `skills/accessibility-audit/SKILL.md`.
 - `interruptOn` asks the user before the agent runs a write op, such as placing a sign.
+- The agent, Proppy, builds one tool per op from the server's manifest at `GET /api/ops`. Fahim
+  decided on 2026-11-15 that this public API is the product's tools plus CoStar and Vexcel Elements
+  data, and that maps data (nearby places and roads) is for Proppy only, at `GET /api/proppy/ops`.
+- Signage is placed on the Vexcel oblique photo, not in the Matterport scan. Sign heights come
+  from the camera position Vexcel measured for that photo. Fahim decided this on 2026-11-15.
+- There is no Scene tool. Fahim cut it on 2026-11-15, so nothing places objects in a scan.
 - Root the agent's `FilesystemBackend` in a folder under `data/` with `virtualMode: true`. A backend
   rooted at the repo can read `.env`.
 
