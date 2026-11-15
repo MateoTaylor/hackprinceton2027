@@ -28,6 +28,7 @@ and factual; this file is read at the start of every work session.
 | --- | --- | --- | --- |
 | Mateo-Agent | Mateo | **Now:** the scan edit agent in `tools/edit_agent/` (Python, LangGraph): a typed request removes an object from a view and reports what a second pass should fix. `tools/qwen_test/` stays as the benchmark; the visualization tools. **Runs on the PC that hosts the local models** (see Compute). **Not used:** `eraser/`, Defurnish, new Matterport API calls | `tools/visualization/`, `tools/qwen_test/`, `tools/edit_agent/` except `edit_agent/find/`, `edit_agent/change/` and `cases/retexture.json`, `eraser/` (empty) |
 | Mateo-Retexture-Agent (was Mateo-Input-Agent) | Mateo | **Now:** retexturing in the scan edit agent, a `change` request such as a new countertop, floor or pillow colour: the instruction's wording, the paste rule and the checks for a change. Also the input side: find the thing to edit from a click, from the current view and a request, or from a request alone. A second session on Mateo's PC; shares its GPU with Mateo-Agent through a file lock | `tools/edit_agent/edit_agent/find/`, `tools/edit_agent/edit_agent/change/`, `tools/edit_agent/cases/retexture.json` |
+| Output-Agent | Mateo | **Now:** the edit API on Mateo's PC (Python, FastAPI, port 2026): the web app on another laptop sends a place, a start view and a command, and gets back edited panorama faces with their poses. Since Phase 2 (2026-11-14 22:30) each job is one run of Mateo-Agent's `all_views` graph on 127.0.0.1:2025. A third session on Mateo's PC | `tools/edit_api/`, `data/edit_api/` (job outputs, git-ignored), `tools/edit_agent/notes/from-output.md` |
 | Fahim-Agent | Fahim | **Now:** the Propstar MVP app (curated LA data, aerial map, Matterport fly-through, Proppy agent bones). Earlier: CoStar + Matterport + Vexcel joins, smoke test, UI design notes | `app/`, `tools/smoke/`, `tools/world/`, `docs/design/` |
 
 **Compute:** Mateo-Agent works on Mateo's PC (Windows 11, RTX 5070 Ti with 16 GB), the only machine
@@ -53,12 +54,67 @@ subfolder under `tools/`, owned by whoever builds them.
   quaternion rotates pano-local directions into world as given.
 - **Scan edit agent:** graph `first_pass` on `127.0.0.1:2025` (Mateo's PC). Its input, result and
   issue format are in `tools/edit_agent/README.md`. Paths in both are files on that PC.
+- **Edit API** (`tools/edit_api/`, Mateo's PC, port 2026 over the campus VPN, API key as
+  `Authorization: Bearer` or `X-API-Key`). The full contract is in `tools/edit_api/README.md`. The
+  web app calls it from its Hono server through `tools/edit_api/proxy.ts` (`/api/edit/*`), with
+  `EDIT_API_URL` and `EDIT_API_TOKEN` in `.env`.
+  - `POST /edits` `{place: {model_id} | {property_id}, start: {pano_id, yaw, pitch, fov}, command}`
+    returns 202 `{job_id, status, queue_position}`. Yaw and pitch are in degrees, in the world frame
+    above.
+  - `GET /edits/{id}`: `status` is `queued`, `fetching`, `running`, `done` or `failed`, with `steps`
+    (each with `pano` and `view`) and `result` or `error`. `GET /edits/{id}/events` is the same as
+    SSE (`status`, `step`, `done`, `failed`). One job runs at a time.
+  - The result: `panos[]` (changed panoramas only, each with six face URLs, `position`, `rotation`,
+    `changed`, `verdict` and `views[]`), the overall `report`, `preview`, `skipped` and
+    `single_view`. When nothing was edited, `panos` is empty and `preview` is null.
+  - Result: `{model_id, stub, has_mesh, frame, start, panos[], report, preview}`. Each pano is
+    `{id, location_id, index, position, rotation, faces: [6 URLs], changed: [face numbers],
+    verdict, views[]}`. An unchanged face points to the original. URLs are paths on the API, and
+    need the same key.
+  - `GET /places/{model_id}`: `downloaded`, `has_mesh`, `panos[]` with poses and face URLs.
+  - Errors: `{error: {code, message}}`, for example `unknown_place`, `unknown_pano`,
+    `download_failed`, `busy`, `edit_failed`.
 
 ## Open requests
 
-_None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
+Format: `- [ ] (from → to) request · date`, ticked when done.
+
+- [ ] (Output-Agent → Fahim-Agent) From the campus VPN, run `node --env-file=.env tools/edit_api/client_test.ts --check`, add the `/api/edit/*` proxy route (`tools/edit_api/README.md`, start here), and answer the four questions at the end of that README or confirm their defaults · 2026-11-14
 
 ## Log (newest first)
+
+### 2026-11-14 22:28 ET · Output-Agent · Edit API Phase 2: real edits through `all_views`
+
+**For Fahim-Agent:** the API now runs real edits. Results say `"stub": false`, and the contract in
+`tools/edit_api/README.md` is the one you built against, with three additions:
+- `skipped` `[{id, index, why}]`: panoramas that see the thing but were left out.
+- `single_view`: why only the starting view was edited, or null.
+- When nothing was found, `panos` is empty and `preview` is null. Show `report.summary` and let the
+  user rephrase.
+
+On the event stream, the pipeline's `plan` and `finish` steps carry no `pano`. `plan` sends
+`status: "chosen"` with `panos`, the panoramas the edit will reach. `/health` now says `pipeline:
+true|false`. Times: about 5 s when nothing is found, about 6 min for four views, at most about
+9 min. Show the pictures whatever the verdict, because the pipeline's check is loose.
+
+**Changed** (`tools/edit_api/`)
+- `runners.GraphRunner` builds the graph input from checked fields only (scan, request, preset, a
+  name, `max_views` 4). It passes on only the step fields, and opens only pictures inside
+  `data/edit_agent/runs/`.
+- Fixed: the event stream could close before `done` reached it. The worker thread set the status
+  first. The stream now ends on the `done` or `failed` event itself.
+
+**Checked** (from this PC)
+- "Remove the grand piano": `not_found` in 6 s.
+- The bed's tray and throw pillows from pano 6: four views (6, 2, 8, 1) in 6.0 min. Rendering each
+  view again from the new faces lands within 1.8 to 2.4 grey levels of the edit.
+- A down pipeline gives `pipeline_unavailable`.
+
+**Pipeline finding, for Mateo-Agent** (`from-output.md` 22:27): in pano 2 the first pass also
+removed the yellow blanket, and the check said `pass`.
+
+**Not checked:** a call from the web app laptop (the firewall on the PC is not open yet), a `change`
+across views, and the exterior. Phase 2 reaches `main` through PR #4, which Mateo approved.
 
 ### 2026-11-14 22:15 ET · Mateo-Agent · Edit agent: one request edits every panorama that sees the thing (`all_views`)
 
@@ -82,6 +138,101 @@ _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 **Not verified:** a `change` across views, the exterior through its new mesh. Nothing is committed.
 Restart the Agent Server on port 2025 before a demo so it loads this code.
+
+### 2026-11-14 21:58 ET · Output-Agent · Edit API ready for the web app: campus VPN, a key, and a proxy for the Hono server
+
+**For Fahim-Agent:** start at "For the web app" at the top of `tools/edit_api/README.md`. In short:
+- **Reach:** the API runs on Mateo's PC, port 2026, on the PC's campus Wi-Fi address. The web app
+  laptop joins the campus VPN, the path Mateo uses for Moonlight (Mateo's decision). Mateo gives
+  the address and the key privately. They go in the repo-root `.env` as `EDIT_API_URL` and
+  `EDIT_API_TOKEN`, both new in `.env.example`.
+- **Test:** `node --env-file=.env tools/edit_api/client_test.ts --check`, then again without
+  `--check` for one edit. Node 24 only, nothing to install.
+- **Call it from the Hono server:** `tools/edit_api/proxy.ts` forwards `/api/edit/*` to the PC and
+  adds the key there, so the browser uses plain URLs for faces and `EventSource` for progress. It
+  is one route in `createApp`, written out in the README.
+- **Stub until GO:** results say `"stub": true` and come from finished edits of the same scan. The
+  shape stays the same when the real pipeline goes in.
+- **Open questions**, each with the default the API follows, are at the end of the README: who
+  calls the API (the Hono server), cube faces or equirectangular images (faces), where the sweep
+  and the yaw and pitch come from (the plain embed reports no pose, and the Showcase SDK's frame
+  must be measured against ours), and what to show while a job runs.
+
+**Changed** (`tools/edit_api/`)
+- The server binds the PC's campus Wi-Fi address and `127.0.0.1`. The key is accepted as
+  `Authorization: Bearer <key>` or `X-API-Key: <key>`. `EDIT_API_ALLOW` takes IPs, CIDR ranges or
+  `*`. It is `*` for now, so the key is the gate, and the server logs each new caller's address
+  once.
+- Step events carry `view` as well as `pano`, matching the edit graph's `all_views` events.
+- New: `client_test.ts` and `proxy.ts`.
+- The README's firewall steps are corrected. A cancelled Windows prompt leaves Block rules for
+  Python, and those beat the port rule. Opening the port is Mateo's step.
+
+**Verified on Mateo's PC**
+- `client_test.ts` against the API: link, key, a stub edit with its stream, and saved faces. A
+  wrong key, an unknown pano and an unreachable address each print a one-line reason.
+- `proxy.ts`, called the way Hono calls it, in 14 checks: the key is added; 401, 404, 502 and 503
+  answers; the event stream with resume and close; a face and the preview.
+- Earlier: 30 error and security checks, and stub jobs through the Wi-Fi address.
+
+**Not verified:** a call from the VPN or from Fahim's laptop, and `proxy.ts` inside Hono itself.
+
+**Needs from others:** Fahim-Agent, see Open requests.
+
+### 2026-11-14 21:45 ET · Output-Agent · Edit API Phase 1 landed on stub results; the exterior scan now has a mesh
+
+**What landed** (`tools/edit_api/`, with the detail in its README)
+- A FastAPI server on port 2026. It takes a place, a start view and a command, queues one job at a
+  time, downloads a scan on demand, and returns edited panoramas as cube faces with their poses. A
+  progress stream comes as SSE. The pipeline is a **stub** for now, built from finished runs, with
+  `"stub": true` in every result. Phase 2 wires in the edit graph after Mateo-Agent's GO.
+- `faces.py` turns an edited view back into its panorama's cube faces. Rendering the view again from
+  the new faces matches the edit to 1.5 to 2.7 grey levels inside the mask, on three finished runs.
+- `client_test.py` (standard library only) for the web app laptop.
+- **Shared contracts** above gains a short form of the API.
+
+**Found**
+- **The exterior scan `2rPahZzW6H7` had its MatterPak already unlocked.** The API's one-time mesh
+  check downloaded it (1.1 GB, no unlock call, nothing bought), and its manifest now has a `mesh`.
+  `data/index.json` is unchanged. Exterior code that reads the mesh may now take the mesh path. The
+  edit sessions were told.
+- The CoStar kit is not on this PC, so `place.property_id` answers 501
+  `property_lookup_unavailable`. Send `model_id`.
+
+**Verified:** 30 error and security checks pass (no token, wrong token, refused fields and paths, bad
+ids, traversal, a full queue, cancel, SSE resume). Stub jobs end to end on both scans, and a made-up
+model id comes back as `unknown_place`.
+
+**Not done:** the address to bind and the firewall rule wait for Mateo. Nothing was tested from the
+other laptop. Nothing is committed.
+
+**Who is affected:** Fahim-Agent. Questions for the web app side are at the end of
+`tools/edit_api/README.md`: browser or server calls, cube faces or equirectangular images, where the
+camera direction comes from, and the link.
+
+**Needs from others:** answers to those questions. Mateo-Agent: GO.
+
+### 2026-11-14 21:28 ET · Output-Agent · Claiming `tools/edit_api/`; two decisions in `AGENTS.md`; two new `.env` names
+
+**Decided by Mateo (now in `AGENTS.md`, Data and secrets)**
+- Edited scan pictures may go from Mateo's PC to the team's web app laptop over the edit API, and to
+  nowhere else. Responses carry scan pictures and geometry only, no CoStar record fields.
+- Matterport panoramas may be downloaded on demand through `tools/fetch_matterport.py`, and an
+  already-unlocked MatterPak with them. Never an unlock.
+
+**Changing (shared paths)**
+- New paths claimed by Output-Agent (Agents table): `tools/edit_api/` (the API, Python, FastAPI on
+  port 2026), `data/edit_api/` (job outputs, git-ignored like the rest of `data/`) and
+  `tools/edit_agent/notes/from-output.md`.
+- `.env.example` gains `EDIT_API_TOKEN` (the bearer token the web app sends), `EDIT_API_HOST` (the
+  address to bind, never `0.0.0.0`), `EDIT_API_ALLOW` (client IPs allowed besides this PC) and
+  `EDIT_API_CORS` (optional browser origins).
+- `tools/fetch_matterport.py` is imported and run as it is, not changed.
+
+**Who is affected:** Fahim-Agent, who builds the web app side. The contract comes next, here under
+Shared contracts and in `tools/edit_api/README.md`. Nothing changes for `app/` or the edit graph.
+
+**Needs from others:** nothing yet.
 
 ### 2026-11-14 21:10 ET · Mateo-Agent · Edit agent: removal and retexture run through one graph with one report shape
 
