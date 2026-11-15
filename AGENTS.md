@@ -15,8 +15,7 @@ The product is a map of the Houston and Los Angeles properties in the CoStar kit
 2. **Agent.** The user asks a question such as "which of these are wheelchair-friendly?". The agent
    scores each property from its CoStar record, its aerial image and its Matterport panoramas, then
    colours the pins live and shows the evidence behind each score.
-3. **Fly-through.** A WASD and mouse camera that flies outside a building and inside its 3D scan,
-   where the user can place interactive objects such as a scissor lift or a grand piano.
+3. **Fly-through.** A WASD and mouse camera that flies outside a building and inside its 3D scan.
 
 Scan editing (the magic eraser in `README.md`) is built as its own agent. See Scan edit agent below.
 
@@ -49,7 +48,7 @@ only through port 2024, so the agent can change without touching the client.
   panoramas, and returns a Zod `responseFormat` of score plus evidence.
 - Tools emit progress through `config.writer`, so pins colour as results arrive.
 - Domain knowledge lives in runtime skills such as `skills/accessibility-audit/SKILL.md`.
-- `interruptOn` asks the user before the agent places an object.
+- `interruptOn` asks the user before the agent runs a write op, such as placing a sign.
 - Root the agent's `FilesystemBackend` in a folder under `data/` with `virtualMode: true`. A backend
   rooted at the repo can read `.env`.
 

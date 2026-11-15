@@ -6,7 +6,6 @@ import { FEATURES_OPS } from './features/index.ts'
 import type { Op } from './op.ts'
 import { PROPERTY_OPS } from './property/index.ts'
 import { ROUTE_OPS } from './route/index.ts'
-import { SCENE_OPS } from './scene/index.ts'
 import { SEARCH_OPS } from './search/index.ts'
 import { SIGNAGE_OPS } from './signage/index.ts'
 
@@ -19,7 +18,6 @@ export const OPS: Op[] = [
   ...FEATURES_OPS,
   ...EQUIPMENT_OPS,
   ...SIGNAGE_OPS,
-  ...SCENE_OPS,
   ...EDIT_OPS,
 ]
 

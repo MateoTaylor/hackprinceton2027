@@ -4,7 +4,7 @@
 import type { PropertyKind } from './property.ts'
 
 // A property tool panel, as `view_open` names it and the property card offers it.
-export type ToolId = 'dollhouse' | 'route' | 'scene' | 'signage' | 'edit' | 'remodel'
+export type ToolId = 'dollhouse' | 'route' | 'signage' | 'edit' | 'remodel'
 
 // What fills the screen: the map alone, a property's card, its fly-through or one of its tool panels.
 export type Screen =

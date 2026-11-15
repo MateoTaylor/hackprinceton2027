@@ -1,4 +1,4 @@
-// Every kind of thing the Scene tool can place.
+// Every kind of thing in the equipment catalogue.
 export const EQUIPMENT_CLASSES = [
   'slab_scissor',
   'rough_terrain_scissor',
@@ -13,7 +13,7 @@ export const EQUIPMENT_CLASSES = [
 
 export type EquipmentClass = (typeof EQUIPMENT_CLASSES)[number]
 
-// One placeable thing, in metres and kilograms. A dimension that is unknown or does not apply
+// One piece of equipment, in metres and kilograms. A dimension that is unknown or does not apply
 // is null. `workingHeightM` is the platform height plus 1.83 m, the 6 ft a person reaches above
 // the platform. `lengthM` runs along the direction of travel, or along the wall for a sign, and
 // `widthM` across it. `specRef` names the maker's sheet the numbers come from.
@@ -35,10 +35,6 @@ export interface Equipment {
   source: 'maker' | 'inferred'
   confidence: number
 }
-
-// True when the row has a full size, so the Scene tool can draw it without guessing.
-export const isPlaceable = ({ lengthM, widthM, stowedHeightM }: Equipment) =>
-  lengthM !== null && widthM !== null && stowedHeightM !== null
 
 // A scissor's stowed height is with its rails up.
 const ROWS: Omit<Equipment, 'workingHeightM'>[] = [

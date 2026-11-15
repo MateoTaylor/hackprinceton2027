@@ -30,9 +30,6 @@ const LINES: Record<string, string> = {
   signage_place: 'Hang a sign on the building',
   signage_move: 'Move a sign on the building',
   signage_remove: 'Take a sign off the building',
-  scene_place: 'Place an object in the 3D scan',
-  scene_move: 'Move an object in the 3D scan',
-  scene_remove: 'Remove an object from the 3D scan',
   picture_edit_apply: 'Apply a prepared edit to a scan picture',
 }
 

@@ -42,7 +42,7 @@ test('an op with no line falls back to its summary, then its name', () => {
 })
 
 test('readInterrupt keeps one slot per request, and an unreadable one blocks approval', () => {
-  const good = { name: 'scene_place', args: { spaceId: 's1' }, description: 'Place.' }
+  const good = { name: 'signage_place', args: { propertyId: 'p1' }, description: 'Place.' }
   assert.deepEqual(readInterrupt({ actionRequests: [good], reviewConfigs: [] }), { requests: [good], approvable: true })
   assert.deepEqual(readInterrupt({ actionRequests: [good, { name: 3 }] }), { requests: [good, undefined], approvable: false })
   assert.deepEqual(readInterrupt('Do you approve?'), { requests: [], approvable: false })

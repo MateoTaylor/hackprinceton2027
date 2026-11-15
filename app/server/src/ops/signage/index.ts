@@ -4,9 +4,8 @@ import { BuildingModel, Point } from '../../model/building.ts'
 import { readObliqueCamera } from '../../obliquePose.ts'
 import { UpstreamError } from '../../vexcel.ts'
 import { Assumptions, Confidence, defineOp, OpError, requireProperty, Source, type OpContext } from '../op.ts'
-import { SizeM, withSceneLock } from '../scene/document.ts'
 import { cameraInFrame } from './camera.ts'
-import { readSigns, Sign, writeSigns, type SignDocument } from './document.ts'
+import { readSigns, Sign, SizeM, withSignLock, writeSigns, type SignDocument } from './document.ts'
 import { chooseLift, TALLEST_LIFT } from './lift.ts'
 import { misfit, shellWalls, wallFacing, type Wall } from './walls.ts'
 import { EQUIPMENT_CLASSES } from '../../model/equipment.ts'
@@ -106,7 +105,7 @@ const WriteResult = z.object({ propertyId: z.string(), version: z.int(), signCou
 // Reads the signs, lets `change` edit them, and saves them one version higher. A stale
 // `expectedVersion` answers `conflict` and saves nothing. `change` returns the sign it touched.
 function write(ctx: OpContext, id: string, walls: readonly Wall[], expected: number | undefined, change: (document: SignDocument) => Sign | null) {
-  return withSceneLock(`signs:${id}`, async () => {
+  return withSignLock(id, async () => {
     const document = await readSigns(ctx.dataDir, id)
     if (expected !== undefined && expected !== document.version) {
       throw new OpError('conflict', 'The signs changed since you read them.', `They are at version ${document.version}. Call signage_get and retry with expectedVersion ${document.version}.`)

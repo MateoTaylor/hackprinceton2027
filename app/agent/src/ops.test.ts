@@ -27,15 +27,15 @@ function fakeApi(manifests: Partial<Record<'/api/ops' | '/api/proppy/ops', Retur
 
 test('ops from both manifests become one list, and each call goes to its own route', async () => {
   const posts = fakeApi({
-    '/api/ops': [op('property_get', 'read'), op('scene_place', 'write'), op('view_open', 'view')],
+    '/api/ops': [op('property_get', 'read'), op('signage_place', 'write'), op('view_open', 'view')],
     '/api/proppy/ops': [op('area_summary', 'read'), op('property_query', 'read'), op('property_get', 'read')],
   })
   const ops = await connectOps('http://api.test')
   assert.deepEqual(
     ops.manifest.map((o) => o.name),
-    ['property_get', 'scene_place', 'view_open', 'area_summary', 'property_query'],
+    ['property_get', 'signage_place', 'view_open', 'area_summary', 'property_query'],
   )
-  assert.deepEqual(Object.keys(approvals(ops)), ['scene_place'])
+  assert.deepEqual(Object.keys(approvals(ops)), ['signage_place'])
 
   for (const name of ['area_summary', 'property_get', 'property_query']) await ops.call(name, {})
   assert.deepEqual(posts, ['/api/proppy/ops/area_summary', '/api/ops/property_get', '/api/proppy/ops/property_query'])

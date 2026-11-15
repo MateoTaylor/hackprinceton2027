@@ -96,7 +96,7 @@ export function createViewOps(store: ViewStore): Op[] {
     effect: 'view',
     input: z.object({
       propertyId: PropertyIdInput,
-      panel: z.union([z.enum(['card', 'flythrough']), ToolIdSchema]).describe('`card`, `flythrough` or a tool id: dollhouse, route, scene, signage, edit or remodel.'),
+      panel: z.union([z.enum(['card', 'flythrough']), ToolIdSchema]).describe('`card`, `flythrough` or a tool id: dollhouse, route, signage, edit or remodel.'),
       modelId: z.string().optional().describe('The scan to fly through. Defaults to the property\'s first scan. Only for `flythrough`.'),
     }),
     output: ChangeResult,

@@ -19,8 +19,7 @@ through:
 - **Agent:** ask a question such as "which of these are wheelchair-friendly?". The agent scores
   each property from its CoStar record, its aerial image and its Matterport panoramas, colours the
   pins and shows the evidence behind each score.
-- **Fly-through:** a WASD and mouse camera that flies outside a building and inside its 3D scan,
-  where you can place interactive objects such as a scissor lift or a grand piano.
+- **Fly-through:** a WASD and mouse camera that flies outside a building and inside its 3D scan.
 
 The stack and the agent design are in [AGENTS.md](AGENTS.md). The app is not built yet. We also
 enter the LangChain track, which judges the use of Deep Agents.

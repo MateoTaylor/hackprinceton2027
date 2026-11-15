@@ -1,4 +1,4 @@
-import { Box, Eraser, Forklift, PaintRoller, Route, Signpost, type LucideIcon } from 'lucide-react'
+import { Box, Eraser, PaintRoller, Route, Signpost, type LucideIcon } from 'lucide-react'
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
 import type { Property, PropertyKind } from '../../shared/property'
 
@@ -6,7 +6,7 @@ import type { Property, PropertyKind } from '../../shared/property'
 // through `useOp` from ToolPanel.
 export type PanelProps = { property: Property }
 
-export type ToolId = 'dollhouse' | 'route' | 'scene' | 'signage' | 'edit' | 'remodel'
+export type ToolId = 'dollhouse' | 'route' | 'signage' | 'edit' | 'remodel'
 
 export type Tool = {
   id: ToolId
@@ -28,7 +28,6 @@ const PREPARED_EDITS = ['residential-201926017']
 export const TOOLS: readonly Tool[] = [
   { id: 'dollhouse', label: 'Dollhouse', icon: Box, panel: lazy(() => import('./dollhouse/DollhousePanel')) },
   { id: 'route', label: 'Routing', icon: Route, panel: lazy(() => import('./route/RoutePanel')) },
-  { id: 'scene', label: 'Scene', icon: Forklift, panel: lazy(() => import('./scene/ScenePanel')) },
   { id: 'signage', label: 'Signage', icon: Signpost, panel: lazy(() => import('./signage/SignagePanel')), only: 'commercial' },
   { id: 'edit', label: 'Magic Eraser', icon: Eraser, panel: lazy(() => import('./edit/EditPanel')), onlyIds: PREPARED_EDITS },
   { id: 'remodel', label: 'Remodel', icon: PaintRoller, panel: lazy(() => import('./remodel/RemodelPanel')), onlyIds: PREPARED_EDITS },

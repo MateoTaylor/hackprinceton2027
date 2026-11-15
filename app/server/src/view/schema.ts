@@ -3,7 +3,7 @@ import type { Bounds, Camera, Highlight, Screen, ToolId, View, ViewFilter, ViewR
 
 export const HIGHLIGHTS_MAX = 200
 
-export const ToolIdSchema = z.enum(['dollhouse', 'route', 'scene', 'signage', 'edit', 'remodel']) satisfies z.ZodType<ToolId>
+export const ToolIdSchema = z.enum(['dollhouse', 'route', 'signage', 'edit', 'remodel']) satisfies z.ZodType<ToolId>
 
 const PropertyId = z.string().min(1).max(64)
 

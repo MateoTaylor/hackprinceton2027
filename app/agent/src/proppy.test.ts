@@ -45,7 +45,7 @@ function fakeOps(names: [string, OpManifestEntry['effect']][], answers: Record<s
 
 const FULL: [string, OpManifestEntry['effect']][] = [
   ['property_get', 'read'],
-  ['scene_place', 'write'],
+  ['signage_place', 'write'],
   ['view_get', 'read'],
   ['view_highlight', 'view'],
 ]
@@ -91,16 +91,16 @@ for (const decision of ['approve', 'reject'] as const) {
   test(`a write op waits for the user, and ${decision} ${decision === 'approve' ? 'runs it once' : 'never runs it'}`, async () => {
     const { ops, calls } = fakeOps(FULL)
     const coordinator = fakeModel()
-      .respondWithTools([{ name: 'scene_place', args: { propertyId: 'p1' } }])
+      .respondWithTools([{ name: 'signage_place', args: { propertyId: 'p1' } }])
       .respond(new AIMessage('done'))
     const agent = createProppy({ ops, model: coordinator, checkpointer: new MemorySaver() })
     const config = { configurable: { thread_id: decision } }
-    const first = await agent.invoke(ask('place a lift'), config)
-    assert.match(JSON.stringify(first.__interrupt__), /"name":"scene_place"/)
-    assert.equal(calls.filter((c) => c.name === 'scene_place').length, 0, 'nothing placed before the decision')
+    const first = await agent.invoke(ask('hang a sign'), config)
+    assert.match(JSON.stringify(first.__interrupt__), /"name":"signage_place"/)
+    assert.equal(calls.filter((c) => c.name === 'signage_place').length, 0, 'nothing placed before the decision')
 
     await agent.invoke(new Command({ resume: { decisions: [{ type: decision }] } }), config)
-    assert.equal(calls.filter((c) => c.name === 'scene_place').length, decision === 'approve' ? 1 : 0)
+    assert.equal(calls.filter((c) => c.name === 'signage_place').length, decision === 'approve' ? 1 : 0)
   })
 }
 
@@ -146,12 +146,12 @@ async function scoreOne(scorerTurns: (() => AIMessage)[]) {
 
 test('the scorer has no write or view op, even when a write is approved', async () => {
   const { calls, error } = await scoreOne([
-    call('scene_place', { propertyId: 'p1' }),
+    call('signage_place', { propertyId: 'p1' }),
     call('view_highlight', { propertyId: 'p1' }),
     call('PropertyScore', { propertyId: 'p1', score: 50, summary: 'Unknown.', evidence: [] }),
   ])
   assert.equal(error, undefined)
-  assert.equal(calls.filter((c) => c.name === 'scene_place').length, 0)
+  assert.equal(calls.filter((c) => c.name === 'signage_place').length, 0)
   assert.equal(calls.filter((c) => c.name === 'view_highlight').length, 1, 'only postScore posts')
 })
 
