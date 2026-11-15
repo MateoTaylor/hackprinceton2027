@@ -95,7 +95,6 @@ export default function SignagePanel({ property }: PanelProps) {
     return sent
   }
 
-  useEffect(() => {
   // Proppy, another tab or a script changed the signs: read them again once this panel's own
   // writes have landed, so the next edit goes out at the new version.
   useWrites((event) => {
@@ -103,6 +102,7 @@ export default function SignagePanel({ property }: PanelProps) {
     lastWrite.current = lastWrite.current.then(load)
   })
 
+  useEffect(() => {
     void load()
     const controller = new AbortController()
     getJson(`/api/oblique/${encodeURIComponent(propertyId)}`, controller.signal).then(
