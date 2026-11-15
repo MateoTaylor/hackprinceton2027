@@ -17,6 +17,7 @@ before(async () => {
   await connection.run(`
     CREATE TABLE search AS SELECT 'commercial-' || i AS id, 'Invented ' || i AS name, 'xyz' || repeat('x', 200) AS blurb, i AS stories, 'abc' AS code
     FROM range(150) t(i)`)
+  await connection.run('CREATE TABLE hidden AS SELECT 42 AS secret')
   connection.closeSync()
   db.closeSync()
   search = await openSearch(join(dir, 'search.duckdb'), 300)
@@ -61,9 +62,9 @@ test('writes, two statements and settings are refused', async () => {
 })
 
 test('files stay out of reach', async () => {
-  await rejects("SELECT * FROM read_text('../../.env')", /^The query failed while it ran\.$/)
-  await rejects("SELECT * FROM read_csv('/etc/hosts')", /^The query failed while it ran\.$/)
-  await rejects("SELECT * FROM 'search.duckdb.wal'", /^The query failed while it ran\.$|^Catalog Error/)
+  await rejects("SELECT * FROM read_text('../../.env')", /`read_text\(\)`/)
+  await rejects("SELECT * FROM read_csv('/etc/hosts')", /`read_csv\(\)`/)
+  await rejects("SELECT * FROM 'search.duckdb.wal'", /`search\.duckdb\.wal`/)
 })
 
 test('catalog functions and views that reveal paths are refused', async () => {
@@ -89,6 +90,23 @@ test('SQL run from a string, SHOW and DESCRIBE are refused', async () => {
   await rejects("SELECT * FROM query_table('pg_settings')", /`query_table\(\)`/)
   await rejects('SELECT * FROM (SHOW DATABASES)', /show statement/)
   await rejects('SELECT * FROM (DESCRIBE search)', /show statement/)
+})
+
+test('settings folded at bind time never reach an error message', async () => {
+  await rejects("SELECT struct_extract({'a': 1}, current_setting('temp_directory'))", /^The query reads `current_setting`, which is not allowed\.$/)
+  await rejects("SELECT * FROM query_table(current_setting('temp_directory'))", /^The query reads `query_table\(\)`, which is not allowed\.$/)
+})
+
+test('a quotable error that holds an absolute path gets the fixed message', async () => {
+  await rejects("SELECT struct_extract({'a': 1}, '/Users/someone/tmp')", /^The query failed while it ran\.$/)
+  await rejects("SELECT struct_extract({'a': 1}, 'C:\\Users\\someone')", /^The query failed while it ran\.$/)
+})
+
+test('a CTE counts only in the scope that can see it', async () => {
+  await rejects('SELECT * FROM (WITH hidden AS (SELECT 2) SELECT 1 AS y) t, hidden', /`hidden`/)
+  await rejects('WITH a AS (SELECT * FROM hidden), hidden AS (SELECT 1) SELECT * FROM a', /`hidden`/)
+  const nested = await search.query('WITH a AS (SELECT 1 AS x), b AS (SELECT x FROM a) SELECT (SELECT x FROM b) AS x')
+  assert.deepEqual(nested.rows, [[1]])
 })
 
 test('a CTE cannot shadow a catalog name, and CTEs, range and unnest still work', async () => {

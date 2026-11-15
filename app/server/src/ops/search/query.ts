@@ -5,8 +5,11 @@ export const MAX_ROWS = 100
 export const TIMEOUT_MS = 2000
 
 // Error classes whose first line quotes only the query text and table or column names. Every other
-// error (a conversion error, say) can quote a cell, so it gets a fixed message.
+// error (a conversion error, say) can quote a cell, so it gets a fixed message. A quotable line that
+// still holds something like an absolute path (`/Users/...`, `C:\...`, `~/...`) gets the fixed
+// message too, in case a value folded at bind time slipped past the guard.
 const QUOTABLE = /(Parser|Binder|Catalog) Error: .*/
+const ABSOLUTE_PATH = /\/[^\s/'"]+\/|[A-Za-z]:[\\/]|~[\\/]/
 const WIDE_INTEGERS = new Set([DuckDBTypeId.BIGINT, DuckDBTypeId.UBIGINT, DuckDBTypeId.HUGEINT, DuckDBTypeId.UHUGEINT])
 
 // What a query may read. The catalog views and functions (`duckdb_databases()`,
@@ -26,39 +29,39 @@ type Node = { [key: string]: unknown }
 const isNode = (value: unknown): value is Node => typeof value === 'object' && value !== null
 
 // Throws unless the parsed statement (DuckDB's `json_serialize_sql` tree) reads only TABLES, CTEs
-// and TABLE_FUNCTIONS, and calls no catalog or settings function. Table references are the nodes
-// with an `alias` and no expression `class`.
-function guardTree(tree: unknown) {
-  const ctes = new Set<string>()
-  const nodes: Node[] = []
-  const collect = (value: unknown) => {
-    if (Array.isArray(value)) return value.forEach(collect)
-    if (!isNode(value)) return
-    nodes.push(value)
-    const map = isNode(value.cte_map) && Array.isArray(value.cte_map.map) ? value.cte_map.map : []
-    for (const entry of map) if (isNode(entry) && typeof entry.key === 'string') ctes.add(entry.key.toLowerCase())
-    Object.values(value).forEach(collect)
-  }
-  collect(tree)
-  for (const name of ctes) if (CATALOG.test(name)) throw refuse(`a CTE named \`${name}\``)
+// in scope and TABLE_FUNCTIONS, and calls no catalog or settings function. A CTE is in scope in the
+// query node that defines it, below it, and in its own and later CTE bodies. Table references are
+// the nodes with an `alias` and no expression `class`.
+function guardTree(value: unknown, ctes: ReadonlySet<string> = new Set()): void {
+  if (Array.isArray(value)) return value.forEach((item) => guardTree(item, ctes))
+  if (!isNode(value)) return
 
-  for (const node of nodes) {
-    if (typeof node.function_name === 'string') {
-      const name = node.function_name.toLowerCase()
-      if (CATALOG.test(name) || SETTINGS_FUNCTIONS.has(name)) throw refuse(`\`${name}\``)
-    }
-    if (typeof node.type !== 'string' || !('alias' in node) || 'class' in node) continue
-    if (!TABLE_REFS.has(node.type)) throw refuse(`a ${node.type.toLowerCase().replace('_ref', '')} statement`)
-    if (node.type === 'BASE_TABLE') {
-      const name = String(node.table_name).toLowerCase()
-      const qualified = node.catalog_name !== '' || !['', 'main'].includes(String(node.schema_name).toLowerCase())
+  if (typeof value.function_name === 'string') {
+    const name = value.function_name.toLowerCase()
+    if (CATALOG.test(name) || SETTINGS_FUNCTIONS.has(name)) throw refuse(`\`${name}\``)
+  }
+  if (typeof value.type === 'string' && 'alias' in value && !('class' in value)) {
+    if (!TABLE_REFS.has(value.type)) throw refuse(`a ${value.type.toLowerCase().replace('_ref', '')} statement`)
+    if (value.type === 'BASE_TABLE') {
+      const name = String(value.table_name).toLowerCase()
+      const qualified = value.catalog_name !== '' || !['', 'main'].includes(String(value.schema_name).toLowerCase())
       if (qualified || !(TABLES.has(name) || ctes.has(name)) || CATALOG.test(name)) throw refuse(`\`${name}\``)
     }
-    if (node.type === 'TABLE_FUNCTION') {
-      const name = isNode(node.function) ? String(node.function.function_name).toLowerCase() : ''
+    if (value.type === 'TABLE_FUNCTION') {
+      const name = isNode(value.function) ? String(value.function.function_name).toLowerCase() : ''
       if (!TABLE_FUNCTIONS.has(name)) throw refuse(`\`${name}()\``)
     }
   }
+
+  const map = isNode(value.cte_map) && Array.isArray(value.cte_map.map) ? value.cte_map.map : []
+  let scope = ctes
+  for (const entry of map) {
+    const name = isNode(entry) ? String(entry.key).toLowerCase() : ''
+    if (CATALOG.test(name)) throw refuse(`a CTE named \`${name}\``)
+    scope = new Set([...scope, name])
+    guardTree(isNode(entry) ? entry.value : undefined, scope)
+  }
+  for (const [key, child] of Object.entries(value)) if (key !== 'cte_map') guardTree(child, scope)
 }
 
 // JSON rows, with the 64- and 128-bit integers that DuckDB serialises as strings (count(*), say)
@@ -96,15 +99,17 @@ export async function openSearch(path: string, timeoutMs = TIMEOUT_MS) {
       connection.interrupt()
     }, timeoutMs)
     try {
+      // Parse and guard before anything binds: binding folds constant arguments such as
+      // `current_setting(...)` and can quote their values in its errors.
+      const onlySelect = new OpError('invalid_input', 'Only one SELECT or WITH statement is allowed.', 'Send a single read-only SELECT.')
       const extracted = await connection.extractStatements(sql)
-      const prepared = extracted.count === 1 ? await extracted.prepare(0) : null
-      if (prepared?.statementType !== StatementType.SELECT) {
-        throw new OpError('invalid_input', 'Only one SELECT or WITH statement is allowed.', 'Send a single read-only SELECT.')
-      }
+      if (extracted.count !== 1) throw onlySelect
       const serialized = await connection.runAndReadAll('SELECT json_serialize_sql($1::VARCHAR)', [sql])
       const tree: unknown = JSON.parse(String(serialized.getRowsJson()[0][0]))
-      if (!isNode(tree) || tree.error !== false) throw refuse('a statement the guard cannot parse')
+      if (!isNode(tree) || tree.error !== false) throw onlySelect
       guardTree(tree.statements)
+      const prepared = await extracted.prepare(0)
+      if (prepared.statementType !== StatementType.SELECT) throw onlySelect
       const reader = await prepared.streamAndReadUntil(MAX_ROWS + 1)
       const all = jsonRows(reader)
       const columns = reader.columnNames()
@@ -115,7 +120,8 @@ export async function openSearch(path: string, timeoutMs = TIMEOUT_MS) {
     } catch (error) {
       if (error instanceof OpError) throw error
       if (timedOut) throw new OpError('invalid_input', `The query ran longer than ${timeoutMs / 1000} s.`, 'Add a WHERE clause or a LIMIT.')
-      const quotable = error instanceof Error ? error.message.split('\n')[0].match(QUOTABLE)?.[0] : undefined
+      const line = error instanceof Error ? error.message.split('\n')[0] : ''
+      const quotable = ABSOLUTE_PATH.test(line) ? undefined : line.match(QUOTABLE)?.[0]
       if (quotable) throw new OpError('invalid_input', quotable.slice(0, 300), 'Fix the query against the tables in the sql field description.')
       throw new OpError('invalid_input', 'The query failed while it ran.', 'Check the column types and functions you used. Files and URLs are off.')
     } finally {
