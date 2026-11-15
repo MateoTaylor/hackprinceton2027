@@ -8,7 +8,7 @@ import type { Property } from '../../shared/property.ts'
 import { createApp, parseTile } from './app.ts'
 import { type Cached, cacheFile, createDiskCache } from './cache.ts'
 import { readObliquePose } from './obliquePose.ts'
-import { createVexcel, limiter, newestObliques, obliqueFocus, squareBounds } from './vexcel.ts'
+import { createVexcel, limiter, newestObliques, obliqueFocus, squareBounds, type Vexcel } from './vexcel.ts'
 
 const roots: string[] = []
 after(() => Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))))
@@ -105,8 +105,11 @@ const property: Property = {
   typeLabel: 'Office', facts: [], photoUrl: null, scans: [],
 }
 
+const appWith = async (vexcel: Vexcel) =>
+  createApp({ base: { properties: new Map([[property.id, property]]), vexcel, dataDir: await tempRoot() } })
+
 test('only requests for this machine from the same site get through', async () => {
-  const app = createApp({ properties: [property], vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()) }) })
+  const app = await appWith(createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()) }))
   const status = async (url: string, headers: Record<string, string> = {}) => (await app.request(url, { headers })).status
   // What the Vite proxy forwards for a same-origin fetch from the app.
   assert.equal(await status('http://localhost:5173/api/properties', { 'sec-fetch-site': 'same-origin' }), 200)
@@ -119,7 +122,7 @@ test('only requests for this machine from the same site get through', async () =
 test('a 200 that is not JSON is a 502, and nothing is cached', async () => {
   let calls = 0
   const fetch: typeof globalThis.fetch = async () => (calls++, new Response('<html>maintenance</html>', { status: 200 }))
-  const app = createApp({ properties: [property], vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()), fetch }) })
+  const app = await appWith(createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()), fetch }))
   for (let i = 0; i < 2; i++) {
     const res = await app.request('/api/oblique/commercial-1')
     assert.equal(res.status, 502)
@@ -134,10 +137,7 @@ test('routes reject bad input without calling Vexcel and serve repeat misses fro
     calls.push(String(input))
     return new Response('{"status":404}', { status: 404, headers: { 'content-type': 'application/json' } })
   }
-  const app = createApp({
-    properties: [property],
-    vexcel: createVexcel({ apiKey: 'test-key', cache: createDiskCache(await tempRoot()), fetch }),
-  })
+  const app = await appWith(createVexcel({ apiKey: 'test-key', cache: createDiskCache(await tempRoot()), fetch }))
 
   for (const path of ['/api/thumb/commercial-2', '/api/oblique/commercial-2', '/api/oblique/commercial-2/north']) {
     const res = await app.request(path)
@@ -257,7 +257,7 @@ test('an oblique photo is a 160 m square around the pin, cut before the parcel i
     releaseParcel()
     return new Response(fakeOblique(), { headers: { 'content-type': 'image/jpeg' } })
   }
-  const app = createApp({ properties: [property], vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()), fetch }) })
+  const app = await appWith(createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()), fetch }))
   assert.equal((await app.request('/api/oblique/commercial-1/north')).status, 200)
   const corners = (wkt = '') => [...wkt.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])])
   const xs = corners(asked.extract).map((c) => c[0])
@@ -303,7 +303,7 @@ test('an oblique photo carries its pose in a header', async () => {
     }
     return new Response(fakeOblique(), { headers: { 'content-type': 'image/jpeg' } })
   }
-  const app = createApp({ properties: [property], vexcel: createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()), fetch }) })
+  const app = await appWith(createVexcel({ apiKey: 'k', cache: createDiskCache(await tempRoot()), fetch }))
   assert.deepEqual(await (await app.request('/api/oblique/commercial-1')).json(), { directions: ['east'] })
   assert.equal((await app.request('/api/oblique/commercial-1/north')).status, 404)
   const res = await app.request('/api/oblique/commercial-1/east')

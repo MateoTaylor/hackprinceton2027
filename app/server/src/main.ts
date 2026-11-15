@@ -1,4 +1,5 @@
-// Starts the Propstar API on 127.0.0.1:8787. Run it with `pnpm dev`, which loads the repo-root .env.
+// Starts the Propstar API on 127.0.0.1, on PROPSTAR_PORT or 8787. Run it with `pnpm dev`, which loads
+// the repo-root .env.
 import { serve } from '@hono/node-server'
 import { fileURLToPath } from 'node:url'
 import { createApp } from './app.ts'
@@ -7,7 +8,7 @@ import { loadProperties } from './properties.ts'
 import { createVexcel } from './vexcel.ts'
 
 const HOST = '127.0.0.1'
-const PORT = 8787
+const PORT = Number(process.env.PROPSTAR_PORT || 8787)
 const DATA = new URL('../../../data/propstar/', import.meta.url)
 
 const apiKey = process.env.VEXCEL_API_KEY?.trim()
@@ -29,7 +30,13 @@ const cache = createDiskCache(fileURLToPath(new URL('cache/vexcel/', DATA)), {
   'oblique-coverage': 8 * MB,
 })
 const usage = await cache.usage()
-const app = createApp({ properties, vexcel: createVexcel({ apiKey, cache }) })
+const app = createApp({
+  base: {
+    properties: new Map(properties.map((p) => [p.id, p])),
+    vexcel: createVexcel({ apiKey, cache }),
+    dataDir: fileURLToPath(DATA),
+  },
+})
 
 serve({ fetch: app.fetch, hostname: HOST, port: PORT }, () => {
   console.log(`Propstar API on http://${HOST}:${PORT}/api with ${properties.length} properties`)

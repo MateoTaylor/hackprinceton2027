@@ -1,9 +1,12 @@
 import { Hono, type Context } from 'hono'
 import { logger } from 'hono/logger'
 import type { ApiError } from '../../shared/api.ts'
-import type { Property } from '../../shared/property.ts'
 import type { Cached } from './cache.ts'
-import { isDirection, UpstreamError, type Vexcel } from './vexcel.ts'
+import { mountOps } from './ops/http.ts'
+import { OPS } from './ops/index.ts'
+import type { Op } from './ops/op.ts'
+import { createRegistry, type OpBase } from './ops/registry.ts'
+import { isDirection, UpstreamError } from './vexcel.ts'
 
 // Vexcel's `urban` layer, the one with obliques, stops at 21.
 const MAX_ZOOM = 21
@@ -32,9 +35,10 @@ const image = (c: Context, answer: Cached) => {
 }
 
 // The Propstar HTTP API. It answers only under /api; every other path is an empty 404, so nothing
-// on disk can be served.
-export function createApp({ properties, vexcel }: { properties: Property[]; vexcel: Vexcel }) {
-  const byId = new Map(properties.map((p) => [p.id, p]))
+// on disk can be served. It registers `ops` and throws when one of them is invalid.
+export function createApp({ base, ops = OPS }: { base: OpBase; ops?: readonly Op[] }) {
+  const { properties, vexcel } = base
+  const registry = createRegistry(ops, base)
   const app = new Hono()
 
   app.use(logger())
@@ -48,7 +52,9 @@ export function createApp({ properties, vexcel }: { properties: Property[]; vexc
     await next()
   })
 
-  app.get('/api/properties', (c) => c.json(properties))
+  app.get('/api/properties', (c) => c.json([...properties.values()]))
+
+  mountOps(app, registry)
 
   app.get('/api/tiles/:z/:x/:y', async (c) => {
     const tile = parseTile(c.req.param('z'), c.req.param('x'), c.req.param('y'))
@@ -57,19 +63,19 @@ export function createApp({ properties, vexcel }: { properties: Property[]; vexc
   })
 
   app.get('/api/thumb/:id', async (c) => {
-    const property = byId.get(c.req.param('id'))
+    const property = properties.get(c.req.param('id'))
     if (!property) return error(c, 404, 'Unknown property')
     return image(c, await vexcel.thumb(property))
   })
 
   app.get('/api/oblique/:id', async (c) => {
-    const property = byId.get(c.req.param('id'))
+    const property = properties.get(c.req.param('id'))
     if (!property) return error(c, 404, 'Unknown property')
     return c.json(await vexcel.obliqueIndex(property))
   })
 
   app.get('/api/oblique/:id/:dir', async (c) => {
-    const property = byId.get(c.req.param('id'))
+    const property = properties.get(c.req.param('id'))
     if (!property) return error(c, 404, 'Unknown property')
     const dir = c.req.param('dir')
     if (!isDirection(dir)) return error(c, 400, 'Direction must be north, east, south or west')
