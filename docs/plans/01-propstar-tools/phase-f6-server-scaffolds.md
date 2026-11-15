@@ -4,7 +4,7 @@ Part of [the plan overview](overview.md).
 
 Foundation phase 6. It depends on [f2](phase-f2-ops-http.md), [f4](phase-f4-equipment.md) and
 [f5](phase-f5-upstream-clients.md). It uses API port 8788. It needs `origin/main` merged, which is
-step 1 of Before kickoff in the overview, because it imports `tools/edit_api/proxy.ts`.
+step 1 of Before kickoff in the overview, because it copies `tools/edit_api/proxy.ts`.
 
 ## Goal
 
@@ -34,8 +34,12 @@ Every lane finds its folder, its ops and its packages already in place. After th
   appears in the manifest or in an op result. `createApp` gains `sdkKey = null`, and `main.ts`
   reads `MP_SDK_KEY`.
 - Mount the edit proxy in `app.ts` with `app.all('/api/edit/*', (c) => forwardEdit(c.req.raw,
-  editLink))`. Import `forwardEdit` and `PREFIX` from `tools/edit_api/proxy.ts` and change nothing
-  in that file. Mount the route after the host check and the cross-site check, so both cover it.
+  editLink))`. Copy `tools/edit_api/proxy.ts` to `app/server/src/editProxy.ts` byte for byte and
+  import `forwardEdit` and `PREFIX` from the copy. Its README allows a copy or an import. An
+  import fails `typecheck`, because `tools/edit_api/` has no `package.json` and tsc then reads the
+  file as CommonJS. Add a test to `server.test.ts` that the copy equals the original, so a change
+  on Mateo's side shows up as a failing test. Change nothing in `tools/edit_api/`. Mount the
+  route after the host check and the cross-site check, so both cover it.
   `createApp` gains `editLink = {}`, and `main.ts` fills it from `EDIT_API_URL` and
   `EDIT_API_TOKEN`. Without them the proxy itself answers 503 `edit_api_not_configured`. Never
   log either value.

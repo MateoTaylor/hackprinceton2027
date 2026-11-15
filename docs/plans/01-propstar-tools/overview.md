@@ -59,7 +59,7 @@ In scope:
 - The 16 ops listed under [Ops](#ops), each with Zod input and output schemas.
 - One web panel per tool, opened from the property card.
 - The Edit tool's ops and panel. They reach the edit API on Mateo's PC through `forwardEdit` from
-  `tools/edit_api/proxy.ts`, mounted in the Hono server.
+  a checked copy of `tools/edit_api/proxy.ts`, mounted in the Hono server.
 - The two public Matterport demo spaces (`L3sdz2m7jxp`, a manufacturing plant, and `18TRzZNyxvU`, a
   commercial office) for the Scene tool, opened in the browser with the team's Showcase SDK key.
 - The kit scan `2rPahZzW6H7`, which shows a building from outside, for the Signage tool.
@@ -290,8 +290,8 @@ a6 for scanned rooms. The demo still works without each of them.
   standing permission on 2026-11-15 to commit each finished phase and to push the branch at
   milestones without asking. Ask before each pull request.
 - **Other agents' folders.** No phase edits `tools/edit_api/`, `tools/edit_agent/`,
-  `tools/visualization/` or `tools/qwen_test/`. [f6](phase-f6-server-scaffolds.md) imports
-  `tools/edit_api/proxy.ts` and changes nothing in it.
+  `tools/visualization/` or `tools/qwen_test/`. [f6](phase-f6-server-scaffolds.md) copies
+  `tools/edit_api/proxy.ts` into the server and changes nothing in it.
 - **Review.** No agent reviews its own phase. Fahim asked on 2026-11-15 for fewer reviews to
   save time, so there are four. The main session hands the foundation diff to a reviewer subagent
   after f7, and each lane's whole diff to one reviewer subagent when the lane lands. This list

@@ -16,6 +16,7 @@ app/server/src/app.ts	foundation	f2 mounts the ops, f6 adds the scene config rou
 app/server/src/main.ts	foundation	f2 reads PROPSTAR_PORT, f5 and f6 build the context
 app/server/src/vexcel.ts	foundation	f5 adds extract
 app/server/src/matterport.ts	foundation	f5 creates it
+app/server/src/editProxy.ts	foundation	f6 copies tools/edit_api/proxy.ts here, unchanged
 app/server/src/properties.ts	foundation	f6 adds loadBuildingFacts
 app/server/src/server.test.ts	foundation	f2 updates the createApp calls
 app/server/src/vexcel.test.ts	foundation	f5 tests extract with a fake fetch
