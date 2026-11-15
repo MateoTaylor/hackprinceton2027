@@ -152,6 +152,7 @@ button:disabled {
 }
 
 .logo {
+  zoom: 0.77;
   display: flex;
   align-items: flex-end;
   gap: 6px;
