@@ -83,6 +83,10 @@ magic eraser.
 - **Checks:** the first pass does most of the work. A loose check reports only glaring problems,
   such as a shadow left behind or an object still there, for a second pass. More than two passes is
   the exception.
+- **Web app:** the web app on the other laptop sends edit commands to the edit API in
+  `tools/edit_api/` (Output-Agent, port 2026 on Mateo's PC, reached over the campus VPN with a key)
+  and gets back edited cube faces with their poses. The app's Hono server calls it, so the key stays
+  off the browser.
 - **Not used:** LangSmith, Defurnish and new Matterport API calls.
 
 ## Data and secrets
@@ -96,6 +100,12 @@ magic eraser.
 - Serve files through a server that binds to `localhost` and refuses dotfiles. `python -m
   http.server` from the repo root serves `.env` to the network.
 - The Matterport fetcher never calls `unlockModelBundle`. Nothing in this repo spends money.
+- Mateo decided on 2026-11-14 that Matterport panoramas may be downloaded on demand through
+  `tools/fetch_matterport.py`, for the edit API in `tools/edit_api/`. That covers the panoramas and an
+  already-unlocked MatterPak, and never an unlock.
+- Mateo decided on 2026-11-14 that edited scan pictures may go from his PC to the team's web app
+  laptop over the edit API (`tools/edit_api/`, port 2026, bearer token), and to nowhere else. The
+  API's responses carry scan pictures and geometry only, never CoStar record fields.
 
 ## Where the facts are
 
@@ -106,6 +116,9 @@ magic eraser.
 - `AGENT_COMMS.md` Shared contracts defines the scan manifest, the world frame and the panorama
   face layout.
 - `docs/design/design.md` is the design system. Read it before changing UI or UX.
+- `tools/edit_api/README.md` is the edit API's contract and the web app's way in: the `.env` names
+  `EDIT_API_URL` and `EDIT_API_TOKEN` (both from Mateo, privately), a client test and a proxy route
+  for the Hono server.
 
 ## Working together
 
