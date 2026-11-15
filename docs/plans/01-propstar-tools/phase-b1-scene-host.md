@@ -38,7 +38,7 @@ it in the Scene panel, and the lane holds one handle on the viewer's three.js sc
 - `SpaceEntry`: `{id, label, kind: 'demo' | 'kit' | 'property'}`. `SPACES` holds `L3sdz2m7jxp`
   (plant, demo), `18TRzZNyxvU` (office, demo), `35LT5s1GSfA` (kit scan, untried) and
   `2rPahZzW6H7` (kit scan of a building from outside, untried).
-- `EXTERIOR_SPACE_ID`: `2rPahZzW6H7`, exported from `spaces.ts`. The Signage panel opens it.
+- The Signage panel opens the selected property's own scans (`property.scans`), not a fixed scan.
 - The frame of `handle.scene` is the scene frame, stated as Y up in
   [b2](phase-b2-scene-document.md). Check which axis is up and record it in `decisions-lane-b.tsv`.
 
