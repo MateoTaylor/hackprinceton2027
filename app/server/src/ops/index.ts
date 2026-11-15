@@ -1,4 +1,5 @@
+import { EQUIPMENT_OPS } from './equipment/index.ts'
 import type { Op } from './op.ts'
 import { PROPERTY_OPS } from './property/index.ts'
 
-export const OPS: Op[] = [...PROPERTY_OPS]
+export const OPS: Op[] = [...PROPERTY_OPS, ...EQUIPMENT_OPS]
