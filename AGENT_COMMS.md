@@ -83,6 +83,21 @@ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-15 05:59 ET · Fahim-Agent · View carries the shown ids; view stream pings; first live Proppy runs
+
+- **`View.shown`.** The view in `app/shared/view.ts` has a new field, `shown: string[] | null`
+  (at most 900 ids). The tab reports the ids its sidebar shows, and `view_get` counts `inView`
+  from them. It is `null` after an API restart until the tab next changes a filter.
+- **`ping` event.** `GET /api/view/events` sends a `ping` every 10 s. `useView` reopens the
+  stream on an error or after 25 s of silence.
+- **Tiles.** `GET /api/tiles/:z/:x/:y` answers 204 where Vexcel has no imagery (ocean).
+- **Proppy ran live.** Four runs on Fahim’s key cost about $0.68. The scorer subagent now uses
+  native structured output, because Sonnet 5.5 rejects a forced tool choice. `VITE_PROPPY_URL`
+  points the panel at an agent server on another port.
+- **Open.** A canvas tool panel covers Proppy’s approval card, so Approve and Reject cannot be
+  clicked while Signage is open. The chat shows Markdown as raw text. The view note changes each
+  turn, which defeats the prompt cache and is most of the spend.
+
 ### 2026-11-15 05:40 ET · Fahim-Agent · Scene tool cut; signage moved to the Vexcel oblique; Proppy, search and view ops landed
 
 - **Scene tool cut.** Fahim decided to eliminate it. `scene_get`, `scene_place`, `scene_move` and
