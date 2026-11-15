@@ -7,7 +7,8 @@ qwen_test sofa_pillows case it recoloured the painting and the grey pillows). So
 - a recolour pastes only the pixels of the named colour (colour.region), so other parts stay;
 - the photo's own shadows and glows stay; checks.py reports where the model changed them;
 - the tone match is measured on the picture away from the thing. Measured at the thing's edge, the
-  blur would carry the new colour into the gap and pull the result back toward the old colour.
+  blur would carry the new colour into the gap and pull the result back toward the old colour. It is
+  held within TONE_BAND of its median, so the model's relighting next to the thing is not carried in.
 """
 import numpy as np
 from PIL import Image, ImageFilter
@@ -17,6 +18,7 @@ from edit_agent.change import colour
 from run_qwen import membrane
 
 FORM_GROW = 0.10          # a new outline may reach this share of the old box's size past the old box
+TONE_BAND = 15.0          # levels (0-255) the tone match may differ from its median drift
 
 
 def _bool(path):
@@ -87,6 +89,12 @@ def paste(view, raw, mask, target, preset, run, outline=None):
         if near.mean() < 0.85:
             blur = ImageFilter.GaussianBlur(3)
             gap = np.asarray(photo.filter(blur), np.float32) - np.asarray(out.filter(blur), np.float32)
+            # The tone match corrects the image model's drift over the whole picture. Where it relit the
+            # room next to the thing (a dark door darkens the hall), the gap is that light, not drift, and
+            # carried inside it undid the change (door-walnut: +135 levels, a grey door). So the gap is
+            # held to a band around its median away from the thing.
+            med = np.median(gap[~near], axis=0)
+            gap = np.clip(gap, med - TONE_BAND, med + TONE_BAND)
             fix = membrane(gap, near)
             out = Image.fromarray(np.clip(np.asarray(out, np.float32) + fix, 0, 255).astype(np.uint8))
             shift = round(float(np.abs(fix[area]).mean()), 2)

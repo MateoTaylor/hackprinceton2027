@@ -6,6 +6,7 @@
 finish or style changes, with no colour rule. `form` small: the outline may change a little (a more
 modern lamp). `keep` names parts of the thing itself that stay as they are; never the room.
 """
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -53,9 +54,41 @@ def label_of(target):
     return labels[0] if len(labels) == 1 else (target.get("item") or (labels[0] if labels else "thing"))
 
 
+# The VLM misread two suite requests: "light oak with a strong grain" as a recolor from "dark wood",
+# and "red tartan plaid" as a change of form. These words settle both.
+MATERIAL = re.compile(r"\b(wood(en)?|oak|walnut|maple|pine|teak|mahogany|birch|bamboo|marble|granite|quartz|"
+                      r"terrazzo|tiles?|subway|brick|stone|slate|concrete|leather|velvet|linen|wool|suede|rattan|"
+                      r"wicker|metal|brass|copper|steel|chrome|glass|rubber|grain|veins?|veined)\b", re.I)
+NEW_LOOK = re.compile(r"\b(modern|contemporary|rustic|vintage|traditional|minimalist|minimal|industrial|"
+                      r"mid-century|farmhouse|retro|classic|fancier|simpler|sleeker|rounder|style|design|shape)\b", re.I)
+
+
+def settle(block, request, target):
+    """The VLM's change block with two fixed rules on top. Returns (block, the rules that changed it).
+    - A material, pattern or picture word in what it becomes (`to`, or the request less the thing's own
+      name) makes it a restyle: a recolor pastes only the old colour's pixels and keeps its pattern.
+    - `form` is small only when the request asks for a new style, look or design."""
+    from edit_agent.change.checks import BOLD, PICTURE
+    name = f"{label_of(target)} {target.get('item') or ''}".lower()
+    words = " ".join(w for w in re.findall(r"[\w-]+", request.lower()) if w not in name.split())
+    out, rules = dict(block), []
+    new = f"{block['to']} {words}"
+    if block["style"] == "recolor" and any(r.search(new) for r in (MATERIAL, BOLD, PICTURE)):
+        out["style"] = "restyle"
+        rules.append("restyle: a material, pattern or picture is named")
+    wanted = "small" if NEW_LOOK.search(request) else "none"
+    if block["form"] != wanted:
+        out["form"] = wanted
+        rules.append(f"form {wanted}: the request {'asks' if wanted == 'small' else 'does not ask'} for a new look")
+    return out, rules
+
+
 def describe(server, preset, crop, request, target):
-    """Fill the change block with one VLM question about a close-up of the thing."""
+    """Fill the change block with one VLM question about a close-up of the thing, then `settle` it."""
     from edit_agent.steps import look
     text = SPEC_PROMPT.format(request=request, label=label_of(target), where="")
     answer, info = look(server, preset, [crop], text, SPEC_SCHEMA, max_tokens=200)
-    return Change.model_validate(answer).block(), info
+    block, rules = settle(Change.model_validate(answer).block(), request, target)
+    if rules:
+        info = {**info, "vlm_block": answer, "rules": rules}
+    return block, info

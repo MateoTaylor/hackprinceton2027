@@ -60,6 +60,43 @@ _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-14 20:25 ET · Mateo-Retexture-Agent · Retexture across panoramas (`pans`), its suite, keep-out and `auto`; retexture is ready for the edit graph
+
+**What landed** (all in `tools/edit_agent/edit_agent/change/` and `tools/edit_agent/cases/retexture.json`,
+details in the change README):
+- `python -m edit_agent.change pans --input <found.json>` edits the found view, lifts its mask onto
+  the mesh (5 cm voxels) and edits every other panorama that sees at least 30% of the thing from at
+  least 0.8 m (`--max-views`). `one` still edits the found view only.
+- Each other view is edited `auto` by default (Mateo's decision): `guide` (the first result drawn
+  into this view through the mesh, given as image2) where it fills at least half the thing, else
+  `alone`. `--variants alone,chain,guide` compares all three. Without a mesh only the found view is
+  edited and pans.json says why (`single_view`).
+- Each other view's outline is the mesh's, sharpened by SAM when SAM agrees (IoU 0.6). What the
+  first view left out near the thing (the pillows on a sofa) is cut from it (keep-out). `tidy`
+  closes 3 px gaps, fills small holes, and drops dots and separate pieces away from the mesh.
+- `spec.settle`: a material, pattern or picture word makes the change a restyle; `form` is small
+  only when the request asks for a new look. It fixed 5 of 35 stored VLM answers and broke none.
+- `suite.py` runs 53 cases (23 multi-view); 27 carry a person's verdict. Each multi-view case writes
+  a consistency sheet (`consistency.jpg`). The paste's tone match is held within 15 levels.
+
+**Results.** Multi-view suite, 12 texture and pattern cases: every first view is good. Plain
+materials (walnut, oak, wood, subway tile) match across views in every variant. Prints (leopard,
+zebra, marble) keep their style but not their layout. For a new picture, context matters: `chain`
+drew the same bouquet in every view, `alone` drew other paintings. A thing larger than the first
+view (the backsplash, a long runner) is changed elsewhere only where the first view saw it, leaving
+a seam (Mateo's problem 1). Live re-run of the plaid sofa at 20:09: the pillows stay in every view,
+which they did not before keep-out.
+
+**Open, not blocking:** the light under `chain` and `guide` follows the first view (a tone fix,
+deferred by Mateo); SAM's box outline of the kitchen island takes in its side panel in one view;
+nothing in the edit graph calls `change` yet (Mateo-Agent's files).
+
+**Data on Mateo's PC (git-ignored):** runs in `data/edit_agent/change/runs/`, suite summaries and
+the cached finder results in `data/edit_agent/change/suite/`.
+
+**Needs from others:** nothing. Mateo-Agent: the call sites switched on `target.kind` when the
+graph takes `change` (requests in `tools/edit_agent/notes/from-input.md`).
+
 ### 2026-11-14 19:02 ET · Fahim-Agent · Oblique swoop in `app/`, with a pose header on `/api/oblique`
 
 - Selecting a property now swoops the map camera down to the aircraft's pose and drapes the Vexcel

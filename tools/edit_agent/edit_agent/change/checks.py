@@ -13,6 +13,8 @@ still visible. Here:
 - form_changed: the new outline is further from the old one than "a small change of form".
 - wrong_picture: the image model returned another picture.
 """
+import re
+
 import numpy as np
 from PIL import Image
 
@@ -25,6 +27,8 @@ LIMITS = {
     "unchanged_inside": 5.0,       # mean change inside the paste below this: nothing happened
     "hue_off": 35.0,               # degrees between the colour that landed and the asked colour
     "old_left": 0.15,              # share of the recoloured part that still has the old colour
+    "old_outside": 0.025,          # old colour connected to the thing just past its mask, as a share of the paste
+                                   # (suite: blanket 0.047, thin pillow edge 0.078, rug under glass 0.029; good 0 to 0.01)
     "shading": 0.55,               # correlation of the thing's light and dark pattern, photo vs result
     "effect_share": 0.02,          # share of the picture next to the thing where the model changed the light.
                                    # A removal's limit is 0.002, but a change always keeps the photo's light, and
@@ -50,10 +54,39 @@ def _corr(a, b):
     return round(float((a * b).sum() / den), 3) if den > 0 else None
 
 
-def _lightness(img, radius=0):
-    """CIELAB lightness, blurred by about `radius` pixels (three box blurs)."""
+def _lightness(img, radius=0, within=None):
+    """CIELAB lightness, blurred by about `radius` pixels (three box blurs). With `within` (a bool mask)
+    the blur averages only those pixels, so what lies outside them does not leak in."""
     lab = colour.to_lab(np.asarray(img.convert("RGB")))[..., 0]
-    return metrics.smooth(lab, max(1, round(radius))) if radius else lab
+    if not radius:
+        return lab
+    r = max(1, round(radius))
+    if within is None:
+        return metrics.smooth(lab, r)
+    m = within.astype(np.float32)
+    return metrics.smooth(lab * m, r) / np.maximum(metrics.smooth(m, r), 1e-3)
+
+
+def old_outside(photo, result, item, paste, from_info, reach):
+    """Pixels of the old colour just outside the thing's mask, connected to the thing through old-colour
+    pixels and still that colour in the result, as a share of the pasted area. The finder's mask can stop
+    short (a blanket's end past a tray, a rug seen through a glass table), and the VLM's outlined
+    close-up cannot see what lies outside the outline. Only for a chromatic old colour: a chroma floor of
+    10 keeps grey blinds from counting as a "dark teal" armchair."""
+    if "hue" not in from_info:
+        return None
+    h0, floor = from_info["hue"], max(0.5 * from_info["chroma"], 10.0)
+    hue, chroma = colour.hue_chroma(colour.to_lab(np.asarray(photo)))
+    rhue, rchroma = colour.hue_chroma(colour.to_lab(np.asarray(result)))
+    ok = ((colour.hue_gap(hue, h0) < 25) & (chroma >= floor) & (colour.hue_gap(rhue, h0) < 25) & (rchroma >= floor)
+          & metrics.grown(item, reach) & ~item)
+    reached = metrics.grown(item, 1) & ok
+    for _ in range(reach):
+        more = metrics.grown(reached, 1) & ok
+        if more.sum() == reached.sum():
+            break
+        reached = more
+    return round(float(reached.sum() / max(1, paste.sum())), 3)
 
 
 def measure(view, raw, edited, mask, paste_mask, target, preset, run, form=None, colour_info=None):
@@ -70,12 +103,21 @@ def measure(view, raw, edited, mask, paste_mask, target, preset, run, form=None,
     ys, xs = np.nonzero(item)
     span = ((xs.max() - xs.min()) + (ys.max() - ys.min())) / 2
     sigma = max(2.0, 0.04 * span)                             # the light on the thing, not its texture
-    scores["shading"] = _corr(_lightness(photo, sigma)[inner], _lightness(result, sigma)[inner])
-    if target["change"]["style"] == "recolor":                # a recolour keeps the fine light and dark detail too
+    recolor = target["change"]["style"] == "recolor"
+    # A recolour pastes only the named colour, so the blur is taken over those pixels alone. Blurred with
+    # the pattern it kept, yellow to blue on a white-patterned rug measured "how much white is near" (0.14)
+    # and not the light on the rug (0.79 over the blue alone; suite, 2026-11-14). Not for a grey, white or
+    # black old colour: its pixels are chosen by lightness, so the blur over them alone has little light left.
+    within = inner if recolor and "hue" in (colour_info or {}) else None
+    scores["shading"] = _corr(_lightness(photo, sigma, within)[inner], _lightness(result, sigma, within)[inner])
+    if recolor:                                               # a recolour keeps the fine light and dark detail too
         fine = lambda im: _lightness(im, 1.0) - _lightness(im, 4.0)
         scores["detail"] = _corr(fine(photo)[inner], fine(result)[inner])
         from_info = {k: v for k, v in (colour_info or {}).items() if k in ("hue", "chroma")}
         scores.update(colour.landed(result, paste, target["change"]["to"], from_info))
+        left = old_outside(photo, result, item, paste, from_info, reach=round(0.03 * max(photo.size)))
+        if left is not None:
+            scores["old_outside"] = left
     effect, info = metrics.effect_region(photo, out, item, preset.limits)
     Image.fromarray(effect.astype(np.uint8) * 255).save(run / "effect.png")
     scores.update(effect_share=info["effect_share"], **{k: info[k] for k in ("effect_sign", "effect_box") if k in info})
@@ -186,6 +228,23 @@ def _issue(kind, severity, source, evidence, region=None):
             "repair": REPAIRS[kind]}
 
 
+PICTURE = re.compile(r"\b(painting|print|poster|artwork|art|picture|photo(graph)?|canvas|drawing|mural)s?\b", re.I)
+BOLD = re.compile(r"\b(zebra|leopard|cheetah|tiger|stripe[sd]?|striped|plaid|tartan|gingham|check(ed|ered)?|polka|"
+                  r"chevron|herringbone|floral|geometric|houndstooth|ikat|paisley|argyle|veins?|veined)\b", re.I)
+
+
+def new_picture(target):
+    """A restyle whose light and dark is its picture or pattern: a new painting or print, or a bold
+    pattern such as zebra stripes. The blur that keeps the light on a plain thing keeps the stripes,
+    so the shading check compares two patterns, not the light, and does not apply (painting-new 0.30
+    and rug-zebra -0.26 on good results, 2026-11-14)."""
+    change = target["change"]
+    if change["style"] != "restyle":
+        return False
+    return bool(PICTURE.search(target.get("item") or target.get("label") or "")
+                or BOLD.search(change.get("to", "")))
+
+
 def flags(scores, findings, target, limits=LIMITS):
     """The issues worth a second pass, most severe first."""
     out, change = [], target["change"]
@@ -203,13 +262,20 @@ def flags(scores, findings, target, limits=LIMITS):
                           f"the VLM sees it as {findings.get('looks', '?')}", box))
     elif findings.get("old_seen") == "yes":
         out.append(_issue("not_applied", 2, "vlm", f"the VLM still sees {change['from']} on it", box))
-    if scores.get("shading") is not None and scores["shading"] < limits["shading"]:
+    if scores.get("old_outside", 0) > limits["old_outside"]:
+        out.append(_issue("not_applied", 2, "metric", f"the old colour goes on past the thing's outline "
+                          f"({scores['old_outside']:.1%} of the recoloured area): the finder's mask missed part of it", box))
+    if scores.get("shading") is not None and scores["shading"] < limits["shading"] and not new_picture(target):
         out.append(_issue("shading_changed", 2, "metric", f"the light and dark on it follow the photo's at only {scores['shading']}", box))
     elif findings.get("natural") == "no":
-        out.append(_issue("shading_changed", 2, "vlm", "the VLM says it looks flat, pasted on or lit differently", box))
+        # A note only. Asked about the untouched photo with the same crop, the VLM said "not natural" in 10 of
+        # 19 cases, and it changed its answer on the same picture between asks (suite, 2026-11-14).
+        out.append(_issue("shading_changed", 1, "vlm", "the VLM says it looks flat, pasted on or lit differently "
+                          "(it says so of half the untouched photos too)", box))
     if scores.get("effect_share", 0) > limits["effect_share"]:
         brighter = scores.get("effect_sign", 0) > 0
-        out.append(_issue("shadow_left" if brighter else "light_left", 2, "metric",
+        # A warning (severity 1): the paste keeps the photo's own light, as Mateo decided.
+        out.append(_issue("shadow_left" if brighter else "light_left", 1, "metric",
                           f"the image model made the area next to it {'brighter' if brighter else 'darker'} "
                           f"({scores['effect_share']:.1%} of the picture); the photo's own light there was kept",
                           scores.get("effect_box")))
