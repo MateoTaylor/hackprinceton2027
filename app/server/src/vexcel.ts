@@ -1,7 +1,8 @@
 import { z } from 'zod'
-import type { Direction, ObliqueIndex } from '../../shared/api.ts'
+import type { Direction, LngLat, ObliqueIndex, ObliquePose } from '../../shared/api.ts'
 import type { Property } from '../../shared/property.ts'
 import type { Cached, DiskCache } from './cache.ts'
+import { readObliquePose } from './obliquePose.ts'
 
 const BASE = 'https://api.vexcelgroup.com/v2'
 // The fallback chain tools/smoke/smoke.ts uses: the API picks the best imagery available.
@@ -25,7 +26,9 @@ export class UpstreamError extends Error {
   }
 }
 
-type UpstreamRequest = { path: string; query?: Record<string, string>; json?: Record<string, unknown> }
+// A background request waits behind every other one: map tiles and sidebar thumbnails, which no one
+// waits on the way they wait on a property's photo.
+type UpstreamRequest = { path: string; query?: Record<string, string>; json?: Record<string, unknown>; background?: true }
 
 const Ring = z.array(z.array(z.number()))
 const Geometry = z.discriminatedUnion('type', [
@@ -46,10 +49,6 @@ const CollectionsResponse = z.object({
 })
 
 type Geometry = z.infer<typeof Geometry>
-const ring = (points: number[][]) => `(${points.map((p) => p.join(' ')).join(',')})`
-const polygon = (rings: number[][][]) => `(${rings.map(ring).join(',')})`
-const toWkt = (g: Geometry) =>
-  g.type === 'Polygon' ? `POLYGON${polygon(g.coordinates)}` : `MULTIPOLYGON(${g.coordinates.map(polygon).join(',')})`
 
 type Bounds = { west: number; south: number; east: number; north: number }
 const boundsWkt = ({ west, south, east, north }: Bounds) =>
@@ -80,18 +79,30 @@ export function squareBounds(b: Bounds) {
   return squareAround((b.west + b.east) / 2, lat, Math.max(width, height) / 2)
 }
 
-// A property's footprint: the exact outline for oriented extracts, and its bounds for the rest.
-type Outline = { wkt: string; bounds: Bounds }
+// The client frames the property's bounds grown by FOCUS_MARGIN at rest, centred on the pin, and the
+// photo is a ground square reaching REACH from the pin, so at rest the photo covers the whole map and
+// no edge of it shows against the tiles it does not line up with. Vexcel's time grows with the
+// ground it reads, not the pixels it returns, so REACH is what a first click can wait for at full
+// resolution, since `downsample` is slower and visibly soft. The square needs
+// only the pin, so the extract starts without waiting for the parcel. A parcel too big for it is
+// framed tighter by the client's cover fit.
+const FOCUS_MARGIN = 10
+const REACH = 80
 
-// `property/extract` returns one feature per capture, unsorted even with `latest=true`. A point with
-// no parcel gets a 100 m square around it.
-export function newestOutline(parcel: z.infer<typeof ParcelResponse> | null, { lon, lat }: Property): Outline {
+export function obliqueFocus(b: Bounds): LngLat[] {
+  const lonScale = M_PER_DEG_LAT * Math.cos((((b.south + b.north) / 2) * Math.PI) / 180)
+  const [dLon, dLat] = [FOCUS_MARGIN / lonScale, FOCUS_MARGIN / M_PER_DEG_LAT]
+  const [west, south, east, north] = [b.west - dLon, b.south - dLat, b.east + dLon, b.north + dLat]
+  return [[west, north], [east, north], [east, south], [west, south]]
+}
+
+// The bounds of a property's newest parcel. `property/extract` returns one feature per capture,
+// unsorted even with `latest=true`. A point with no parcel gets a 100 m square around it.
+export function newestBounds(parcel: z.infer<typeof ParcelResponse> | null, { lon, lat }: Property) {
   const newest = parcel?.features.toSorted((a, b) =>
     (b.properties['metadata.ortho-date-estimate'] ?? '').localeCompare(a.properties['metadata.ortho-date-estimate'] ?? ''),
   )[0]
-  if (newest) return { wkt: toWkt(newest.geometry), bounds: boundsOf(newest.geometry) }
-  const bounds = squareAround(lon, lat, 50)
-  return { wkt: boundsWkt(bounds), bounds }
+  return newest ? boundsOf(newest.geometry) : squareAround(lon, lat, 50)
 }
 
 // One capture shows the building from every side on the same day, so only the newest collection
@@ -109,17 +120,24 @@ export function newestObliques({ features }: z.infer<typeof CollectionsResponse>
   return { collection: newest.collection, directions: [...new Set(directions)] }
 }
 
-function limiter(max: number) {
+// At most `max` tasks at once. Urgent tasks wait ahead of all others, so the one photo a
+// user is waiting for does not queue behind the dozens of map tiles a camera flight asks for.
+// Within each queue the newest waiter goes first: the property just clicked beats the ones the
+// cursor passed over, and the tiles in view beat the ones a flight has already left behind. A
+// finished task hands its slot straight to the next waiter, so nothing can take it in between.
+export function limiter(max: number) {
   let active = 0
-  const waiting: (() => void)[] = []
-  return async <T>(task: () => Promise<T>) => {
-    while (active >= max) await new Promise<void>((resolve) => waiting.push(resolve))
-    active++
+  const urgentQueue: (() => void)[] = []
+  const queue: (() => void)[] = []
+  return async <T>(task: () => Promise<T>, urgent: boolean) => {
+    if (active >= max) await new Promise<void>((resolve) => (urgent ? urgentQueue : queue).push(resolve))
+    else active++
     try {
       return await task()
     } finally {
-      active--
-      waiting.shift()?.()
+      const next = urgentQueue.pop() ?? queue.pop()
+      if (next) next()
+      else active--
     }
   }
 }
@@ -181,7 +199,7 @@ export function createVexcel({ apiKey, cache, fetch = globalThis.fetch }: { apiK
         if (res.status === 404) return { status: 404 }
         throw new UpstreamError(res.status)
       }
-    })
+    }, !request.background)
 
   // A 200 that is not an image is an upstream error in disguise, so it is neither cached nor served.
   const image = (key: string, request: UpstreamRequest) =>
@@ -212,9 +230,9 @@ export function createVexcel({ apiKey, cache, fetch = globalThis.fetch }: { apiK
 
   // Parsed once per property and kept for the life of the process. A failed lookup is forgotten so
   // the next request retries it.
-  const outlines = new Map<string, Promise<Outline>>()
-  function outline(property: Property) {
-    let pending = outlines.get(property.id)
+  const parcels = new Map<string, Promise<Bounds>>()
+  function parcelBounds(property: Property) {
+    let pending = parcels.get(property.id)
     if (!pending) {
       pending = json(
         `parcel/${property.id}`,
@@ -223,21 +241,21 @@ export function createVexcel({ apiKey, cache, fetch = globalThis.fetch }: { apiK
           query: { wkt: `POINT(${property.lon} ${property.lat})`, srid: '4326', layer: LAYERS, latest: 'true', include: 'precomputed' },
         },
         ParcelResponse,
-      ).then((parcel) => newestOutline(parcel, property))
-      pending.catch(() => outlines.delete(property.id))
-      outlines.set(property.id, pending)
+      ).then((parcel) => newestBounds(parcel, property))
+      pending.catch(() => parcels.delete(property.id))
+      parcels.set(property.id, pending)
     }
     return pending
   }
 
-  // Asks with the parcel's bounds, not its outline, to keep the query string short.
+  // Asks about a small square around the pin, so the lookup need not wait for the parcel.
   async function obliqueCoverage(property: Property) {
     const collections = await json(
-      `oblique-coverage/${property.id}-bounds`,
+      `oblique-coverage/${property.id}-point`,
       {
         path: 'oriented/collections',
         query: {
-          wkt: boundsWkt((await outline(property)).bounds),
+          wkt: boundsWkt(squareAround(property.lon, property.lat, 50)),
           srid: '4326',
           layer: 'urban',
           'product-type': 'oblique',
@@ -253,6 +271,7 @@ export function createVexcel({ apiKey, cache, fetch = globalThis.fetch }: { apiK
     tile: (z: number, x: number, y: number) =>
       image(`tiles/urban/${z}/${x}/${y}`, {
         path: 'ortho/wmts',
+        background: true,
         query: {
           service: 'wmts',
           request: 'getTile',
@@ -269,8 +288,9 @@ export function createVexcel({ apiKey, cache, fetch = globalThis.fetch }: { apiK
     thumb: async (property: Property) =>
       image(`thumb/${property.id}-square-256`, {
         path: 'ortho/extract',
+        background: true,
         json: {
-          wkt: boundsWkt(squareBounds((await outline(property)).bounds)),
+          wkt: boundsWkt(squareBounds(await parcelBounds(property))),
           srid: 4326,
           layer: LAYERS,
           'buffer-meter': 10,
@@ -284,25 +304,30 @@ export function createVexcel({ apiKey, cache, fetch = globalThis.fetch }: { apiK
       directions: (await obliqueCoverage(property))?.directions ?? [],
     }),
 
-    // Full resolution: about 1,900 px and 0.7-1 MB. Vexcel takes the same 1-2 s at downsample=2
-    // (476 px), so the smaller frame saves no time and looks soft in a large photo panel.
-    oblique: async (property: Property, direction: Direction): Promise<Cached> => {
+    // One angled photo of the ground square REACH around the pin, with its pose, or a null pose when
+    // its XMP is unreadable. The parcel lookup runs alongside, since only the pose needs it, and a
+    // failed lookup frames the pin as a point with no parcel would, so the photo still shows. The key
+    // names the reach, so photos cut to another extent are fetched again and the old ones age out.
+    oblique: async (property: Property, direction: Direction): Promise<{ photo: Cached; pose: ObliquePose | null }> => {
+      const pin: LngLat = [property.lon, property.lat]
+      const bounds = parcelBounds(property)
       const coverage = await obliqueCoverage(property)
-      if (!coverage?.directions.includes(direction)) return { status: 404 }
-      return image(`oblique/${property.id}/${coverage.collection}/${direction}`, {
+      if (!coverage?.directions.includes(direction)) return { photo: { status: 404 }, pose: null }
+      const photo = await image(`oblique/${property.id}/${coverage.collection}/${direction}-r${REACH}`, {
         path: 'oriented/extract',
         json: {
-          wkt: (await outline(property)).wkt,
+          wkt: boundsWkt(squareAround(...pin, REACH)),
           srid: 4326,
           layer: 'urban',
           'product-type': `oblique-${direction}`,
           collection: coverage.collection,
           rotation: 'natural',
-          'buffer-meter': 10,
           crop: 'bbox',
           'image-format': 'jpeg',
         },
       })
+      if (photo.status !== 200) return { photo, pose: null }
+      return { photo, pose: readObliquePose(photo.body, obliqueFocus(await bounds.catch(() => newestBounds(null, property))), pin) }
     },
   }
 }
