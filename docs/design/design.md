@@ -45,7 +45,7 @@ Rules:
   | --- | --- | --- |
   | Good | `#148A6033` | `#3DBB8C` |
   | Mid | `#B07F2233` | `#D9A94A` |
-  | Bad | `#B23B3333` | `#E0675E` |
+  | Bad | `#B23B3333` | `#E0675E` (`--color-score-bad-text`, also the colour of error text) |
 
 - **Separate by fill and shadow.** Anything floating over the map uses its fill plus `--shadow`.
   Borders are never white or translucent white. `--border` appears only as a thin structural
