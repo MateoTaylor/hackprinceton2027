@@ -1,12 +1,14 @@
 // Builds data/propstar/area.duckdb, the Overture streets and places around every property, so the
 // area ops never call out at request time. Run it with `pnpm build:area` after `pnpm build:data`.
-// It needs no key. A stopped run resumes: every (cell, theme) already in `cells` is skipped.
+// It needs no key. A stopped run resumes: every (cell, theme) already in `cells` is skipped. Name
+// property ids to load only their cells first, such as the demo's:
+//   pnpm build:area commercial-248243 residential-194370845
 //
 // Tables:
 //   segments  id, name, class, geom, geom_utm               Overture road segments
 //   places    id, name, basic_category, taxonomy, geom, geom_utm
 //   cells     cell_id, theme ('segment' | 'place'), rows, seconds   one row per loaded cell
-//   covered   property_id                                    properties whose every cell is loaded
+// A property is covered when every cell coverCells gives it is in `cells` for both themes.
 // `geom` is WGS84 lon/lat. `geom_utm` is EPSG:32611 metres, which every property falls in.
 import { DuckDBInstance } from '@duckdb/node-api'
 import { mkdir } from 'node:fs/promises'
@@ -55,15 +57,16 @@ await connection.run(`
     geom GEOMETRY, geom_utm GEOMETRY
   );
   CREATE TABLE IF NOT EXISTS cells (cell_id VARCHAR, theme VARCHAR, rows INTEGER, seconds DOUBLE, PRIMARY KEY (cell_id, theme));
-  CREATE TABLE IF NOT EXISTS covered (property_id VARCHAR PRIMARY KEY);
   ATTACH ${quote(PROPSTAR_PATH)} AS propstar (READ_ONLY);
 `)
 
-const properties = (await connection.runAndReadAll('SELECT id, lat, lon FROM propstar.properties ORDER BY id')).getRowObjectsJS() as {
+const only = new Set(process.argv.slice(2))
+const properties = ((await connection.runAndReadAll('SELECT id, lat, lon FROM propstar.properties ORDER BY id')).getRowObjectsJS() as {
   id: string
   lat: number
   lon: number
-}[]
+}[]).filter(({ id }) => !only.size || only.has(id))
+if (only.size && properties.length !== only.size) throw new Error('A named property id is not in propstar.duckdb.')
 const cells = coverCells(properties)
 const loaded = new Set(
   (await connection.runAndReadAll('SELECT cell_id, theme FROM cells')).getRowsJS().map(([cell, theme]) => `${cell} ${theme}`),
@@ -96,8 +99,7 @@ for (const cell of cells) {
   }
 }
 
-await connection.run('INSERT INTO covered SELECT id FROM propstar.properties ON CONFLICT DO NOTHING')
-for (const table of ['segments', 'places', 'cells', 'covered']) {
+for (const table of ['segments', 'places', 'cells']) {
   const [[count]] = (await connection.runAndReadAll(`SELECT count(*) FROM ${table}`)).getRowsJS()
   console.log(`${table} ${count} rows`)
 }

@@ -76,6 +76,17 @@ const ExtractResponse = z.object({
   ),
 })
 
+const DetectResponse = z.object({
+  features: z.array(
+    z.object({
+      properties: z.object({ label: z.string(), detections: z.array(z.object({ bbox: z.string(), confidence: z.number() })) }),
+    }),
+  ),
+})
+
+// One object `detect` found: its label, the model's confidence and its box as a WKT polygon.
+export type Detection = { label: string; confidence: number; bboxWkt: string }
+
 const attributesOf = (record: Record<string, unknown>) =>
   Object.entries(record).filter(
     (entry): entry is [string, Attribute] =>
@@ -396,6 +407,34 @@ export function createVexcel({ apiKey, cache, fetch = globalThis.fetch }: { apiK
         ExtractResponse,
       )
       return answer ? extractFeatures(answer) : []
+    },
+
+    // Every object matching one of `labels` that Vexcel's open-vocabulary model finds on the ortho
+    // of a ground square reaching `halfM` from the point. It runs live, so a call takes seconds the
+    // first time; answers are cached by request. Keep the square small: Vexcel downsamples a large
+    // area without saying so.
+    //   const cars = await vexcel.detect(lat, lon, { labels: ['car'], halfM: 40, threshold: 0.5 })
+    detect: async (
+      lat: number,
+      lon: number,
+      { labels, halfM, threshold }: { labels: readonly string[]; halfM: number; threshold: number },
+    ): Promise<Detection[]> => {
+      const wkt = boundsWkt(squareAround(lon, lat, halfM))
+      const body = {
+        wkt,
+        srid: 4326,
+        'buffer-meter': 0,
+        images: [{ endpoint: 'ortho/extract', request: { layer: LAYERS, srid: 4326, wkt, crop: 'bounding_box' } }],
+        'model-input': {
+          elements: labels.map((label) => ({ label, model: 'sam3', 'detection-threshold': threshold })),
+          include: ['bbox', 'confidence'],
+        },
+      }
+      const key = createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 32)
+      const answer = await json(`detect/${key}`, { path: 'elements/detect', json: body }, DetectResponse)
+      return (answer?.features ?? []).flatMap(({ properties: { label, detections } }) =>
+        detections.map(({ bbox, confidence }) => ({ label, confidence, bboxWkt: bbox })),
+      )
     },
 
     obliqueIndex: async (property: Property): Promise<ObliqueIndex> => ({
