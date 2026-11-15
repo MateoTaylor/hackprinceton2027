@@ -66,6 +66,38 @@ test('files stay out of reach', async () => {
   await rejects("SELECT * FROM 'search.duckdb.wal'", /^The query failed while it ran\.$|^Catalog Error/)
 })
 
+test('catalog functions and views that reveal paths are refused', async () => {
+  await rejects('SELECT * FROM duckdb_databases()', /`duckdb_databases/)
+  await rejects('SELECT path FROM main.duckdb_databases()', /`duckdb_databases/)
+  await rejects('SELECT * FROM duckdb_settings()', /`duckdb_settings/)
+  await rejects('SELECT * FROM pragma_database_list', /`pragma_database_list`/)
+  await rejects('SELECT * FROM pragma_table_info(\'search\')', /`pragma_table_info/)
+  await rejects('SELECT * FROM pg_settings', /`pg_settings`/)
+  await rejects('SELECT * FROM sqlite_master', /`sqlite_master`/)
+  await rejects('SELECT * FROM information_schema.tables', /`tables`/)
+  await rejects('SELECT (SELECT count(*) FROM duckdb_tables()) FROM search', /`duckdb_tables/)
+})
+
+test('settings functions are refused', async () => {
+  await rejects("SELECT current_setting('temp_directory')", /`current_setting`/)
+  await rejects("SELECT id FROM search WHERE current_setting('home_directory') IS NOT NULL", /`current_setting`/)
+  await rejects("SELECT getvariable('x')", /`getvariable`/)
+})
+
+test('SQL run from a string, SHOW and DESCRIBE are refused', async () => {
+  await rejects("SELECT * FROM query('SELECT * FROM duckdb_databases()')", /`query\(\)`/)
+  await rejects("SELECT * FROM query_table('pg_settings')", /`query_table\(\)`/)
+  await rejects('SELECT * FROM (SHOW DATABASES)', /show statement/)
+  await rejects('SELECT * FROM (DESCRIBE search)', /show statement/)
+})
+
+test('a CTE cannot shadow a catalog name, and CTEs, range and unnest still work', async () => {
+  await rejects('WITH pragma_database_list AS (SELECT 1) SELECT * FROM pragma_database_list', /CTE named/)
+  const result = await search.query('WITH t AS (SELECT id FROM search WHERE stories < 2) SELECT t.id, r.range FROM t, range(1) r ORDER BY t.id')
+  assert.deepEqual(result.rows, [['commercial-0', 0], ['commercial-1', 0]])
+  assert.deepEqual((await search.query('SELECT unnest([1, 2]) AS n')).rows, [[1], [2]])
+})
+
 test('an unbalanced bracket fails with the parser line', async () => {
   await rejects('SELECT (id FROM search', /^Parser Error: /)
 })
