@@ -107,7 +107,7 @@ function LookPage() {
     <main className="look-page">
       <header className="look-head">
         <h1>{DEFAULT_LOOK.label} look</h1>
-        <Legend inferredShare={0.62} />
+        <Legend />
       </header>
       <div className={only === null ? 'look-grid' : 'look-grid single'}>
         {cells.map(({ name, building }) => (

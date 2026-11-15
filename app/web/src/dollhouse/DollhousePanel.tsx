@@ -6,8 +6,6 @@ import { Dollhouse } from './Dollhouse.tsx'
 import './dollhouse.css'
 import { Legend } from './Legend.tsx'
 
-type BuildingResult = { inferredShare: number }
-
 const hasScan = ({ spaces }: BuildingModel['storeys'][number]) => spaces.some(({ source }) => source === 'scan')
 
 // The storey to open first: the lowest that holds scanned space, else the ground storey.
@@ -16,12 +14,12 @@ const firstStorey = ({ storeys }: BuildingModel) => (storeys.find(hasScan) ?? st
 // The Slice panel. ToolPanel draws its frame and passes the selected property. The building fills
 // the panel, with the legend and storey picker floating over it.
 export default function DollhousePanel({ property }: PanelProps) {
-  const op = useOp<BuildingResult, BuildingDetail>('building_get', { propertyId: property.id }, { detail: true })
+  const op = useOp<unknown, BuildingDetail>('building_get', { propertyId: property.id }, { detail: true })
   if (op.status !== 'ready') return <OpStatus state={op} />
-  return <DollhouseView key={property.id} building={op.detail.building} result={op.result} />
+  return <DollhouseView key={property.id} building={op.detail.building} />
 }
 
-function DollhouseView({ building, result }: { building: BuildingModel; result: BuildingResult }) {
+function DollhouseView({ building }: { building: BuildingModel }) {
   const [storeyIndex, setStoreyIndex] = useState<number | null>(() => firstStorey(building))
   const storeys = building.storeys.toSorted((a, b) => b.index - a.index)
 
@@ -30,7 +28,7 @@ function DollhouseView({ building, result }: { building: BuildingModel; result: 
       <div className="dollhouse-view">
         <Dollhouse building={building} storeyIndex={storeyIndex} />
       </div>
-      <Legend inferredShare={result.inferredShare} />
+      <Legend />
       <nav className="storey-picker" aria-label="Storeys">
         <button className="chip" aria-pressed={storeyIndex === null} onClick={() => setStoreyIndex(null)}>
           Whole building

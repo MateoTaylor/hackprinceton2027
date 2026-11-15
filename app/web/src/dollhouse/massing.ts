@@ -1,4 +1,4 @@
-import { EdgesGeometry, ExtrudeGeometry, Group, LineBasicMaterial, LineSegments, Matrix4, Mesh, Shape, ShapeGeometry, Vector2, Vector3, type Material } from 'three'
+import { EdgesGeometry, ExtrudeGeometry, LineBasicMaterial, LineSegments, Matrix4, Mesh, Shape, ShapeGeometry, Vector2, Vector3, type Material } from 'three'
 import type { BuildingModel, Ring } from '../../../server/src/model/building.ts'
 import { ringBounds } from '../../../server/src/model/geo.ts'
 import type { Look } from './looks.ts'
@@ -53,16 +53,4 @@ export function buildGround(building: BuildingModel, look: Look) {
   ground.name = 'ground'
   ground.receiveShadow = true
   return ground
-}
-
-// The building as grey prototype massing on a gridded ground, in scene coordinates.
-export function buildMassing(building: BuildingModel, look: Look) {
-  const group = new Group()
-  for (const part of massingParts(building)) {
-    const mesh = extrudeRing(part.ring, part.baseM, part.topM, protoMaterial(part.tone, look), look)
-    mesh.name = part.id
-    group.add(mesh)
-  }
-  group.add(buildGround(building, look))
-  return group
 }

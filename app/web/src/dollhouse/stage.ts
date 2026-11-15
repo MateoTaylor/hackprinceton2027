@@ -24,6 +24,7 @@ import {
 import { MapControls } from 'three/examples/jsm/controls/MapControls.js'
 import type { Look } from './looks.ts'
 import { toScene } from './massing.ts'
+import { viewDirection } from './view.ts'
 
 // One thing to draw. A layer with `onStorey` shows only while that storey is open.
 export type StageLayer = { id: string; object: Object3D; onStorey?: number }
@@ -37,7 +38,7 @@ export type StageHandlers = { onPick?: (pick: Pick) => void; onHover?: (pick: Pi
 
 const DEG = Math.PI / 180
 const CAMERA_DISTANCE_M = 1000
-const FRAME_PADDING = 1.1
+const FRAME_PADDING = 1.2
 const SUN = { bearingDeg: 160, elevationDeg: 55 }
 const SHADOW_MAP_PX = 2048
 const CLICK_SLOP_PX = 4
@@ -85,7 +86,7 @@ export function createStage(canvas: HTMLCanvasElement, look: Look) {
   scene.add(new HemisphereLight('#FFFFFF', look.palette.background, 1.2), sun, sun.target, layerRoot)
 
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 2 * CAMERA_DISTANCE_M)
-  const view = bearingVector(look.azimuthDeg, -look.elevationDeg)
+  const view = toScene(...viewDirection(look))
   const controls = new MapControls(camera, canvas)
   controls.enableRotate = false
   controls.zoomToCursor = true
@@ -201,22 +202,25 @@ export function createStage(canvas: HTMLCanvasElement, look: Look) {
     setHandlers(next: StageHandlers) {
       handlers = next
     },
-    // Centres the view on a box in scene coordinates and zooms until it fits, then sizes the
-    // sun's shadow to cover it.
-    frame(box: Box3) {
+    // Centres the view on a box in scene coordinates and zooms until it fits. `outer` is the
+    // widest box the wheel may zoom out to and the sun's shadow covers; it defaults to `box`.
+    //   stage.frame(focusBox(building, 3), viewBox(building))
+    frame(box: Box3, outer = box) {
+      const fit = (target: Box3) => {
+        const { min, max } = target.clone().applyMatrix4(camera.matrixWorldInverse)
+        return Math.min(camera.right / Math.max(-min.x, max.x), camera.top / Math.max(-min.y, max.y)) / FRAME_PADDING
+      }
       const centre = box.getCenter(new Vector3())
       aim(centre)
-      const { min, max } = box.clone().applyMatrix4(camera.matrixWorldInverse)
-      const halfWidth = Math.max(-min.x, max.x)
-      const halfHeight = Math.max(-min.y, max.y)
-      camera.zoom = Math.min(camera.right / halfWidth, camera.top / halfHeight) / FRAME_PADDING
-      controls.minZoom = camera.zoom / 4
+      camera.zoom = fit(box)
+      controls.minZoom = Math.min(camera.zoom, fit(outer)) / 2
       controls.maxZoom = camera.zoom * 20
       camera.updateProjectionMatrix()
 
-      const radius = box.getBoundingSphere(new Sphere()).radius
-      sun.target.position.copy(centre)
-      sun.position.copy(centre).addScaledVector(bearingVector(SUN.bearingDeg, SUN.elevationDeg), 2 * radius)
+      const shadowCentre = outer.getCenter(new Vector3())
+      const radius = outer.getBoundingSphere(new Sphere()).radius
+      sun.target.position.copy(shadowCentre)
+      sun.position.copy(shadowCentre).addScaledVector(bearingVector(SUN.bearingDeg, SUN.elevationDeg), 2 * radius)
       Object.assign(sun.shadow.camera, { left: -radius, right: radius, top: radius, bottom: -radius, near: 0.1, far: 4 * radius })
       sun.shadow.camera.updateProjectionMatrix()
       invalidate()
