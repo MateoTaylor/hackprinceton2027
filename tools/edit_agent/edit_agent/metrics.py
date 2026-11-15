@@ -2,7 +2,7 @@
 
   drift_outside   how much the image model changed pixels away from the item (it redraws the whole picture)
   change_inside   how much the finished edit differs from the original where the item was
-  border_change   tone difference just inside the paste border, where both pictures show the same background
+  border_step     how much the tone steps at the paste border, along the worst tenth of the border
   effect_share    how much of the picture is the item's effect: its shadow, reflection or glow, found from
                   where the image model changed the smooth brightness in one piece with the item
   effect_left     how much of that effect lies outside the pasted area, so is still in the picture
@@ -117,8 +117,13 @@ def change_map(before, after, gain=4.0):
     return heat(diff.mean(axis=2) * gain, 255.0)
 
 
-def measure(view_path, raw_path, edited_path, mask_path, paste_mask_path, effect_path=None):
+def measure(view_path, raw_path, edited_path, mask_path, paste_mask_path, effect_path=None, raw_from=None):
+    """`raw_from`: the picture the image model was given, when not the view. A second removal draws on the
+    first result, so its drift is measured against that. Against the view it also counted the first
+    redraw: a dresser pasted whole (drift 34) and then its lamp shade (2 more) read 40, over the limit,
+    though the second redraw had kept the picture."""
     view = Image.open(view_path).convert("RGB")
+    given = Image.open(raw_from).convert("RGB") if raw_from else view
     raw = Image.open(raw_path).convert("RGB").resize(view.size, Image.LANCZOS)
     edited = Image.open(edited_path).convert("RGB")
     item = np.asarray(Image.open(mask_path).convert("L")) > 127
@@ -129,16 +134,26 @@ def measure(view_path, raw_path, edited_path, mask_path, paste_mask_path, effect
         return np.asarray(img, np.float32)
 
     near = grown(item, round(0.02 * long_side))
-    blur = ImageFilter.GaussianBlur(3)                       # compare tones, not the texture the model redrew
-    step = max(2, round(0.015 * long_side))
-    band = shrunk(paste, step) & ~shrunk(paste, 2 * step) & ~near
     scores = {
-        "drift_outside": _mean(np.abs(pixels(view) - pixels(raw)), ~near),
+        "drift_outside": _mean(np.abs(pixels(given) - pixels(raw)), ~near),
         "change_inside": _mean(np.abs(pixels(view) - pixels(edited)), item),
-        "border_change": _mean(np.abs(pixels(view.filter(blur)) - pixels(edited.filter(blur))), band),
+        "border_step": 0.0,
         "mask_share": round(float(item.mean()), 4),
         "paste_share": round(float(paste.mean()), 4),
     }
+    # A visible paste border is a tone step right at the border. The paste matches tones there, so a
+    # clean one starts from nothing and rises slowly, however much the edit changes further in (a
+    # lamp's glow going from a wall). The band is thin and close: 0.3 to 1.2 % of the long side inside
+    # the border. A border often shows along part of its length only (where it crosses a floor the
+    # model relit), so the number is the 90th percentile, not the mean.
+    blur = ImageFilter.GaussianBlur(3)                       # compare tones, not the texture the model redrew
+    band = (shrunk(paste, max(1, round(0.003 * long_side))) & ~shrunk(paste, max(2, round(0.012 * long_side)))
+            & ~near)
+    if band.any():
+        step = np.abs((pixels(edited.filter(blur)) - pixels(view.filter(blur))) @ LUMA)
+        scores["border_step"] = round(float(np.percentile(step[band], 90)), 2)
+        ys, xs = np.nonzero(band & (step >= scores["border_step"]))
+        scores["border_box"] = [int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1]
     if effect_path and Path(effect_path).exists():           # the part of the item's effect that the paste kept
         left = (np.asarray(Image.open(effect_path).convert("L")) > 127) & ~paste
         scores["effect_left"] = round(float(left.mean()), 4)
@@ -157,9 +172,11 @@ def flags(scores, limits, region=None):
     if scores["change_inside"] < limits.unchanged_inside:
         out.append(("object_remains", 3, f"the masked area barely changed (mean change {scores['change_inside']})",
                     region))
-    if scores["border_change"] > limits.border_change:
-        out.append(("visible_seam", 2, f"the tone just inside the paste border is off by {scores['border_change']}",
-                    region))
+    # Pasted over nearly all of the picture, the border runs along the picture's edge, where the image model
+    # drifts most and nothing is there to see (two false alarms in the light cases, at 97 and 98 % pasted).
+    if scores["border_step"] > limits.border_step and scores.get("paste_share", 0) < limits.seam_max_paste:
+        out.append(("visible_seam", 2, f"the tone steps by {scores['border_step']} at the paste border, along its "
+                                       "worst tenth (a clean paste measures 4 to 8)", scores.get("border_box") or region))
     if scores.get("effect_left", 0) > limits.effect_left:
         shadow = scores.get("effect_sign", 0) > 0
         what = "removed a shadow" if shadow else "took away light"

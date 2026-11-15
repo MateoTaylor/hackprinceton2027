@@ -1,0 +1,82 @@
+{
+  "about": "Hard removal cases: light sources, each seen from two or three panoramas. A lit lamp lights the wall and the things beside it, so removing it should take its glow too and leave its neighbours. Each view is edited on its own: nothing makes the views agree. Each view is rendered from a downloaded scan under data/ (git-ignored), so this file holds no pictures. Run with: python -m edit_agent.suite cases/lights.json. One picture per case: python -m edit_agent.stages --suite <table>.json.",
+  "preset": "720",
+  "cases": [
+    {
+      "name": "light-bedside-lamp",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the lamp on the nightstand",
+      "views": [
+        {"pano": 6, "yaw": 328, "pitch": -20, "fov": 75},
+        {"pano": 2, "yaw": 0, "pitch": -8, "fov": 50},
+        {"pano": 1, "yaw": 355, "pitch": -5, "fov": 35}
+      ],
+      "notes": "Bedroom, near world x 4.1, y -4.7. A tall white lamp with a lit yellow shade, on a dark wood nightstand next to the bed, with a blue vase beside it that must stay. Its glow lights the wall above. Seen from 1.0, 2.4 and 3.9 m; from panorama 6 its shade is cut by the top of the picture."
+    },
+    {
+      "name": "light-dresser-lamp",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the lamp on the dresser",
+      "views": [
+        {"pano": 6, "yaw": 222, "pitch": -12, "fov": 60},
+        {"pano": 2, "yaw": 245, "pitch": -20, "fov": 75}
+      ],
+      "notes": "The same views as interior-dresser in multiview.json. A lit white lamp on the dresser, with three vases beside it and a wall hanging above, all of which must stay. Its glow covers the wall."
+    },
+    {
+      "name": "light-ceiling-fan",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the ceiling fan and its light",
+      "views": [
+        {"pano": 6, "yaw": 255, "pitch": 28, "fov": 60},
+        {"pano": 2, "yaw": 302, "pitch": 32, "fov": 60},
+        {"pano": 8, "yaw": 264, "pitch": 18, "fov": 55}
+      ],
+      "notes": "Bedroom ceiling. A five-blade fan with a lit glass bowl, two pull chains, and a faint shadow of its blades on the ceiling. The air vent, smoke detector and the window below must stay."
+    },
+    {
+      "name": "light-track",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the track light from the ceiling",
+      "views": [
+        {"pano": 0, "yaw": 252, "pitch": 23, "fov": 40},
+        {"pano": 7, "yaw": 282, "pitch": 23, "fov": 40},
+        {"pano": 5, "yaw": 259, "pitch": 17, "fov": 40}
+      ],
+      "notes": "Living room ceiling. A thin black track with three lit spot heads, whose glare draws streaks across the picture. The recessed lights and smoke detector around it must stay."
+    },
+    {
+      "name": "light-bedroom-window",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the window",
+      "views": [
+        {"pano": 6, "yaw": 260, "pitch": 6, "fov": 65},
+        {"pano": 2, "yaw": 290, "pitch": 6, "fov": 70},
+        {"pano": 8, "yaw": 264, "pitch": 4, "fov": 60}
+      ],
+      "notes": "Bedroom window, near world x 2.7, y -7.5: the room's daylight. Blinds inside it, curtains on a rod to each side, lit lamps on both sides of the bed. Odd on purpose: the wall has to close up, and the room's light comes from it."
+    },
+    {
+      "name": "exterior-lens-flare",
+      "kind": "exterior",
+      "scan": "2rPahZzW6H7",
+      "scan_name": "Exterior",
+      "request": "remove the lens flare",
+      "views": [
+        {"pano": 4, "yaw": 310, "pitch": 0, "fov": 60},
+        {"pano": 7, "yaw": 0, "pitch": 0, "fov": 70}
+      ],
+      "notes": "The same views as exterior-window p4 and exterior-garage-door p7. Rainbow flares from the sun lie over the plants and the driveway. Not an object: there is nothing behind it to segment, only light on top of the picture."
+    }
+  ]
+}

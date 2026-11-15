@@ -11,13 +11,16 @@ from pathlib import Path
 
 import numpy as np
 from langchain_core.messages import HumanMessage
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
-from edit_agent import metrics
+from edit_agent import metrics, scout
 from edit_agent.config import QWEN
 from edit_agent.models import chat_model
-from edit_agent.schemas import (COMPARE_PROMPT, COMPARE_SCHEMA, LOCATE_PROMPT, LOCATE_SCHEMA, SURFACE_PROMPT,
-                                SURFACE_SCHEMA, VISIBLE_PROMPT, Target, edit_prompt, visible_schema)
+from edit_agent.schemas import (BELONG_PROMPT, BELONG_SCHEMA, COMPARE_PROMPT, COMPARE_SCHEMA, EVERY, FLOAT_PROMPT, FLOAT_SCHEMA,
+                                LOCATE_PROMPT, LOCATE_SCHEMA, PLACE_PROMPT, PLACE_SCHEMA, SURFACE_PROMPT,
+                                SURFACE_SCHEMA, THINGS_PROMPT, THINGS_SCHEMA, VISIBLE_PROMPT, OWN_PROMPT, OWN_SCHEMA,
+                                WHERE_WORDS, Box, Target, edit_prompt, head, name_words, parts, read_request,
+                                request_question, taken, visible_schema)
 from run_qwen import MODELS, QUANTS, SD_CLI, VAE, VISION, VramMonitor, grow_mask, membrane
 from vlm import data_url
 
@@ -79,12 +82,171 @@ def _target(target, view):
     boxes = [b for b in boxes if b["box"][2] - b["box"][0] > 2 and b["box"][3] - b["box"][1] > 2]
     if not target.found:
         boxes = []
-    return {**target.model_dump(exclude={"boxes"}), "boxes": boxes, "prompt": edit_prompt(target)}
+    out = {**target.model_dump(exclude={"boxes"}), "boxes": boxes, "prompt": edit_prompt(target)}
+    if target.change:                     # a change's prompt is built from its change block alone (change/wording.py)
+        from edit_agent.change.spec import Change
+        out["change"] = Change.model_validate(target.change).block()
+        out["prompt"] = change_prompt(out)
+    return out
+
+
+def change_prompt(target):
+    """The image model's prompt for a change that has its change block."""
+    from edit_agent.change import wording
+    return wording.prompt(target)
+
+
+THINGS_PAD = 0.25            # the close-up for the second look: the boxes found, this share of their size each side,
+THINGS_UP = 0.6              # and this much more above them, where what rests on them stands
+
+
+def _overlap(a, b):
+    """Intersection over union of two [x0, y0, x1, y1] boxes."""
+    w = max(0, min(a[2], b[2]) - max(a[0], b[0]))
+    h = max(0, min(a[3], b[3]) - max(a[1], b[1]))
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - w * h
+    return w * h / union if union else 0.0
+
+
+def things(server, view, request, target, preset):
+    """The second look (THINGS_PROMPT): each separate thing a removal takes, as Boxes on the view's 0-1000 scale."""
+    img = Image.open(view).convert("RGB")
+    w, h = img.size
+    px = [to_pixels(b.bbox_2d, (w, h)) for b in target.boxes]
+    x0, y0, x1, y1 = min(b[0] for b in px), min(b[1] for b in px), max(b[2] for b in px), max(b[3] for b in px)
+    bw, bh = max(x1 - x0, round(0.1 * w)), max(y1 - y0, round(0.1 * h))         # a tiny box still gets room
+    crop = [max(0, round(x0 - THINGS_PAD * bw)), max(0, round(y0 - (THINGS_PAD + THINGS_UP) * bh)),
+            min(w, round(x1 + THINGS_PAD * bw)), min(h, round(y1 + THINGS_PAD * bh))]
+    path = Path(view).with_name("locate_crop.png")
+    img.crop(crop).save(path)
+    labels = json.dumps([b.label for b in target.boxes])
+    answer, info = look(server, preset, [path], THINGS_PROMPT.format(text=request, labels=labels), THINGS_SCHEMA)
+    size = (crop[2] - crop[0], crop[3] - crop[1])
+    out = []
+    for b in answer["boxes"]:
+        bx = to_pixels(b["bbox_2d"], size)
+        full = [bx[0] + crop[0], bx[1] + crop[1], bx[2] + crop[0], bx[3] + crop[1]]
+        out.append(Box(bbox_2d=[round(v / s * 1000) for v, s in zip(full, (w, h, w, h))], label=b["label"]))
+    return out, info
+
+
+_EVERY, _WHERE_WORDS = EVERY, WHERE_WORDS
+BELONG_LEAST = 0.5           # a belong question's crop: at least this share of the long side, to show what it stands on
+
+
+def _keep(target, keep):
+    """Narrow the target to the boxes in `keep`, and say in the instruction what stays. Returns the labels dropped."""
+    dropped = list(dict.fromkeys(b.label for b in target.boxes if b not in keep))
+    names = list(dict.fromkeys(b.label for b in keep))
+    target.boxes = [b for b in target.boxes if b in keep]
+    target.item = "; ".join(names)
+    target.instruction = f"Remove the {' and the '.join(names)}. Leave the {' and the '.join(dropped)} as it is."
+    return dropped
+
+
+def own(server, preset, view, box, mask, item, path):
+    """OWN_PROMPT on the original: is the thing in `box` (pixels) part of the outlined item, on it, or separate?"""
+    img = Image.open(view).convert("RGB")
+    outline = np.asarray(Image.open(mask).convert("L").resize(img.size)) > 127
+    _place_crop(img, {"box": box}, scout.crop_box(box, img.size, least=BELONG_LEAST), path, outline)
+    return look(server, preset, [path], OWN_PROMPT.format(item=item), OWN_SCHEMA, max_tokens=120)
+
+
+def belongs(server, preset, image, box, anchor, path):
+    """BELONG_PROMPT: what does the thing in `box` (pixels of `image`) stand on, and is that `anchor`?
+
+    Asked on the whole picture, not a close-up: a close-up of the tray on a bed showed too little of the
+    dresser beside it to tell which one the tray stood on.
+    """
+    img = Image.open(image).convert("RGB")
+    _place_crop(img, {"box": box}, [0, 0, *img.size], path)
+    return look(server, preset, [path], BELONG_PROMPT.format(anchor=anchor), BELONG_SCHEMA, max_tokens=150)
+
+
+def belong(server, view, target, req, preset):
+    """For "everything on" a place: keep only boxes that stand on it, or are part of it when it goes too.
+
+    Boxes for a thing the request names are kept without asking. One question per other box, on the
+    original. Returns the labels dropped, the answers and the seconds the answers took.
+    """
+    img_size = Image.open(view).size
+    named = {head(n) for n in req["names"]}
+    keep, answers, seconds = [], [], 0.0
+    for i, b in enumerate(target.boxes):
+        if head(b.label) in named:
+            keep.append(b)
+            continue
+        answer, info = belongs(server, preset, view, to_pixels(b.bbox_2d, img_size), req["anchor"],
+                               Path(view).with_name(f"belong{i}.png"))
+        seconds += info["answer_s"]
+        answers.append({"label": b.label, "box": b, **answer})
+    while True:                         # what stands on a thing taken from the place goes too (a vase on a tray)
+        on = {head(b.label) for b in keep}
+        more = [a["box"] for a in answers if a["box"] not in keep and taken(a, req, on)]
+        if not more:
+            break
+        keep += more
+    answers = [{k: v for k, v in a.items() if k != "box"} for a in answers]
+    if not keep or len(keep) == len(target.boxes):              # all of it, or none of it: change nothing
+        return [], answers, round(seconds, 1)
+    return _keep(target, keep), answers, round(seconds, 1)
+
+
+def asked(target, request):
+    """Keep only the boxes for things the user named, when the user named things.
+
+    Asked to "remove the tray and the throw pillows from the bed", the 8B VLM also boxed the throw
+    blanket in 2 of 3 bed views, and the blanket went. A box is kept when the noun it is about is one
+    the request names before its first "on", "from" ... (so "the bed" is not named), or when it rests on
+    such a thing ("book on tray"). Nothing is dropped when the request says "everything" or the like,
+    or when no box matches, because then the names differ in wording only ("bins" and "trash cans").
+    Returns the labels dropped.
+    """
+    if _EVERY.search(request.lower()):
+        return []
+    words = name_words(_WHERE_WORDS.split(request.lower())[0])
+
+    def named(label):
+        on = re.split(r"\bon\b", label.lower(), maxsplit=1)
+        return head(label) in words or (len(on) > 1 and head(on[1]) in words)
+
+    def within(a, b):                                       # share of box a inside box b
+        w = max(0, min(a[2], b[2]) - max(a[0], b[0]))
+        h = max(0, min(a[3], b[3]) - max(a[1], b[1]))
+        return w * h / max(1, (a[2] - a[0]) * (a[3] - a[1]))
+
+    keep = [b for b in target.boxes if named(b.label)]
+    # what lies on a kept thing ("book" inside the tray's box) goes with it
+    keep += [b for b in target.boxes if b not in keep and any(within(b.bbox_2d, k.bbox_2d) > 0.6 for k in keep)]
+    keep = [b for b in target.boxes if b in keep]
+    if not keep or len(keep) == len(target.boxes):
+        return []
+    return _keep(target, keep)
 
 
 def locate(server, view, request, preset):
+    """Find what to edit. For a removal, a second look adds what rests on it, and then only what the request
+    covers stays: the things it names (`asked`, no model), or for "everything on" a place, what stands on it
+    (`belong`, one question per box). The filters run after the second look, so its additions pass them too."""
     answer, info = look(server, preset, [view], LOCATE_PROMPT.format(text=request), LOCATE_SCHEMA)
-    return _target(Target.model_validate(answer), view), info
+    target = Target.model_validate(answer)
+    if target.found and target.kind == "remove" and target.boxes:
+        more, info2 = things(server, view, request, target, preset)
+        added = [b for b in more if all(_overlap(b.bbox_2d, old.bbox_2d) < 0.5 for old in target.boxes)]
+        if added:
+            names = ", ".join(dict.fromkeys(b.label for b in added))
+            target.boxes += added
+            target.item = f"{target.item}; also {names}"
+            target.instruction = f"{target.instruction.rstrip('.')}. Also remove: {names}."
+        info = {key: round((info[key] or 0) + (info2[key] or 0), 1) for key in info}
+        req = read_request(request)
+        dropped = asked(target, request)
+        if req["every"] and req["prep"] == "on":
+            gone, info["belong"], info["belong_s"] = belong(server, view, target, req, preset)
+            dropped += gone
+        info["things_added"] = [b.label for b in added]
+        info["not_asked"] = dropped
+    return _target(target, view), info
 
 
 def adopt(target, view):
@@ -192,15 +354,109 @@ def paste(view, raw, mask, preset, run):
     return edited, paste_mask, {"tone_shift": shift, "paste_box": list(area.getbbox()), **info}
 
 
-def inspect(server, view, edited, request, target, preset, run, also=None):
+PLACE_PX = 512                                    # a place's crop is enlarged to this: 256 image tokens
+
+
+def _place_crop(img, region, box, path, outline=None):
+    """The crop of one place, enlarged, with the place boxed in red and, if given, the item outlined in green."""
+    crop = img.crop(box)
+    k = PLACE_PX / max(crop.size)
+    size = (round(crop.size[0] * k), round(crop.size[1] * k))
+    crop = crop.resize(size, Image.LANCZOS)
+    if outline is not None:
+        item = np.asarray(Image.fromarray(outline.astype(np.uint8) * 255).crop(box).resize(size, Image.NEAREST)) > 127
+        a = np.asarray(crop).copy()
+        a[item & ~metrics.shrunk(item, 3)] = (0, 230, 0)
+        crop = Image.fromarray(a)
+    x0, y0, x1, y1 = ((v - o) * k for v, o in zip(region["box"], box[:2] * 2))
+    ImageDraw.Draw(crop).rectangle([x0 - 6, y0 - 6, x1 + 6, y1 + 6], outline=(255, 0, 0), width=3)
+    crop.save(path)
+    return path
+
+
+def places(server, view, edited, regions, item, preset, run, mask=None):
+    """Ask what is inside each scouted place, on a crop of the original and on the same crop of the result.
+
+    The place is marked with a red box. Each crop is one question, because the VLM describes one
+    picture well and compares two badly (see PLACE_PROMPT). Returns the regions with both answers.
+    Where an object went, a third question (OWN_PROMPT, on the original with the item outlined, if
+    `mask` is given) asks whether it was a separate thing or a part of the item.
+    The regions come strongest first. Once the answers have taken `scout_seconds`, or the next place
+    would take the total past it (judged by the average so far), the rest are left unasked.
+    """
+    pictures = {"before": Image.open(view).convert("RGB"), "after": Image.open(edited).convert("RGB")}
+    outline = None
+    if mask:
+        outline = np.asarray(Image.open(mask).convert("L").resize(pictures["before"].size)) > 127
+    budget = preset.limits.scout_seconds
+    out, seconds = [], 0.0
+    for n, region in enumerate(regions, 1):
+        if out and seconds + seconds / len(out) > budget:
+            break
+        box = scout.crop_box(region["box"], pictures["before"].size)
+        answers = {}
+        for name, img in pictures.items():
+            path = _place_crop(img, region, box, run / f"place{n}_{name}.png")
+            answers[name], info = look(server, preset, [path], PLACE_PROMPT.format(item=item), PLACE_SCHEMA,
+                                       max_tokens=120)
+            seconds += info["answer_s"]
+        went = answers["before"]["kind"] == "object" and answers["after"]["kind"] in ("surface", "shadow")
+        if went and region["kind"] == "edges_lost" and outline is not None:
+            path = _place_crop(pictures["before"], region, box, run / f"place{n}_own.png", outline)
+            answers["own"], info = look(server, preset, [path], OWN_PROMPT.format(item=item), OWN_SCHEMA,
+                                        max_tokens=120)
+            seconds += info["answer_s"]
+        out.append({**region, **answers})
+    return out, round(seconds, 1)
+
+
+def restore(view, edited, mask, boxes, out, limits):
+    """Put the original's detail back in some boxes, in the tone the edit gave their surroundings.
+
+    For something the edit removed by mistake: a baseboard, a frame. The original pixels alone would
+    show as a patch wherever the edit changed the light (a lamp's glow went), so the smooth change the
+    edit made around the boxes is added to them. The item itself is never brought back.
+
+    A neighbour the model redrew that a box touches is taken back whole. Half original and half redrawn
+    shows double (a wire table in front of the baseboard). If that grows past `restore_max_share` of
+    the picture, only the boxes are restored. The area is saved next to `out` as `<name>_area.png`.
+    """
+    before, after = Image.open(view).convert("RGB"), Image.open(edited).convert("RGB")
+    w, h = before.size
+    long_side = max(w, h)
+    pad = round(0.02 * long_side)
+    area = np.zeros((h, w), bool)
+    for x0, y0, x1, y1 in boxes:
+        area[max(0, y0 - pad):y1 + pad, max(0, x0 - pad):x1 + pad] = True
+    item = np.asarray(Image.open(mask).convert("L").resize((w, h))) > 127
+    wider = scout.redrawn_with(before, after, area, limits)
+    if wider.mean() <= limits.restore_max_share:
+        area = wider
+    area &= ~metrics.grown(item, round(0.01 * long_side))
+    Image.fromarray(area.astype(np.uint8) * 255).save(Path(out).with_name(f"{Path(out).stem}_area.png"))
+    b, a = np.asarray(before, np.float32), np.asarray(after, np.float32)
+    keep = (~area & ~metrics.grown(item, pad)).astype(np.float32)        # the tone comes from around the boxes
+    r = round(0.04 * long_side)
+    weight = np.maximum(metrics.smooth(keep, r), 0.05)
+    tone = np.stack([metrics.smooth((a - b)[..., c] * keep, r) / weight for c in range(3)], axis=2)
+    restored = Image.fromarray(np.clip(b + tone, 0, 255).astype(np.uint8))
+    soft = Image.fromarray(area.astype(np.uint8) * 255).filter(ImageFilter.GaussianBlur(max(2, round(0.006 * long_side))))
+    Image.composite(restored, after, soft).save(out)
+    return out
+
+
+def inspect(server, view, edited, request, target, preset, run, also=None, regions=None, mask=None):
     """Short questions with fixed answers, in one VLM session.
 
     1. Before and after, side by side: was the change applied, and was a neighbour damaged? It is
        given the user's own request, not the locator's rewrite of it, so that a bad rewrite is caught.
     After a removal, two more on a close-up of the result alone, where the VLM is more reliable:
     2. Which of the things can still be seen?
-    3. Is there a patch, a shadow or a glow left on the wall or floor?
+    3. Is there a patch, a shadow or a glow left on the wall or floor? Is anything left floating?
     `also` is a pixel box the close-up must take in as well: where the item's shadow or glow was.
+    4. For each place the scout marked (`regions`): what is inside it, before and after?
+    5. After a removal, about the request's own words on the whole original and the whole result: how
+       many of each thing it names, and what stands on the place it names (REQUEST_PROMPT).
     """
     boxes = np.array([b["bbox_2d"] for b in target["boxes"]])
     union = [int(v) for v in (*boxes[:, :2].min(axis=0), *boxes[:, 2:].max(axis=0))]
@@ -210,7 +466,10 @@ def inspect(server, view, edited, request, target, preset, run, also=None):
     x0, y0, x1, y1 = to_pixels(union, result.size)
     answer["item_box"] = [x0, y0, x1, y1]
     if target["kind"] == "remove":
-        mx, my = round(0.75 * (x1 - x0)), round(0.25 * (y1 - y0))            # room to see the surroundings
+        # Room to see the surroundings, but not much: a wider crop (75 % of the width each side) took in a
+        # look-alike side table, and the VLM said the removed coffee table was still there.
+        least = round(0.04 * max(result.size))
+        mx, my = max(least, round(0.3 * (x1 - x0))), max(least, round(0.2 * (y1 - y0)))
         close = [max(0, x0 - mx), max(0, y0 - my), min(result.size[0], x1 + mx), min(result.size[1], y1 + my)]
         if also:                                                              # and where its shadow or glow was
             pad = round(0.03 * max(result.size))
@@ -218,10 +477,29 @@ def inspect(server, view, edited, request, target, preset, run, also=None):
                      min(result.size[0], max(close[2], also[2] + pad)), min(result.size[1], max(close[3], also[3] + pad))]
         crop = run / "inspect_crop.png"
         result.crop(close).save(crop)
-        labels = list(dict.fromkeys(b["label"] for b in target["boxes"]))
+        labels = list(dict.fromkeys(name for b in target["boxes"] for name in parts(b["label"])))
         seen, info2 = look(server, preset, [crop], VISIBLE_PROMPT.format(labels=json.dumps(labels)),
                            visible_schema(labels), max_tokens=300)
         surface, info3 = look(server, preset, [crop], SURFACE_PROMPT, SURFACE_SCHEMA, max_tokens=300)
-        answer.update(seen, **surface, close_box=close)
-        info = {key: round(info[key] + info2[key] + info3[key], 1) for key in info}
+        floating, info4 = look(server, preset, [crop], FLOAT_PROMPT, FLOAT_SCHEMA, max_tokens=220)
+        extra = [info4]
+        if floating["floating"]:                                              # the control: did it float before?
+            original = run / "inspect_crop_before.png"
+            Image.open(view).convert("RGB").crop(close).save(original)
+            control, info5 = look(server, preset, [original], FLOAT_PROMPT, FLOAT_SCHEMA, max_tokens=220)
+            extra.append(info5)
+            seen_before = set().union(*(name_words(name) for name in control["floating"]))
+            floating["floating"] = [name for name in floating["floating"] if not name_words(name) & seen_before]
+        # 5. The request's own words, on the whole picture: what the locator never found is in no crop.
+        req = read_request(request)
+        if req["names"] or req["kept"]:
+            text, schema = request_question(req)
+            answer["request"] = {"read": req}
+            for name, img in (("before", view), ("after", edited)):
+                answer["request"][name], info6 = look(server, preset, [img], text, schema, max_tokens=300)
+                extra.append(info6)
+        answer.update(seen, **surface, floating=floating["floating"], held=floating["objects"], close_box=close)
+        info = {key: round(info[key] + info2[key] + info3[key] + sum(i[key] for i in extra), 1) for key in info}
+    if regions:
+        answer["places"], info["places_s"] = places(server, view, edited, regions, target["item"], preset, run, mask)
     return answer, info

@@ -14,6 +14,17 @@
       "notes": "Living room. Angles were estimated from a contact sheet and not yet checked on a centred render. Panorama 4 (yaw about 305) also sees the chair and is not added yet."
     },
     {
+      "name": "interior-lamp",
+      "kind": "interior",
+      "scan": "zzvymDx5ty7",
+      "scan_name": "1BR, 1BA - 664SF",
+      "request": "remove the table lamp",
+      "views": [
+        {"pano": 1, "yaw": 172.2, "pitch": -11.9, "fov": 75}
+      ],
+      "notes": "A lit lamp on a side table against a white wall with a baseboard. The lamp's glow covers much of the wall, so this is the glow case: the wall must stay white, the baseboard and the side table must stay."
+    },
+    {
       "name": "exterior-bins",
       "kind": "exterior",
       "scan": "2rPahZzW6H7",
