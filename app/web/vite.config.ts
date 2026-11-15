@@ -3,16 +3,19 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 const webRoot = fileURLToPath(new URL('.', import.meta.url))
+const serverModel = fileURLToPath(new URL('../server/src/model/', import.meta.url))
 
-// The repo root holds `.env` and licensed data, so the dev server may read only this package.
+const webPort = Number(process.env.PROPSTAR_WEB_PORT || 5173)
+const apiPort = Number(process.env.PROPSTAR_PORT || 8787)
+
 export default defineConfig({
   plugins: [react()],
   server: {
     host: 'localhost',
-    port: 5173,
+    port: webPort,
     strictPort: true,
-    proxy: { '/api': 'http://127.0.0.1:8787' },
-    fs: { strict: true, allow: [webRoot] },
+    proxy: { '/api': `http://127.0.0.1:${apiPort}` },
+    fs: { strict: true, allow: [webRoot, serverModel] },
   },
   preview: { host: 'localhost' },
 })

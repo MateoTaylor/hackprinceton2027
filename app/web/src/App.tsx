@@ -9,11 +9,14 @@ import { SORTS, type SortKey } from './property'
 import { Proppy } from './Proppy'
 import { QuickView } from './QuickView'
 import { Sidebar, type Listing } from './Sidebar'
+import { ToolPanel } from './ToolPanel'
+import { TOOLS, type ToolId } from './tools'
 
 type View =
   | { kind: 'browse' }
   | { kind: 'selected'; id: string }
   | { kind: 'flythrough'; id: string; modelId: string }
+  | { kind: 'tool'; id: string; tool: ToolId }
 
 const BROWSE: View = { kind: 'browse' }
 
@@ -52,9 +55,16 @@ export function App() {
 
   const selected = view.kind === 'browse' ? null : (all.find((p) => p.id === view.id) ?? null)
 
-  // Picking the property already shown changes nothing; the camera is already there. Both handlers
-  // stay the same across renders so the memoized cards and pins skip re-rendering.
-  const select = useCallback((id: string) => setView((v) => (v.kind !== 'browse' && v.id === id ? v : { kind: 'selected', id })), [])
+  const tool = view.kind === 'tool' ? TOOLS.find((t) => t.id === view.tool) : undefined
+
+  const select = useCallback(
+    (id: string) =>
+      setView((v) => {
+        if (v.kind !== 'browse' && v.id === id) return v
+        return v.kind === 'tool' ? { ...v, id } : { kind: 'selected', id }
+      }),
+    [],
+  )
 
   const toggleSaved = useCallback(
     (id: string) =>
@@ -71,7 +81,7 @@ export function App() {
       if (e.key !== 'Escape') return
       const target = e.target
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return
-      setView((v) => (v.kind === 'flythrough' ? { kind: 'selected', id: v.id } : BROWSE))
+      setView((v) => (v.kind === 'flythrough' || v.kind === 'tool' ? { kind: 'selected', id: v.id } : BROWSE))
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -127,6 +137,7 @@ export function App() {
               onToggleSaved={() => toggleSaved(selected.id)}
               onClose={() => setView(BROWSE)}
               onFlyThrough={() => setView({ kind: 'flythrough', id: selected.id, modelId: selected.scans[0].modelId })}
+              onTool={(toolId) => setView({ kind: 'tool', id: selected.id, tool: toolId })}
             />
           )}
           {selected && view.kind === 'flythrough' && (
@@ -138,6 +149,7 @@ export function App() {
             />
           )}
           <Proppy open={proppyOpen} onOpen={() => setProppyOpen(true)} onClose={() => setProppyOpen(false)} onPins={setPins} />
+          {selected && tool && <ToolPanel tool={tool} property={selected} onClose={() => setView({ kind: 'selected', id: selected.id })} />}
         </main>
       </div>
     </div>

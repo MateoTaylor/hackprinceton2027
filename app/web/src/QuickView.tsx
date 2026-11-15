@@ -2,6 +2,7 @@ import { Bookmark, X } from 'lucide-react'
 import type { Property } from '../../shared/property'
 import { fact } from './property'
 import { PropertyPhoto } from './PropertyPhoto'
+import { TOOLS, type ToolId } from './tools'
 
 type Props = {
   property: Property
@@ -9,6 +10,7 @@ type Props = {
   onToggleSaved: () => void
   onClose: () => void
   onFlyThrough: () => void
+  onTool: (id: ToolId) => void
 }
 
 // Bare numbers need their label to read; formatted values like "12,345 SF" carry their own.
@@ -16,7 +18,7 @@ const LABELLED = new Set(['Year built', 'Stories', 'Beds', 'Baths', 'Units', 'Ro
 
 const stars = (p: Property) => fact(p, 'Rating')?.replace(/ stars?$/, '★')
 
-export function QuickView({ property, saved, onToggleSaved, onClose, onFlyThrough }: Props) {
+export function QuickView({ property, saved, onToggleSaved, onClose, onFlyThrough, onTool }: Props) {
   const classLine =
     property.kind === 'commercial'
       ? [fact(property, 'Class') && `Class ${fact(property, 'Class')}`, stars(property)].filter(Boolean).join(' · ') || property.typeLabel
@@ -58,6 +60,13 @@ export function QuickView({ property, saved, onToggleSaved, onClose, onFlyThroug
             </button>
           </div>
         )}
+        <div className="tool-row" role="toolbar" aria-label="Tools">
+          {TOOLS.map((t) => (
+            <button key={t.id} className="circle tool-button" aria-label={t.label} title={t.label} onClick={() => onTool(t.id)}>
+              <t.icon size={16} />
+            </button>
+          ))}
+        </div>
       </div>
     </section>
   )
