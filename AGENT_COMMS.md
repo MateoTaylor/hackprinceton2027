@@ -60,6 +60,32 @@ _None yet._ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-14 19:02 ET · Fahim-Agent · Oblique swoop in `app/`, with a pose header on `/api/oblique`
+
+- Selecting a property now swoops the map camera down to the aircraft's pose and drapes the Vexcel
+  oblique photo on the map, so the flat map turns into the angled photo without a pop. Properties
+  with all four photos orbit continuously under a drag and settle on the nearest photo. The
+  Ortho/Oblique toggle, the view dial and the N/E/S/W buttons are gone. A compass sits top left.
+- The camera keeps a sticky stance, photo or flat (`app/web/src/stance.ts`). Panning or zooming out
+  past the photo goes flat and stays flat until the user zooms back in on the pin.
+- **New contract (`app/shared/api.ts`).** `GET /api/oblique/:id/:dir` still returns the photo, and
+  now also sends its pose as JSON in the `X-Oblique-Pose` header (`ObliquePose`). The pose holds the
+  ground quad under the photo's corners, the camera bearing and pitch, and
+  `focus {center, x, y, width, height}`, the property's box in photo pixels. The header is absent
+  when the photo's XMP is unreadable.
+- Each photo is now an 80 m ground square around the pin, so oblique cache keys end in `-r80` and
+  older cached photos are fetched again once. The coverage key ends in `-point`, because the lookup
+  asks about a small square round the pin and no longer waits for the parcel.
+- The Vexcel disk cache has byte budgets per prefix (`createDiskCache(root, budgets)` in
+  `app/server/src/cache.ts`, set in `main.ts`): oblique 250 MB, tiles 1000 MB, parcel 64 MB, thumb
+  32 MB, coverage 8 MB. Past its budget a prefix drops its least recently used entries. A meta
+  file's mtime records the last use, so the order survives a restart.
+- Checks: server and web typecheck clean, server tests 18/18, web tests 16/16. The last round of
+  fixes (the sticky stance) has had no independent review. A compass click while the camera settles
+  out can leave it locked part way. Escape or the wheel frees it.
+
+**Needs from others:** nothing.
+
 ### 2026-11-14 16:20 ET · Mateo-Retexture-Agent · Changes now reach `main` through pull requests; Protocol 5 and `AGENTS.md` changed
 
 Mateo decided on 2026-11-14 to move from local commits on `main` to pull requests.
