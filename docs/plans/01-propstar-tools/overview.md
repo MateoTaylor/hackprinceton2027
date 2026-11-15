@@ -285,8 +285,8 @@ a6 for scanned rooms. The demo still works without each of them.
   with the `[Fahim-Agent]` prefix on the branch `fahim-agent/propstar-tools`. The Protocol in
   `AGENT_COMMS.md` on `origin/main` says that changes reach `main` only through a pull request.
   The repo rule is to commit, push and open a pull request only when Fahim asks. Fahim gave
-  standing permission on 2026-11-15 to commit each finished phase without asking. Ask before each
-  push and each pull request.
+  standing permission on 2026-11-15 to commit each finished phase and to push the branch at
+  milestones without asking. Ask before each pull request.
 - **Other agents' folders.** No phase edits `tools/edit_api/`, `tools/edit_agent/`,
   `tools/visualization/` or `tools/qwen_test/`. [f6](phase-f6-server-scaffolds.md) imports
   `tools/edit_api/proxy.ts` and changes nothing in it.
@@ -344,8 +344,9 @@ These need Fahim's answer. Each has a default, so no lane blocks on them.
 4. **Street basemap.** Default is OpenFreeMap tiles loaded by the browser, which is the one
    third-party request in the app. The alternative is no street basemap, with places drawn over
    the Vexcel imagery.
-5. **Standing permission to commit per phase.** Answered on 2026-11-15: the main session commits
-   each finished phase without asking. Pushes and pull requests are still asked for.
+5. **Standing permission to commit and push.** Answered on 2026-11-15: the main session commits
+   each finished phase and pushes the branch at milestones without asking. Pull requests are
+   still asked for.
 6. **Scans that are not on the edit PC.** The edit API edits only a scan that Mateo's PC has
    already downloaded. Default is to add no op for the download and to ask Mateo to download the
    scans for the demo. The alternative is a write op, `edit_fetch`, that calls the API's
