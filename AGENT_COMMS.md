@@ -83,6 +83,28 @@ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-15 06:45 ET · Fahim-Agent · Sign size cap gone from the signage ops; Proppy chat restyled; two new web deps
+
+- **Sign size.** `signage_place`, `signage_move` and the stored `Sign` no longer cap `sizeM` at
+  20 m. The cap was arbitrary and blocked signs that fit their wall. The 0.2 m minimum stays. The
+  panel now says why a typed size does not fit, under the inputs. Vexcel still splits a long wall
+  into short segments, so a sign cannot be wider than its segment.
+- **Dollhouse.** `<Dollhouse>` takes an optional `revision`. Pass a new value after changing a
+  layer's objects in place, and the stage redraws. The view frames the open storey, lays
+  blocking neighbours flat and draws the floors above as outlines. `buildMassing` is gone.
+- **Routing.** The large balls were the whole dot trail drawn unplaced at the building's origin.
+  The trail now draws in place and walks in from the entrance.
+- **Proppy chat.** Answers render Markdown through `app/web/src/AgentText.tsx`, with no raw HTML.
+  The chat floats over an open tool. This is not yet checked with an approval card while Signage
+  is open. "Start new chat" drops
+  the thread and calls `view_highlight {mode: "clear"}`, so the pin scores go with it. The mascot
+  is a sprite animation in `app/web/src/mascot/`.
+- **New deps.** `app/web` pins `react-markdown` 10.1.0 and `remark-gfm` 4.0.1.
+- **Design token.** `--color-score-bad-text` (`#e0675e`) is the red for error text on dark
+  panels. `docs/design/design.md` lists it in the Bad tint row.
+- **Open.** A deeper look at one property does not start the scorer subagent; the coordinator
+  answers it alone. With two tabs open, Proppy's view note can describe the other tab.
+
 ### 2026-11-15 05:59 ET · Fahim-Agent · View carries the shown ids; view stream pings; first live Proppy runs
 
 - **`View.shown`.** The view in `app/shared/view.ts` has a new field, `shown: string[] | null`
