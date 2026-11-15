@@ -121,6 +121,9 @@ magic eraser.
 - Mateo decided on 2026-11-14 that edited scan pictures may go from his PC to the team's web app
   laptop over the edit API (`tools/edit_api/`, port 2026, bearer token), and to nowhere else. The
   API's responses carry scan pictures and geometry only, never CoStar record fields.
+- Mateo decided on 2026-11-15 that the demo's fallback renders in `demo_renders/2838-potomac-ave/`
+  (three edits of Matterport scan `ttiRpR6oEKM`) may be committed. It covers those files only. Every
+  other scan picture, edited or not, stays out of git.
 
 ## Where the facts are
 

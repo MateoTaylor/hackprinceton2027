@@ -1,0 +1,286 @@
+{
+ "model_id": "ttiRpR6oEKM",
+ "name": "2838 Potomac Ave",
+ "about": "All three edits at once. Each face is changed by at most one edit, so this is exact. A face is a path in this folder, or original:<path from the repo root> for an unedited face.",
+ "panos": [
+  {
+   "id": "d3exr9u9fzkqq3xf74wq8eyma",
+   "index": 4,
+   "position": [
+    -0.27807167172431946,
+    -1.2690509557724,
+    1.356197714805603
+   ],
+   "rotation": [
+    -0.008630131371319294,
+    -0.002532950136810541,
+    0.5264844298362732,
+    0.8501371741294861
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/0.jpg",
+    "02-pillow-removed/p4_f1.jpg",
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/2.jpg",
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/3.jpg",
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/4.jpg",
+    "original:data/ttiRpR6oEKM/panos/d3exr9u9fzkqq3xf74wq8eyma/5.jpg"
+   ],
+   "from": [
+    null,
+    "02-pillow-removed",
+    null,
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "id": "bmcq4s5gqhcdzy0dq9w5wee3d",
+   "index": 6,
+   "position": [
+    7.21763277053833,
+    1.7886197566986084,
+    1.3659993410110474
+   ],
+   "rotation": [
+    -0.0009183892398141325,
+    0.021423162892460823,
+    0.9730127453804016,
+    0.22975294291973114
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/bmcq4s5gqhcdzy0dq9w5wee3d/0.jpg",
+    "01-countertop-oak/p6_f1.jpg",
+    "01-countertop-oak/p6_f2.jpg",
+    "original:data/ttiRpR6oEKM/panos/bmcq4s5gqhcdzy0dq9w5wee3d/3.jpg",
+    "original:data/ttiRpR6oEKM/panos/bmcq4s5gqhcdzy0dq9w5wee3d/4.jpg",
+    "01-countertop-oak/p6_f5.jpg"
+   ],
+   "from": [
+    null,
+    "01-countertop-oak",
+    "01-countertop-oak",
+    null,
+    null,
+    "01-countertop-oak"
+   ]
+  },
+  {
+   "id": "w6snx3qcyumnqnx797uiyfuac",
+   "index": 12,
+   "position": [
+    5.31668758392334,
+    1.6549937725067139,
+    1.3586995601654053
+   ],
+   "rotation": [
+    -0.0019754446111619473,
+    0.010225631296634674,
+    0.9524580836296082,
+    -0.3044915795326233
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/w6snx3qcyumnqnx797uiyfuac/0.jpg",
+    "03-doors-walnut/p12_f1.jpg",
+    "01-countertop-oak/p12_f2.jpg",
+    "01-countertop-oak/p12_f3.jpg",
+    "03-doors-walnut/p12_f4.jpg",
+    "01-countertop-oak/p12_f5.jpg"
+   ],
+   "from": [
+    null,
+    "03-doors-walnut",
+    "01-countertop-oak",
+    "01-countertop-oak",
+    "03-doors-walnut",
+    "01-countertop-oak"
+   ]
+  },
+  {
+   "id": "06zehmuifehufx50xdstxcwbc",
+   "index": 13,
+   "position": [
+    2.2931673526763916,
+    1.499385952949524,
+    1.3477412462234497
+   ],
+   "rotation": [
+    -0.025590403005480766,
+    -0.01682816445827484,
+    0.051181040704250336,
+    0.9982196092605591
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/0.jpg",
+    "02-pillow-removed/p13_f1.jpg",
+    "03-doors-walnut/p13_f2.jpg",
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/3.jpg",
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/4.jpg",
+    "02-pillow-removed/p13_f5.jpg"
+   ],
+   "from": [
+    null,
+    "02-pillow-removed",
+    "03-doors-walnut",
+    null,
+    null,
+    "02-pillow-removed"
+   ]
+  },
+  {
+   "id": "czrr5tq1kurs8fb3gcmq09mcd",
+   "index": 16,
+   "position": [
+    -0.023344995453953743,
+    0.07717431336641312,
+    1.344104290008545
+   ],
+   "rotation": [
+    -0.009209842421114445,
+    0.002205838682129979,
+    0.9884567260742188,
+    0.15120738744735718
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/czrr5tq1kurs8fb3gcmq09mcd/0.jpg",
+    "original:data/ttiRpR6oEKM/panos/czrr5tq1kurs8fb3gcmq09mcd/1.jpg",
+    "02-pillow-removed/p16_f2.jpg",
+    "02-pillow-removed/p16_f3.jpg",
+    "original:data/ttiRpR6oEKM/panos/czrr5tq1kurs8fb3gcmq09mcd/4.jpg",
+    "original:data/ttiRpR6oEKM/panos/czrr5tq1kurs8fb3gcmq09mcd/5.jpg"
+   ],
+   "from": [
+    null,
+    null,
+    "02-pillow-removed",
+    "02-pillow-removed",
+    null,
+    null
+   ]
+  },
+  {
+   "id": "ff150hq1nu690m9mcpytnbp2b",
+   "index": 17,
+   "position": [
+    5.65367317199707,
+    -0.16961492598056793,
+    1.3692854642868042
+   ],
+   "rotation": [
+    0.0016379901207983494,
+    -0.004996127914637327,
+    0.27621638774871826,
+    0.9610810875892639
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/ff150hq1nu690m9mcpytnbp2b/0.jpg",
+    "01-countertop-oak/p17_f1.jpg",
+    "original:data/ttiRpR6oEKM/panos/ff150hq1nu690m9mcpytnbp2b/2.jpg",
+    "original:data/ttiRpR6oEKM/panos/ff150hq1nu690m9mcpytnbp2b/3.jpg",
+    "01-countertop-oak/p17_f4.jpg",
+    "original:data/ttiRpR6oEKM/panos/ff150hq1nu690m9mcpytnbp2b/5.jpg"
+   ],
+   "from": [
+    null,
+    "01-countertop-oak",
+    null,
+    null,
+    "01-countertop-oak",
+    null
+   ]
+  },
+  {
+   "id": "cgsxidc6pxpmbgqtxxq4y1wfc",
+   "index": 21,
+   "position": [
+    4.359228134155273,
+    -0.013999754562973976,
+    1.368033528327942
+   ],
+   "rotation": [
+    -0.0011495192302390933,
+    -0.004030012991279364,
+    0.11182361841201782,
+    0.993719220161438
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/cgsxidc6pxpmbgqtxxq4y1wfc/0.jpg",
+    "original:data/ttiRpR6oEKM/panos/cgsxidc6pxpmbgqtxxq4y1wfc/1.jpg",
+    "03-doors-walnut/p21_f2.jpg",
+    "03-doors-walnut/p21_f3.jpg",
+    "original:data/ttiRpR6oEKM/panos/cgsxidc6pxpmbgqtxxq4y1wfc/4.jpg",
+    "03-doors-walnut/p21_f5.jpg"
+   ],
+   "from": [
+    null,
+    null,
+    "03-doors-walnut",
+    "03-doors-walnut",
+    null,
+    "03-doors-walnut"
+   ]
+  },
+  {
+   "id": "m08g3sayuscznrxiiqgdaumkc",
+   "index": 23,
+   "position": [
+    3.096910238265991,
+    0.028908487409353256,
+    1.369273066520691
+   ],
+   "rotation": [
+    -0.0011061541736125946,
+    0.00014447988360188901,
+    0.8159626722335815,
+    0.5781034827232361
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/0.jpg",
+    "02-pillow-removed/p23_f1.jpg",
+    "02-pillow-removed/p23_f2.jpg",
+    "03-doors-walnut/p23_f3.jpg",
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/4.jpg",
+    "02-pillow-removed/p23_f5.jpg"
+   ],
+   "from": [
+    null,
+    "02-pillow-removed",
+    "02-pillow-removed",
+    "03-doors-walnut",
+    null,
+    "02-pillow-removed"
+   ]
+  },
+  {
+   "id": "w9ew7het212735e6cux126w5a",
+   "index": 27,
+   "position": [
+    7.073416233062744,
+    -0.7936891913414001,
+    1.3766577243804932
+   ],
+   "rotation": [
+    0.003961616661399603,
+    -0.0003134924336336553,
+    0.06015141308307648,
+    0.9981813430786133
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/0.jpg",
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/1.jpg",
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/2.jpg",
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/3.jpg",
+    "01-countertop-oak/p27_f4.jpg",
+    "original:data/ttiRpR6oEKM/panos/w9ew7het212735e6cux126w5a/5.jpg"
+   ],
+   "from": [
+    null,
+    null,
+    null,
+    null,
+    "01-countertop-oak",
+    null
+   ]
+  }
+ ]
+}

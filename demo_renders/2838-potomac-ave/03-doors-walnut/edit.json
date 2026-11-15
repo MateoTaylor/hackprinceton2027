@@ -1,0 +1,399 @@
+{
+ "job_id": "20261115-042547-ba3b6f",
+ "stub": false,
+ "model_id": "ttiRpR6oEKM",
+ "command": "change the white double doors to rich brown walnut wood",
+ "has_mesh": true,
+ "frame": {
+  "world": "right-handed, Z up, metres; the frame of the MatterPak OBJ",
+  "rotation": "quaternion [x, y, z, w]; rotates pano-local directions into world, used as given",
+  "faces": "0 up (+Z), 1 +X, 2 -Y, 3 -X, 4 +Y, 5 down (-Z), in the panorama's own frame",
+  "face_basis": {
+   "0": {
+    "forward": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "up": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "right": [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   },
+   "1": {
+    "forward": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   },
+   "2": {
+    "forward": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     -1.0,
+     0.0,
+     0.0
+    ]
+   },
+   "3": {
+    "forward": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     0.0,
+     1.0,
+     0.0
+    ]
+   },
+   "4": {
+    "forward": [
+     0.0,
+     1.0,
+     0.0
+    ],
+    "up": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "right": [
+     1.0,
+     0.0,
+     0.0
+    ]
+   },
+   "5": {
+    "forward": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "up": [
+     1.0,
+     0.0,
+     0.0
+    ],
+    "right": [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   }
+  },
+  "face_pixel": "pixel (i, j) of a face of size s looks along forward + a*right + b*up, a = (i + 0.5) / s * 2 - 1, b = 1 - (j + 0.5) / s * 2 (i is the column, j the row)",
+  "yaw_pitch": "yaw = atan2(forward.y, forward.x) in degrees, from +X towards +Y; pitch = degrees up from level; both in the world frame"
+ },
+ "start": {
+  "pano_id": "06zehmuifehufx50xdstxcwbc",
+  "index": 13,
+  "yaw": 302.4,
+  "pitch": -4.6,
+  "fov": 70.0
+ },
+ "panos": [
+  {
+   "id": "06zehmuifehufx50xdstxcwbc",
+   "location_id": "06zehmuifehufx50xdstxcwbc",
+   "index": 13,
+   "position": [
+    2.2931673526763916,
+    1.499385952949524,
+    1.3477412462234497
+   ],
+   "rotation": [
+    -0.025590403005480766,
+    -0.01682816445827484,
+    0.051181040704250336,
+    0.9982196092605591
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/0.jpg",
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/1.jpg",
+    "p13_f2.jpg",
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/3.jpg",
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/4.jpg",
+    "original:data/ttiRpR6oEKM/panos/06zehmuifehufx50xdstxcwbc/5.jpg"
+   ],
+   "changed": [
+    2
+   ],
+   "verdict": "fix",
+   "views": [
+    {
+     "yaw": 302.4,
+     "pitch": -4.6,
+     "fov": 70.0,
+     "width": 1024,
+     "height": 1024,
+     "before": "p13_v0_before.jpg",
+     "edited": "p13_v0_edited.jpg",
+     "mask": "p13_v0_mask.png",
+     "report": {
+      "verdict": "fix",
+      "issues": [
+       {
+        "kind": "shading_changed",
+        "severity": 2,
+        "evidence": "the light and dark on it follow the photo's at only -0.177"
+       }
+      ],
+      "notes": [],
+      "summary": "1 issue(s) for a second pass: shading_changed."
+     }
+    }
+   ]
+  },
+  {
+   "id": "cgsxidc6pxpmbgqtxxq4y1wfc",
+   "location_id": "cgsxidc6pxpmbgqtxxq4y1wfc",
+   "index": 21,
+   "position": [
+    4.359228134155273,
+    -0.013999754562973976,
+    1.368033528327942
+   ],
+   "rotation": [
+    -0.0011495192302390933,
+    -0.004030012991279364,
+    0.11182361841201782,
+    0.993719220161438
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/cgsxidc6pxpmbgqtxxq4y1wfc/0.jpg",
+    "original:data/ttiRpR6oEKM/panos/cgsxidc6pxpmbgqtxxq4y1wfc/1.jpg",
+    "p21_f2.jpg",
+    "p21_f3.jpg",
+    "original:data/ttiRpR6oEKM/panos/cgsxidc6pxpmbgqtxxq4y1wfc/4.jpg",
+    "p21_f5.jpg"
+   ],
+   "changed": [
+    2,
+    3,
+    5
+   ],
+   "verdict": "fix",
+   "views": [
+    {
+     "yaw": 267.43,
+     "pitch": -8.45,
+     "fov": 112.27,
+     "width": 1024,
+     "height": 1024,
+     "before": "p21_v1_before.jpg",
+     "edited": "p21_v1_edited.jpg",
+     "mask": "p21_v1_mask.png",
+     "report": {
+      "verdict": "fix",
+      "issues": [
+       {
+        "kind": "shading_changed",
+        "severity": 2,
+        "evidence": "the light and dark on it follow the photo's at only -0.094"
+       }
+      ],
+      "notes": [],
+      "summary": "1 issue(s) for a second pass: shading_changed."
+     }
+    }
+   ]
+  },
+  {
+   "id": "m08g3sayuscznrxiiqgdaumkc",
+   "location_id": "m08g3sayuscznrxiiqgdaumkc",
+   "index": 23,
+   "position": [
+    3.096910238265991,
+    0.028908487409353256,
+    1.369273066520691
+   ],
+   "rotation": [
+    -0.0011061541736125946,
+    0.00014447988360188901,
+    0.8159626722335815,
+    0.5781034827232361
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/0.jpg",
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/1.jpg",
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/2.jpg",
+    "p23_f3.jpg",
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/4.jpg",
+    "original:data/ttiRpR6oEKM/panos/m08g3sayuscznrxiiqgdaumkc/5.jpg"
+   ],
+   "changed": [
+    3
+   ],
+   "verdict": "fix",
+   "views": [
+    {
+     "yaw": 304.53,
+     "pitch": -8.94,
+     "fov": 107.65,
+     "width": 1024,
+     "height": 1024,
+     "before": "p23_v2_before.jpg",
+     "edited": "p23_v2_edited.jpg",
+     "mask": "p23_v2_mask.png",
+     "report": {
+      "verdict": "fix",
+      "issues": [
+       {
+        "kind": "shading_changed",
+        "severity": 2,
+        "evidence": "the light and dark on it follow the photo's at only -0.285"
+       }
+      ],
+      "notes": [],
+      "summary": "1 issue(s) for a second pass: shading_changed."
+     }
+    }
+   ]
+  },
+  {
+   "id": "w6snx3qcyumnqnx797uiyfuac",
+   "location_id": "w6snx3qcyumnqnx797uiyfuac",
+   "index": 12,
+   "position": [
+    5.31668758392334,
+    1.6549937725067139,
+    1.3586995601654053
+   ],
+   "rotation": [
+    -0.0019754446111619473,
+    0.010225631296634674,
+    0.9524580836296082,
+    -0.3044915795326233
+   ],
+   "faces": [
+    "original:data/ttiRpR6oEKM/panos/w6snx3qcyumnqnx797uiyfuac/0.jpg",
+    "p12_f1.jpg",
+    "original:data/ttiRpR6oEKM/panos/w6snx3qcyumnqnx797uiyfuac/2.jpg",
+    "original:data/ttiRpR6oEKM/panos/w6snx3qcyumnqnx797uiyfuac/3.jpg",
+    "p12_f4.jpg",
+    "original:data/ttiRpR6oEKM/panos/w6snx3qcyumnqnx797uiyfuac/5.jpg"
+   ],
+   "changed": [
+    1,
+    4
+   ],
+   "verdict": "fix",
+   "views": [
+    {
+     "yaw": 252.19,
+     "pitch": -5.24,
+     "fov": 69.69,
+     "width": 1024,
+     "height": 1024,
+     "before": "p12_v3_before.jpg",
+     "edited": "p12_v3_edited.jpg",
+     "mask": "p12_v3_mask.png",
+     "report": {
+      "verdict": "fix",
+      "issues": [
+       {
+        "kind": "shading_changed",
+        "severity": 2,
+        "evidence": "the light and dark on it follow the photo's at only -0.394"
+       }
+      ],
+      "notes": [
+       {
+        "kind": "light_left",
+        "severity": 1,
+        "evidence": "the image model made the area next to it darker (2.1% of the picture); the photo's own light there was kept"
+       }
+      ],
+      "summary": "1 issue(s) for a second pass: shading_changed."
+     }
+    }
+   ]
+  }
+ ],
+ "report": {
+  "verdict": "fix",
+  "issues": [
+   {
+    "kind": "shading_changed",
+    "severity": 2,
+    "evidence": "the light and dark on it follow the photo's at only -0.177",
+    "pano": 13
+   },
+   {
+    "kind": "shading_changed",
+    "severity": 2,
+    "evidence": "the light and dark on it follow the photo's at only -0.094",
+    "pano": 21
+   },
+   {
+    "kind": "shading_changed",
+    "severity": 2,
+    "evidence": "the light and dark on it follow the photo's at only -0.285",
+    "pano": 23
+   },
+   {
+    "kind": "shading_changed",
+    "severity": 2,
+    "evidence": "the light and dark on it follow the photo's at only -0.394",
+    "pano": 12
+   }
+  ],
+  "notes": [
+   {
+    "kind": "light_left",
+    "severity": 1,
+    "evidence": "the image model made the area next to it darker (2.1% of the picture); the photo's own light there was kept",
+    "pano": 12
+   }
+  ],
+  "summary": "4 views edited. pano 13: fix (shading_changed); pano 21: fix (shading_changed); pano 23: fix (shading_changed); pano 12: fix (shading_changed)."
+ },
+ "preview": "preview.jpg",
+ "skipped": [],
+ "single_view": null,
+ "job": {
+  "job_id": "20261115-042547-ba3b6f",
+  "created": "2026-11-15T04:25:47-0500",
+  "started": "2026-11-15T04:56:58-0500",
+  "finished": "2026-11-15T05:05:01-0500",
+  "command": "change the white double doors to rich brown walnut wood",
+  "start": {
+   "pano_id": "06zehmuifehufx50xdstxcwbc",
+   "yaw": 302.4,
+   "pitch": -4.6,
+   "fov": 70.0,
+   "index": 13
+  }
+ }
+}
