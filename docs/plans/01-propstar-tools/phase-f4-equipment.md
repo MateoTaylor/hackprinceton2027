@@ -14,7 +14,7 @@ chooses from. After this phase `equipment_list` answers.
 - Create `app/server/src/model/equipment.ts` with `EQUIPMENT` and `EQUIPMENT_CLASSES`. The file
   imports no package, because the web app imports it at runtime.
 - The classes are `slab_scissor`, `rough_terrain_scissor`, `articulating_boom`, `telescopic_boom`,
-  `forklift`, `pallet_jack`, `prop` and `sign`.
+  `forklift`, `pallet_jack`, `wheelchair`, `prop` and `sign`.
 - Fill the lift rows from the lift table in [findings.md](findings.md). Recheck every number
   against the maker's specification sheet as you write it. Store metres. Compute
   `workingHeightM` as the platform height plus 1.83 m, which is the 6 ft the makers add.
@@ -22,8 +22,11 @@ chooses from. After this phase `equipment_list` answers.
   `placeable: false`, so the Scene tool never draws a vehicle at a guessed size.
 - Give each row a generic `id`, such as `slab_scissor_19ft`, and a generic `label`. Keep the
   maker's model name in `specRef` only, as the reference for the numbers.
-- Add one `forklift`, one `pallet_jack` and three `prop` rows (a grand piano, a crate and a
-  pallet). Mark their dimensions `inferred` with a `confidence`.
+- Add one `forklift`, one `pallet_jack`, one `wheelchair` and three `prop` rows (a grand piano, a
+  crate and a pallet). Mark their dimensions `inferred` with a `confidence`.
+- The `wheelchair` row is an occupied manual chair. Fahim asked on 2026-11-15 for a wheelchair
+  that the Scene tool places and drives. Keep it inside the 0.70 by 1.4 m footprint that
+  [r3](phase-r3-route-solve.md) routes for its `wheelchair` payload.
 - Add one `sign` row with the id `sign_panel`. It is a flat panel 2.4 m long, 0.6 m tall and
   0.05 m deep, marked `inferred`. [b5](phase-b5-surface-anchors.md) hangs it on a wall, and
   [b6](phase-b6-sign-size.md) lets a placed sign take another width and height.
