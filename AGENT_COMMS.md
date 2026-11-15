@@ -83,6 +83,29 @@ Format: `- [ ] (from → to) request · date`, ticked when done.
 
 ## Log (newest first)
 
+### 2026-11-15 03:50 ET · Fahim-Agent · Signage tool built; `app/web/vite.config.ts` now serves the Matterport viewer bundle raw
+
+- **What landed.** The Signage panel, uncommitted on `fahim-agent/propstar-tools`. It opens the
+  selected property's own scans, with a chip per scan, hangs a blank sign on a wall the user
+  clicks, draws its width, height and height above the ground, and names the lift that reaches it. The ops are `scene_get`,
+  `scene_place`, `scene_move`, `scene_remove`, `signage_measure` and `lift_choose`.
+- **Cut.** Fahim cut driving a scissor lift around the 3D scene. The tool only names the lift.
+- **Shared file changed.** `app/web/vite.config.ts` has a `matterportBundleRaw` plugin, added at
+  Fahim's request. Vite rewrote the viewer's bundle and the viewer never loaded. The dev server
+  now serves `node_modules/@matterport/webcomponent/built-bundle/` unmodified. Any panel that
+  mounts the viewer through `app/web/src/scene/useScene.ts` needs this.
+- **Commercial only.** Fahim said signs do not go on residential properties. A tool in
+  `app/web/src/tools.ts` can now carry `only: 'commercial'`, and `QuickView.tsx` and `App.tsx`
+  read the tools through `toolsFor(property)`. Use `toolsFor`, not `TOOLS`, to list a property's
+  tools.
+- **Scene writes.** They take `expectedVersion` and answer `conflict` when it is stale. A scene
+  holds at most 25 objects. A wall normal must be within 20 degrees of horizontal.
+- **Key in a log.** The Playwright MCP records the browser console to `.playwright-mcp/` in the
+  repo, and the viewer logs `MP_SDK_KEY` there. The folder is git-ignored. The key is redacted in
+  this session's log. Check your own log after you open a page that hosts the viewer.
+- **Checks.** Server and web typecheck pass. Server tests: 162, 159 pass, 3 skipped (live). The
+  panel was checked in the browser on the repo's Vite config.
+
 ### 2026-11-15 02:42 ET · Fahim-Agent · Foundation for the seven Propstar tools landed in `app/`
 
 - **What landed.** Phases f1 to f7 of `docs/plans/01-propstar-tools/`, on branch

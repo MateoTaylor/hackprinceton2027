@@ -10,7 +10,7 @@ import { Proppy } from './Proppy'
 import { QuickView } from './QuickView'
 import { Sidebar, type Listing } from './Sidebar'
 import { ToolPanel } from './ToolPanel'
-import { TOOLS, type ToolId } from './tools'
+import { toolsFor, type ToolId } from './tools'
 
 type View =
   | { kind: 'browse' }
@@ -55,7 +55,7 @@ export function App() {
 
   const selected = view.kind === 'browse' ? null : (all.find((p) => p.id === view.id) ?? null)
 
-  const tool = view.kind === 'tool' ? TOOLS.find((t) => t.id === view.tool) : undefined
+  const tool = selected && view.kind === 'tool' ? toolsFor(selected).find((t) => t.id === view.tool) : undefined
 
   const select = useCallback(
     (id: string) =>
@@ -130,7 +130,7 @@ export function App() {
             onSelect={select}
           />
           <div className={`map-control attribution${selected ? ' pill' : ''}`}>Imagery © Vexcel · Data © CoStar</div>
-          {selected && view.kind === 'selected' && (
+          {selected && (view.kind === 'selected' || (view.kind === 'tool' && !tool)) && (
             <QuickView
               property={selected}
               saved={saved.has(selected.id)}

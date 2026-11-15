@@ -1,0 +1,120 @@
+.signage-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+}
+
+.signage-target {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: transparent;
+  box-shadow: var(--color-accent-bright) 0 0 0 2px inset;
+  cursor: crosshair;
+}
+
+.signage-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.signage-row .button:disabled {
+  opacity: 0.5;
+}
+
+.signage-row .button[aria-pressed='true'] {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.signage-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 13px/16px var(--font);
+  color: var(--color-text-muted);
+}
+
+.signage-field input {
+  width: 72px;
+  height: 32px;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: 500 13px/16px var(--font);
+  font-variant-numeric: tabular-nums;
+}
+
+.signage-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  margin-left: auto;
+  font: 500 13px/16px var(--font);
+}
+
+.signage-switch span {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+}
+
+.signage-switch span::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-muted);
+}
+
+.signage-switch[aria-checked='true'] span {
+  background: var(--color-accent);
+}
+
+.signage-switch[aria-checked='true'] span::after {
+  left: 15px;
+  background: #ffffff;
+}
+
+.signage-remove {
+  background: var(--color-surface-2);
+}
+
+.signage-readout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.signage-readout dt {
+  font: 400 12px/16px var(--font);
+  color: var(--color-text-muted);
+}
+
+.signage-readout dd {
+  margin: 2px 0 0;
+  font: 500 13px/16px var(--font);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .signage-switch span::after {
+    transition: left 120ms ease;
+  }
+}

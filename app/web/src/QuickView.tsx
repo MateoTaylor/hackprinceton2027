@@ -2,7 +2,7 @@ import { Bookmark, X } from 'lucide-react'
 import type { Property } from '../../shared/property'
 import { fact } from './property'
 import { PropertyPhoto } from './PropertyPhoto'
-import { TOOLS, type ToolId } from './tools'
+import { toolsFor, type ToolId } from './tools'
 
 type Props = {
   property: Property
@@ -61,7 +61,7 @@ export function QuickView({ property, saved, onToggleSaved, onClose, onFlyThroug
           </div>
         )}
         <div className="tool-row" role="toolbar" aria-label="Tools">
-          {TOOLS.map((t) => (
+          {toolsFor(property).map((t) => (
             <button key={t.id} className="circle tool-button" aria-label={t.label} title={t.label} onClick={() => onTool(t.id)}>
               <t.icon size={16} />
             </button>
